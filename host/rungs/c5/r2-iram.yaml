@@ -1,0 +1,14 @@
+id: r2-iram
+applies_to: esp32c5
+parent: r1-cpu-opt
+lever: iram_wifi
+rationale: "IRAM placement. Expected to help the C5 disproportionately: on ESP32 parts
+  the per-packet cost is dominated by cache misses on flash-resident code and task-switch
+  overhead, not arithmetic, and the single core carries all of it.
+  CONFIG_ESP_INTR_IN_IRAM and CONFIG_ESP_PHY_IRAM_OPT are NOT valid on C5/IDF v6 and are
+  deliberately absent — that omission is the declared exception, not an oversight."
+config:
+  CONFIG_ESP_WIFI_IRAM_OPT: y
+  CONFIG_ESP_WIFI_RX_IRAM_OPT: y
+  CONFIG_LWIP_IRAM_OPTIMIZATION: y
+measured_gain_pct: null

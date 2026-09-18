@@ -1,0 +1,12 @@
+# Baseline is deliberately COMMON to both chips and deliberately un-tuned.
+# It is what makes the matched-configuration reading available alongside the
+# best-effort one, at no extra bench cost (plan §5.2).
+id: r0-baseline
+applies_to: esp32c5
+parent: null
+lever: null
+rationale: "Stock ESP-IDF defaults plus only what is needed to run. Common to both chips."
+config:
+  CONFIG_ESP_WIFI_POWER_SAVE_MIN_MODEM: n
+  CONFIG_ESP_WIFI_POWER_SAVE_NONE: y
+measured_gain_pct: null

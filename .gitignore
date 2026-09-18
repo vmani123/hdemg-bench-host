@@ -1,0 +1,24 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# host results — the ledger is per-bench-session data, not source
+host/results/*.jsonl
+host/results/report/
+host/results/sim-report/
+!host/results/.gitkeep
+
+# ESP-IDF build products
+firmware/*/build/
+firmware/*/sdkconfig
+firmware/*/sdkconfig.old
+firmware/*/sdkconfig.rung
+firmware/*/managed_components/
+firmware/*/dependencies.lock
+
+# hostrun runtime state
+_agent/queue/
+_agent/out/
+_agent/heartbeat
+_agent/audit.log

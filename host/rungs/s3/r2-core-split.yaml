@@ -1,0 +1,13 @@
+id: r2-core-split
+applies_to: esp32s3
+parent: r1-cpu-opt
+lever: core_split
+rationale: "S3-only, and the S3's only remaining structural advantage now that
+  compression lives upstream: Wi-Fi driver task and lwIP task on separate cores so one
+  can build the next segment while the other services a TX completion. Note this fights
+  with core locking (r3) — the ladder decides which wins, and that interaction is a
+  reportable result."
+config:
+  CONFIG_ESP_WIFI_TASK_CORE_ID_0: y
+  CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU1: y
+measured_gain_pct: null

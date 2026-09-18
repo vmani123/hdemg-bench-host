@@ -1,0 +1,241 @@
+"""Matrix orchestrator (spec §3).
+
+Walks a stage matrix, sweeps offered load, gates every run, writes one ledger record per
+measurement point, and resumes from the ledger after any failure. The scheduling rules
+are not cosmetic:
+
+  * runs are ordered BY BAND, because the hotspot serves one band at a time and the
+    switch is manual (spec §3.6);
+  * repeats of a cell are NOT consecutive, so phone thermal drift shows up as spread
+    rather than as a convincing downward trend (plan §7.3c).
+"""
+from __future__ import annotations
+import itertools
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import yaml
+
+from . import gates, rfmeta
+from .control import ControlClient
+from .frame import HDR_BYTES
+from .ledger import Ledger, git_sha, new_run_id
+from .receiver import Receiver
+
+DEFAULT_SWEEP = {"start_mbps": 1, "stop_mbps": 60, "steps": 8,
+                 "hold_s": 60, "discard_s": 3}
+LOSS_THRESHOLD_PCT = 0.1
+
+
+@dataclass
+class Run:
+    cell_id: str
+    chip: str
+    band: str
+    source: str
+    transport: str
+    tune: str
+    offered_bps: int
+    repeat: int
+
+    @property
+    def key(self) -> tuple:
+        return (self.cell_id, self.offered_bps, self.repeat)
+
+
+@dataclass
+class Matrix:
+    stage: int
+    repeats: int
+    sweep: dict
+    cells: list[dict]
+    ap: str = "iphone-hotspot"
+    frame_bytes: int = 270
+    expected_idf: str = "v6.0.2"
+
+    @classmethod
+    def load(cls, path: str | Path) -> "Matrix":
+        raw = yaml.safe_load(Path(path).read_text()) or {}
+        return cls(stage=raw.get("stage", 0), repeats=raw.get("repeats", 3),
+                   sweep={**DEFAULT_SWEEP, **(raw.get("sweep") or {})},
+                   cells=raw.get("cells") or [], ap=raw.get("ap", "iphone-hotspot"),
+                   frame_bytes=raw.get("frame_bytes", 270),
+                   expected_idf=raw.get("expected_idf", "v6.0.2"))
+
+    def offered_steps(self) -> list[int]:
+        s, e, n = self.sweep["start_mbps"], self.sweep["stop_mbps"], self.sweep["steps"]
+        if n <= 1:
+            return [int(e * 1e6)]
+        step = (e - s) / (n - 1)
+        return [int((s + i * step) * 1e6) for i in range(n)]
+
+    def expand(self) -> list[Run]:
+        runs: list[Run] = []
+        steps = self.offered_steps()
+        for rep in range(1, self.repeats + 1):        # repeat is the OUTER loop
+            for cell in self.cells:
+                chip, band = cell["chip"], str(cell["band"])
+                source = cell.get("source", "synth")
+                for transport in _aslist(cell.get("transport", ["udp"])):
+                    for tune in _aslist(cell.get("tune", ["tuned"])):
+                        cid = f"s{self.stage}-{chip}-{band}-{source}-{transport}-{tune}"
+                        for off in steps:
+                            runs.append(Run(cid, chip, band, source, transport,
+                                            tune, off, rep))
+        # Band-ordered: minimise manual hotspot switches.
+        runs.sort(key=lambda r: (r.repeat, str(r.band), r.chip, r.cell_id, r.offered_bps))
+        return runs
+
+
+class Driver:
+    """What the orchestrator needs from a device. Implemented for real hardware and for
+    the loopback fake, so the whole pipeline runs with no boards attached."""
+
+    def ensure_flashed(self, chip: str, source: str, tune: str) -> dict: ...
+    def control(self, chip: str) -> ControlClient: ...
+    def band_of(self, chip: str) -> str: ...
+    def request_band(self, band: str) -> None: ...
+
+
+class Orchestrator:
+    def __init__(self, matrix: Matrix, driver: Driver, ledger: Ledger, *,
+                 rig_ceilings: dict[str, float] | None = None,
+                 parity_ok: bool = True, recv_port: int = 3333,
+                 on_event=None):
+        self.m = matrix
+        self.driver = driver
+        self.ledger = ledger
+        self.rig_ceilings = rig_ceilings or {}
+        self.parity_ok = parity_ok
+        self.recv_port = recv_port
+        self.on_event = on_event or (lambda *_a, **_k: None)
+        self._first_rssi: dict[str, float] = {}
+        self._current_band: str | None = None
+
+    def pending(self) -> list[Run]:
+        done = self.ledger.completed_keys()
+        return [r for r in self.m.expand() if r.key not in done]
+
+    def run_all(self, limit: int | None = None) -> dict:
+        todo = self.pending()
+        if limit:
+            todo = todo[:limit]
+        ok = invalid = 0
+        for r in todo:
+            if str(r.band) != str(self._current_band):
+                self.driver.request_band(str(r.band))
+                self._current_band = str(r.band)
+                self.on_event("band", band=r.band)
+            rec = self.run_one(r)
+            if rec.get("valid", True):
+                ok += 1
+            else:
+                invalid += 1
+        return {"attempted": len(todo), "valid": ok, "invalid": invalid,
+                "remaining": len(self.pending())}
+
+    def run_one(self, r: Run) -> dict:
+        self.driver.ensure_flashed(r.chip, r.source, r.tune)
+        c = self.driver.control(r.chip)
+        hello = c.hello()
+        stat0 = c.stat()
+        ceiling = self.rig_ceilings.get(str(r.band))
+
+        first_rssi = self._first_rssi.setdefault(r.cell_id, stat0.get("rssi"))
+        pre_ctx = {
+            "associated": True, "band": self.driver.band_of(r.chip),
+            "expected_band": r.band, "rig_ceiling_mbps": ceiling,
+            "offered_bps": r.offered_bps, "rssi_dbm": stat0.get("rssi"),
+            "first_rssi_dbm": first_rssi, "ambient_ok": True,
+            "esp_reset_since_last": False, "idf_version": hello.get("idf"),
+            "expected_idf": self.m.expected_idf, "proto_ok": True,
+            "parity_ok": self.parity_ok,
+        }
+        pre = gates.pre_run(pre_ctx)
+
+        payload_bytes = self.m.frame_bytes - HDR_BYTES
+        hold = float(self.m.sweep["hold_s"])
+        # A run blocked by a pre-gate is still recorded, with zeroed metrics: the
+        # ledger must show that the point was attempted and refused, or resume would
+        # retry it forever and the report would silently under-count the matrix.
+        metrics_d: dict = {"goodput_bps": 0.0, "frames": 0, "loss_pct": 0.0,
+                           "duration_s": 0.0, "not_run": True}
+        post = gates.GateResult(True, [], [])
+        stat1: dict = {}
+
+        if pre.ok:
+            rx = Receiver(r.transport, self.recv_port, payload_bytes,
+                          duration_s=hold, discard_s=float(self.m.sweep["discard_s"]))
+            rx.start()
+            c.cfg(rate_bps=r.offered_bps, transport=r.transport,
+                  dst=f"{self.driver.host_ip()}:{self.recv_port}",
+                  dur_s=int(hold) + 2, frame_bytes=self.m.frame_bytes,
+                  payload="rand", label=f"{r.cell_id}-r{r.repeat}")
+            c.start()
+            metrics = rx.join()
+            try:
+                stat1 = c.stop().get("summary", {}) or c.stat()
+            except Exception:                                 # noqa: BLE001
+                stat1 = {}
+            metrics_d = metrics.as_dict()
+            post = gates.post_run({
+                "commanded_bps": r.offered_bps,
+                "achieved_bps": stat1.get("achieved_bps"),
+                "esp_reset_during": False,
+                "heap_min": stat1.get("heap"), "heap_floor": 20000,
+                "metrics": metrics_d, "rig_ceiling_mbps": ceiling,
+            })
+
+        valid = pre.ok and post.ok
+        rec = {
+            "run_id": new_run_id(r.cell_id, r.offered_bps, r.repeat),
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "git_sha": git_sha("."),
+            "target": r.chip, "variant": r.tune, "source": r.source,
+            "link": {"synth": "none", "qspi": "qspi", "sdio": "sdio4"}.get(r.source, r.source),
+            "transport": r.transport, "offered_bps": r.offered_bps,
+            "rate_hz": None, "duration_s": metrics_d.get("duration_s", 0.0),
+            "cell_id": r.cell_id, "repeat": r.repeat,
+            "rung": hello.get("rung"), "fw_sha": hello.get("fw_sha"),
+            "parity": {"ok": self.parity_ok},
+            "metrics": {**metrics_d,
+                        "idle_pct": stat1.get("idle_pct", stat0.get("idle_pct")),
+                        "retries": stat1.get("retries"),
+                        "achieved_bps": stat1.get("achieved_bps")},
+            "rf": rfmeta.collect(band=str(r.band), ap=self.m.ap,
+                                 rig_ceiling_mbps=ceiling,
+                                 device_stat={**stat0, **stat1},
+                                 idf_version=hello.get("idf")),
+            "valid": valid,
+            "source_limited": gates.source_limited({
+                "commanded_bps": r.offered_bps,
+                "achieved_bps": stat1.get("achieved_bps")}),
+            "gate_failures": pre.failures + post.failures,
+            "gate_warnings": pre.warnings + post.warnings,
+        }
+        self.ledger.append(rec)
+        self.on_event("run", run=r, valid=valid,
+                      goodput_mbps=metrics_d.get("goodput_bps", 0) / 1e6,
+                      loss=metrics_d.get("loss_pct"))
+        return rec
+
+
+def knee(records: list[dict], threshold_pct: float = LOSS_THRESHOLD_PCT) -> dict:
+    """Highest offered load whose loss stays under the threshold, plus the goodput there.
+
+    This — not the saturated number — is what the plan calls the ceiling, because a part
+    that degrades gracefully and one that collapses can share a saturated figure.
+    """
+    ok = [r for r in records
+          if r.get("valid", True) and r["metrics"].get("loss_pct", 100) < threshold_pct]
+    if not ok:
+        return {"knee_offered_bps": None, "goodput_bps": None, "n": 0}
+    best = max(ok, key=lambda r: r["offered_bps"])
+    return {"knee_offered_bps": best["offered_bps"],
+            "goodput_bps": best["metrics"]["goodput_bps"],
+            "n": len(ok)}
+
+
+def _aslist(v):
+    return v if isinstance(v, list) else [v]

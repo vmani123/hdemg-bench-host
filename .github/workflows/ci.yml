@@ -1,0 +1,43 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  host:
+    name: host harness (no hardware)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -r host/requirements-dev.txt
+      - name: Shared-core integrity
+        run: cd host && python -m cli.bench parity --firmware ../firmware
+      - name: Loopback self-test — the whole harness against fake ESPs
+        run: cd host && python -m pytest tests/ -q
+      - name: End-to-end simulated sweep + rendered report
+        run: |
+          cd host
+          python -m cli.bench sim --matrix matrices/stage1.yaml --hold 1.0 \
+            --limit 24 --ledger results/ci.jsonl
+          python -m cli.bench report --ledger results/ci.jsonl --out results/ci-report
+      - uses: actions/upload-artifact@v4
+        with: {name: simulated-report, path: host/results/ci-report}
+
+  firmware:
+    name: firmware ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    container: espressif/idf:release-v6.0
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [esp32s3, esp32c5]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (ingress=synth, rung=r0-baseline)
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          cd firmware/${{ matrix.target }}
+          idf.py set-target ${{ matrix.target }}
+          idf.py -DBENCH_INGRESS=synth -DBENCH_RUNG=r0-baseline build
+          idf.py size

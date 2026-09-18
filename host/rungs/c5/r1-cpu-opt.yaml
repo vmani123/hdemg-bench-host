@@ -1,0 +1,11 @@
+id: r1-cpu-opt
+applies_to: esp32c5
+parent: r0-baseline
+lever: cpu_max_clock
+rationale: "Max clock, -O2, logging off. The cheapest levers first so later gains are
+  measured against a sane floor rather than against a debug build."
+config:
+  CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240: y
+  CONFIG_COMPILER_OPTIMIZATION_PERF: y
+  CONFIG_LOG_DEFAULT_LEVEL_NONE: y
+measured_gain_pct: null

@@ -1,0 +1,13 @@
+# Stage 1 — paced synthetic source, swept. No wiring, no STM32.
+# The control arm every later number is subtracted from.
+# 3 chip/band x 2 transport x 2 tune = 12 cells x 8 loads x 3 repeats.
+stage: 1
+repeats: 3
+ap: iphone-hotspot
+expected_idf: v6.0.2
+frame_bytes: 270
+sweep: {start_mbps: 4, stop_mbps: 60, steps: 8, hold_s: 60, discard_s: 3}
+cells:
+  - {chip: esp32c5, band: "5",   source: synth, transport: [udp, tcp], tune: [baseline, tuned]}
+  - {chip: esp32c5, band: "2.4", source: synth, transport: [udp, tcp], tune: [baseline, tuned]}
+  - {chip: esp32s3, band: "2.4", source: synth, transport: [udp, tcp], tune: [baseline, tuned]}

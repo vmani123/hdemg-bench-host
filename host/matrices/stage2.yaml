@@ -1,0 +1,15 @@
+# Stage 2 — real ingress. 2a is the comparable arm (QSPI, both chips);
+# 2b is the C5-only SDIO extension, compared to the C5's own QSPI number and
+# never directly against an S3 number.
+stage: 2
+repeats: 3
+ap: iphone-hotspot
+expected_idf: v6.0.2
+frame_bytes: 270
+sweep: {start_mbps: 4, stop_mbps: 60, steps: 8, hold_s: 60, discard_s: 3}
+cells:
+  - {chip: esp32c5, band: "5",   source: qspi, transport: [udp, tcp], tune: [tuned]}
+  - {chip: esp32c5, band: "2.4", source: qspi, transport: [udp, tcp], tune: [tuned]}
+  - {chip: esp32s3, band: "2.4", source: qspi, transport: [udp, tcp], tune: [tuned]}
+  - {chip: esp32c5, band: "5",   source: sdio, transport: [udp, tcp], tune: [tuned]}
+  - {chip: esp32c5, band: "2.4", source: sdio, transport: [udp, tcp], tune: [tuned]}

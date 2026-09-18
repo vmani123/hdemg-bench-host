@@ -1,0 +1,62 @@
+# The equal-effort checklist (plan §5.4).
+#
+# This is NOT a shared configuration — the two chips are tuned independently and their
+# ladders diverge on purpose. What this file does is make a lever's status VISIBLE on
+# both chips, so "attempted and it lost" is distinguishable from "forgotten".
+#
+# Fill `attempted` with the rung id that tried it, or an explicit reason it does not
+# apply. `bench effort` fails while any entry reads NOT ATTEMPTED.
+levers:
+  - id: cpu_max_clock
+    note: "CPU at maximum clock"
+    attempted: {s3: NOT ATTEMPTED, c5: NOT ATTEMPTED}
+  - id: opt_perf
+    note: "COMPILER_OPTIMIZATION_PERF (-O2)"
+    attempted: {s3: NOT ATTEMPTED, c5: NOT ATTEMPTED}
+  - id: logging_off
+    note: "log level none"
+    attempted: {s3: NOT ATTEMPTED, c5: NOT ATTEMPTED}
+  - id: ampdu_ba_win
+    note: "AMPDU on, larger TX block-ack window"
+    attempted: {s3: NOT ATTEMPTED, c5: NOT ATTEMPTED}
+  - id: wifi_buffers
+    note: "larger Wi-Fi TX/RX buffer counts"
+    attempted: {s3: NOT ATTEMPTED, c5: NOT ATTEMPTED}
+  - id: lwip_window
+    note: "larger lwIP TCP window and send buffer"
+    attempted: {s3: NOT ATTEMPTED, c5: NOT ATTEMPTED}
+  - id: core_lock
+    note: "LWIP_TCPIP_CORE_LOCKING (+INPUT)"
+    attempted: {s3: NOT ATTEMPTED, c5: NOT ATTEMPTED}
+  - id: iram_wifi
+    note: "ESP_WIFI_IRAM_OPT + ESP_WIFI_RX_IRAM_OPT + LWIP_IRAM_OPTIMIZATION"
+    attempted: {s3: NOT ATTEMPTED, c5: NOT ATTEMPTED}
+  - id: spi_isr_iram
+    note: "SPI_SLAVE_ISR_IN_IRAM"
+    attempted: {s3: NOT ATTEMPTED, c5: NOT ATTEMPTED}
+  - id: zero_copy_dma
+    note: "zero-copy DMA into the pipe buffer"
+    attempted: {s3: NOT ATTEMPTED, c5: NOT ATTEMPTED}
+  - id: tcp_nodelay
+    note: "TCP_NODELAY"
+    attempted: {s3: NOT ATTEMPTED, c5: NOT ATTEMPTED}
+  - id: static_tx_buffers
+    note: "static vs dynamic Wi-Fi TX buffers"
+    attempted: {s3: NOT ATTEMPTED, c5: NOT ATTEMPTED}
+  - id: frame_size
+    note: "MTU / frame-size sweep"
+    attempted: {s3: NOT ATTEMPTED, c5: NOT ATTEMPTED}
+  # Chip-exclusive levers. Recorded here too so the asymmetry is explicit rather
+  # than an omission a reviewer has to notice.
+  - id: core_split
+    note: "S3-only: Wi-Fi and lwIP tasks on separate cores"
+    attempted: {s3: NOT ATTEMPTED, c5: "n/a — single core"}
+  - id: psram_bufs
+    note: "S3-only: large Wi-Fi/lwIP buffers in PSRAM (may lose; PSRAM is slower)"
+    attempted: {s3: NOT ATTEMPTED, c5: "n/a — no PSRAM on C5-N4"}
+  - id: band_5ghz
+    note: "C5-only: 5 GHz band"
+    attempted: {s3: "n/a — 2.4 GHz only", c5: NOT ATTEMPTED}
+  - id: he_tuning
+    note: "C5-only: 802.11ax/HE aggregation settings"
+    attempted: {s3: "n/a — Wi-Fi 4", c5: NOT ATTEMPTED}

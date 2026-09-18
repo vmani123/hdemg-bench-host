@@ -1,0 +1,11 @@
+id: r1-cpu-opt
+applies_to: esp32s3
+parent: r0-baseline
+lever: cpu_max_clock
+rationale: "Max clock, -O2, logging off. Same lever as the C5's r1; the ladders diverge
+  after this point."
+config:
+  CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240: y
+  CONFIG_COMPILER_OPTIMIZATION_PERF: y
+  CONFIG_LOG_DEFAULT_LEVEL_NONE: y
+measured_gain_pct: null

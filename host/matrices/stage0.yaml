@@ -1,0 +1,12 @@
+# Stage 0 — rig validation and radio ceiling, stock ESP-IDF iperf, no custom firmware.
+# 6 cells x 3 repeats. Run the hotspot ceiling measurement (plan §7.4) FIRST.
+stage: 0
+repeats: 3
+ap: iphone-hotspot
+expected_idf: v6.0.2
+frame_bytes: 270
+sweep: {start_mbps: 60, stop_mbps: 60, steps: 1, hold_s: 60, discard_s: 3}
+cells:
+  - {chip: esp32c5, band: "5",   source: synth, transport: [udp, tcp], tune: [tuned]}
+  - {chip: esp32c5, band: "2.4", source: synth, transport: [udp, tcp], tune: [tuned]}
+  - {chip: esp32s3, band: "2.4", source: synth, transport: [udp, tcp], tune: [tuned]}
