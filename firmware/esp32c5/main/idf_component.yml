@@ -1,5 +1,17 @@
-dependencies:
-  idf: ">=6.0.2"
-  protocol_examples_common:
-    path: ${IDF_PATH}/examples/common_components/protocol_examples_common
-    override_path: ${IDF_PATH}/examples/common_components/protocol_examples_common
+# Intentionally declares nothing.
+#
+# Two things were wrong here before and both stopped the build before a single file
+# compiled:
+#
+#   1. `idf: ">=6.0.2"` — a version constraint rejects any DEV build of ESP-IDF, because
+#      `v6.0-dev-2980-g...` sorts BELOW `6.0.0` under semver pre-release rules. Both a
+#      local v6.0-dev checkout and the espressif/idf:release-v6.0 CI container report
+#      that shape of version, so the constraint refused working toolchains. The required
+#      version is documented in the README and recorded in every ledger record, which is
+#      where a reproducibility requirement belongs — not in a gate that fails good builds.
+#
+#   2. `protocol_examples_common` with a `path:` of `${IDF_PATH}/...` — the component
+#      manager does not expand environment variables in a path field. It is referenced
+#      through EXTRA_COMPONENT_DIRS in the project CMakeLists instead, which is the
+#      supported way to use an in-tree IDF example component.
+dependencies: {}

@@ -9,25 +9,34 @@
 #include "esp_wifi.h"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
+#include "esp_freertos_hooks.h"
+#include "soc/soc_caps.h"
+#include <stdbool.h>
 
-static volatile uint32_t s_idle_ticks[portNUM_PROCESSORS];
-static uint32_t          s_idle_window[portNUM_PROCESSORS];
-static int64_t           s_window_t0;
+/* CONFIG_FREERTOS_NUMBER_OF_CORES replaced portNUM_PROCESSORS in IDF v5.3 and the old
+ * name is gone in v6. */
+#ifndef CONFIG_FREERTOS_NUMBER_OF_CORES
+#define CONFIG_FREERTOS_NUMBER_OF_CORES 1
+#endif
+#define NCORES CONFIG_FREERTOS_NUMBER_OF_CORES
 
-/* FreeRTOS idle hooks: count idle passes per core, convert to a percentage against a
- * calibrated free-running maximum. Cheap, and it is the only CPU-headroom number that
- * does not require a profiler on the bench. */
+static volatile uint32_t s_idle_ticks[NCORES];
+static uint32_t          s_idle_window[NCORES];
+
+/* Idle hooks count idle passes per core; the count is converted to a percentage against
+ * a maximum calibrated at boot. Cheap, and it is the only CPU-headroom number available
+ * without a profiler on the bench — which matters because idle-at-the-knee is the
+ * observable that settles the single-core question (plan §2.3).
+ *
+ * esp_register_freertos_idle_hook_for_cpu() is used rather than the plain
+ * vApplicationIdleHook: it is per-core, which is the whole point on the dual-core S3,
+ * and it does not depend on CONFIG_FREERTOS_USE_IDLE_HOOK. Its callback returns bool. */
 static uint32_t s_idle_max_per_s = 1;
 
-bool vApplicationIdleHook(void)
-{
-#if portNUM_PROCESSORS > 1
-    s_idle_ticks[xPortGetCoreID()]++;
-#else
-    s_idle_ticks[0]++;
+static bool idle_hook_cpu0(void) { s_idle_ticks[0]++; return false; }
+#if NCORES > 1
+static bool idle_hook_cpu1(void) { s_idle_ticks[1]++; return false; }
 #endif
-    return false;
-}
 
 static void instr_task(void *arg)
 {
@@ -40,9 +49,8 @@ static void instr_task(void *arg)
 
     for (;;) {
         memset((void *)s_idle_ticks, 0, sizeof(s_idle_ticks));
-        s_window_t0 = esp_timer_get_time();
         vTaskDelay(pdMS_TO_TICKS(1000));
-        for (int c = 0; c < portNUM_PROCESSORS; c++) s_idle_window[c] = s_idle_ticks[c];
+        for (int c = 0; c < NCORES; c++) s_idle_window[c] = s_idle_ticks[c];
     }
 }
 
@@ -64,21 +72,27 @@ static void phy_rate_str(char *out, size_t n)
 {
     wifi_ap_record_t ap;
     if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) { snprintf(out, n, "unknown"); return; }
+    /* SOC_WIFI_HE_SUPPORT comes from soc_caps.h — it is NOT a Kconfig symbol, so the
+     * old CONFIG_ prefix silently compiled the HE branch out. This is the field that
+     * answers whether the access point ever offered 802.11ax (plan §7.3b): until it
+     * reads HE, the C5 was not exercised at Wi-Fi 6 rates and its figure is a lower
+     * bound. Getting the guard wrong would have hidden exactly that. */
     const char *mode = "legacy";
-#ifdef CONFIG_SOC_WIFI_HE_SUPPORT
+#if SOC_WIFI_HE_SUPPORT
     if (ap.phy_11ax) mode = "HE";
     else
 #endif
     if (ap.phy_11n) mode = "HT";
     else if (ap.phy_11g) mode = "11g";
-    snprintf(out, n, "%s ch%u", mode, (unsigned)ap.primary);
+    snprintf(out, n, "%s ch%u bw%u", mode, (unsigned)ap.primary,
+             ap.second == WIFI_SECOND_CHAN_NONE ? 20u : 40u);
 }
 
 void instr_stat_json(char *out, size_t out_sz, const char *wrap_key)
 {
     pipe_stats_t st; pipe_stats(&st);
     char idle[48] = "[";
-    for (int c = 0; c < portNUM_PROCESSORS; c++) {
+    for (int c = 0; c < NCORES; c++) {
         char one[16];
         float pct = 100.0f * (float)s_idle_window[c] / (float)s_idle_max_per_s;
         if (pct > 100.0f) pct = 100.0f;
@@ -105,5 +119,9 @@ void instr_stat_json(char *out, size_t out_sz, const char *wrap_key)
 
 void instr_start(void)
 {
+    esp_register_freertos_idle_hook_for_cpu(idle_hook_cpu0, 0);
+#if NCORES > 1
+    esp_register_freertos_idle_hook_for_cpu(idle_hook_cpu1, 1);
+#endif
     xTaskCreate(instr_task, "instr", 3072, NULL, 1, NULL);
 }

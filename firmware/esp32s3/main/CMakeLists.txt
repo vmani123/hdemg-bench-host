@@ -11,7 +11,8 @@ elseif(NOT BENCH_INGRESS STREQUAL "synth")
     message(FATAL_ERROR "unknown BENCH_INGRESS '${BENCH_INGRESS}' (want: synth | qspi)")
 endif()
 
-idf_component_register(SRCS ${SRCS} INCLUDE_DIRS "." REQUIRES bench_common)
+idf_component_register(SRCS ${SRCS} INCLUDE_DIRS "."
+                       REQUIRES bench_common protocol_examples_common esp_wifi)
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
     INGRESS_NAME="${BENCH_INGRESS}"
