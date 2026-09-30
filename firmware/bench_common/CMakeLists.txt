@@ -13,6 +13,8 @@
 # Every tuning lever lives in host/rungs/<chip>/, and target-specific ingress and pin
 # maps live in firmware/<target>/main/. Each chip is tuned independently — that
 # divergence is the experiment.
+include("${CMAKE_CURRENT_LIST_DIR}/../bench_options.cmake")
+
 set(SRCS
     "pipe.c"
     "control.c"

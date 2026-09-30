@@ -37,7 +37,12 @@ jobs:
         shell: bash
         run: |
           . $IDF_PATH/export.sh
+          # The checkout is owned by a different uid inside the container, so git refuses
+          # to describe it and PROJECT_VER falls back to a placeholder. That version is
+          # what the firmware reports as fw_sha in every ledger record, so a run could
+          # not be traced back to a build. Cheap to fix, and it matters for provenance.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           cd firmware/${{ matrix.target }}
-          idf.py set-target ${{ matrix.target }}
+          idf.py -DBENCH_INGRESS=synth -DBENCH_RUNG=r0-baseline set-target ${{ matrix.target }}
           idf.py -DBENCH_INGRESS=synth -DBENCH_RUNG=r0-baseline build
           idf.py size

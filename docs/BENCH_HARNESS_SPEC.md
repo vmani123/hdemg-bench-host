@@ -5,9 +5,8 @@ is written until it is signed off.
 
 **Updated 2026-09-16:** no ESP-side compression (codec removed from the control plane and the build
 matrix); **iPhone 17 Pro is the access point, with the Mac wired to it over USB-C** (see plan §7) —
-new §3.6 band scheduling, §3.7 association keepalive, and §6 hotspot gates. **Three repositories**
-(one per ESP target, one for the host) — see §1.0 for the layout and the parity mechanism that keeps
-the two firmwares comparable.
+new §3.6 band scheduling, §3.7 association keepalive, and §6 hotspot gates. **One repository**, in which the
+measurement core is a single shared component both targets compile — see §1.0.
 
 **Scale of the problem:** 12 (Stage 1) + 6 (Stage 2a) + 4 (Stage 2b) = **22 cells**, most swept over
 ~8 offered loads and repeated 3×, plus 18 Stage-0 runs. Order of **500 measured runs**. Done by hand
@@ -37,83 +36,77 @@ hours and automate everything downstream.
 
 ---
 
-## 1. Firmware — two repositories, one behaviour
+## 1. Firmware — one shared measurement core, two targets
 
-The firmware lives in **two separate repositories**, one per target (§1.0). Everything in this section
-applies identically to both; §1.0 specifies the mechanism that keeps them identical, because a
-difference in firmware that is not a difference in silicon would silently void the comparison.
+**Layout note (superseded design).** This section previously described three repositories
+— one per ESP target plus the host — kept comparable by a byte-for-byte checker. That was
+replaced by a single repository in which the measurement core exists **once** and both
+targets compile it. The reasoning below is why, because it is the same reasoning that
+decides what may and may not diverge between the chips.
 
-### 1.0 Repository split and the parity problem
+### 1.0 One core, not two kept in sync
 
-| Repo | Holds |
-|---|---|
-| `hdemg-esp32s3-uplink` | S3 firmware: pipe core, control plane, synth source, QSPI ingress, S3 pin map |
-| `hdemg-esp32c5-uplink` | C5 firmware: the same, plus SDIO ingress and the C5 pin map |
-| `hdemg-bench-host` | Everything on the host (§2–§8), **the per-chip rung ladders** |
+```
+firmware/bench_common/     THE measurement core — one copy, both targets compile it
+firmware/esp32s3/          entry point, pin map, QSPI ingress
+firmware/esp32c5/          entry point, pin map, QSPI + SDIO ingress
+host/                      harness, per-chip rung ladders, matrices, ledger, report
+```
 
-**What must match, and what must not.** This is a **best-effort comparison** (plan §5.2): each chip is
-tuned independently for maximum performance, including with levers the other chip does not have. So
-the firmwares are *expected* to diverge in configuration. What must not diverge is the **measurement
-contract** — if the two builds count goodput at different points in the pipeline, pace at different
-accuracies, or stamp latency from different instants, the comparison is void no matter how well each
-chip is tuned, and nothing in the data would reveal it.
+**What must match, and what must not.** This is a **best-effort comparison** (plan §5.2):
+each chip is tuned independently for maximum performance, including with levers the other
+chip does not have. So the two builds are *expected* to diverge in configuration. What must
+not diverge is the **measurement contract** — if the two count goodput at different points
+in the pipeline, pace at different accuracies, or stamp latency from different instants,
+the comparison is void no matter how well each chip is tuned, and nothing in the data would
+reveal it.
 
-Two repos make that drift easy and invisible. Two mechanisms address it.
+Two copies of that code, however carefully reviewed, can drift. One copy makes the drift
+impossible **by construction**, which is stronger than any checker. That is the whole
+argument for the monorepo, and it is why `firmware/bench_common/` holds:
 
-**(a) The host repo owns the rung ladders.** Per-chip ladders live in `hdemg-bench-host/rungs/s3/` and
-`rungs/c5/`, not in the firmware repos. They are allowed — expected — to differ. Keeping them in the
-host repo buys three things: the orchestrator can apply a rung without a firmware commit; each rung
-records its **measured gain**, making the ladder the evidence that the equal-effort protocol (plan
-§5.4) was followed; and the common-lever list is defined once, so a lever attempted on one chip is
-visibly either attempted or declined on the other rather than silently forgotten.
+frame construction and `hdemg_frame.h` (§1.4) · the byte-counting point, `pipe_note_sent()`
+in `pipe.c`, called once by the sink task and nowhere else · the pacing token bucket (§1.3)
+· the latency stamp instant · the instrumentation definitions (§1.5) · the control-plane
+protocol (§1.2).
+
+**Free to differ — this is the experiment:** every `sdkconfig` lever; buffer pool geometry,
+frame size and queue depths; task and core placement; PSRAM use; ingress peripheral init
+and pin maps; `source_sdio.c` (C5 only); band.
+
+The line between the two lists is: *does this change what the number means, or how big the
+number is?* The first is locked; the second is what we are measuring.
+
+### 1.0.1 The host owns the tuning, the firmware owns none of it
+
+Per-chip ladders live in `host/rungs/s3/` and `host/rungs/c5/`, and
+`firmware/*/sdkconfig.defaults` carries **environment only** — nothing that affects
+throughput. The ladders are allowed, expected, to differ. Keeping them on the host side
+buys three things: the orchestrator applies a rung without a firmware commit; each rung
+records its **measured gain**, making the ladder the evidence that the equal-effort
+protocol (plan §5.4) was followed; and the common-lever list is defined once, so a lever
+attempted on one chip is visibly either attempted or explicitly declined on the other
+rather than silently forgotten.
 
 ```yaml
-# rungs/s3/r7-core-split.yaml
-parent: r6
+# host/rungs/s3/r2-core-split.yaml
+parent: r1-cpu-opt
 applies_to: esp32s3
+lever: core_split
 rationale: "S3-only: separate Wi-Fi and lwIP tasks across cores"
 config:
-  CONFIG_ESP_WIFI_TASK_CORE_ID: 0
+  CONFIG_ESP_WIFI_TASK_CORE_ID_0: y
   CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU1: y
-measured_gain_pct: null      # filled by the orchestrator
+measured_gain_pct: null      # filled in as the ladder is climbed
 ```
 
-```yaml
-# rungs/common-levers.yaml — the equal-effort checklist
-levers:
-  - {id: iram_wifi,   attempted: {esp32s3: r3, esp32c5: r3}}
-  - {id: core_lock,   attempted: {esp32s3: r5, esp32c5: r4}}
-  - {id: psram_bufs,  attempted: {esp32s3: r8, esp32c5: "n/a — no PSRAM"}}
-```
+### 1.0.2 What the parity check still does
 
-**(b) The parity checker verifies the measurement contract, not the configuration.**
-`hdemg-bench-host/tools/parity.py` fails the gate when the two firmware repos differ in:
-
-- the **measurement-critical shared sources** — frame construction, the byte-counting point, the
-  pacing token bucket, the latency stamp instant, the instrumentation definitions — compared byte for
-  byte;
-- the **ESP-IDF version** each was built against;
-- the **control-plane protocol version**, so a `cfg` field cannot mean different things to the two.
-
-It deliberately does **not** compare `sdkconfig`. Divergent configuration is the point of the
-experiment; divergent measurement is the thing that would invalidate it.
-
-Both firmware SHAs, both rung ids, and the parity result are written into every ledger record, so any
-published number traces to a build pair whose measurement contract was verified equivalent.
-
-### 1.0.1 What is shared vs target-specific
-
-**Measurement-critical — must be byte-identical, enforced by the gate:** frame construction and the
-`hdemg_frame.h` header (§1.4), the byte-counting point in `pipe.c`, the pacing token bucket (§1.3),
-the latency stamp instant, the instrumentation definitions (§1.5), and the control-plane protocol
-(§1.2).
-
-**Free to differ — this is the experiment:** every `sdkconfig` lever; buffer pool geometry, frame size
-and queue depths; task and core placement; PSRAM use; ingress peripheral init and pin maps; `sdio_*`
-(C5 only); band.
-
-The line between the two lists is: *does this change what the number means, or how big the number is?*
-The first is locked; the second is what we are measuring.
+With one copy of the core, file drift cannot happen. `host/bench/parity.py` guards the way
+the guarantee breaks in a monorepo instead: a target whose CMakeLists stops pointing at the
+shared component, a contract file copied into `firmware/<target>/main/` to "just tweak it
+for this chip", a duplicated `CONTROL_PROTOCOL_VERSION`, or a missing IDF pin. It
+deliberately does **not** compare `sdkconfig`.
 
 ### 1.1 Build-time vs runtime
 
@@ -343,29 +336,28 @@ rendering from a fixture ledger.
 
 ---
 
-## 8.1 Repository trees
+## 8.1 Repository tree
 
 ```
-hdemg-esp32s3-uplink/          hdemg-esp32c5-uplink/         hdemg-bench-host/
-  main/                          main/                         bench.py        # orchestrator §3
-    pipe.c  pipe.h     ┐          pipe.c  pipe.h     ┘         receiver.py     # §2
-    control.c          │          control.c                    report.py       # §5
-    source_synth.c     ├─ byte-   source_synth.c               fakeesp.py      # loopback §8
-    sink_tcp.c         │  identical sink_tcp.c                  rungs/          # tuning matrix §1.0a
-    sink_udp.c         │          sink_udp.c                      baseline.yaml
-    instr.c            ┘          instr.c                         tuned1..N.yaml
-    source_qspi_s3.c   ← target    source_qspi_c5.c             matrices/       # §3.1
-    pins_s3.h             specific source_sdio_c5.c               stage0.yaml …
-  sdkconfig.defaults             source_synth.c                tools/
-  CMakeLists.txt                 pins_c5.h                       parity.py     # §1.0b
-                                 sdkconfig.defaults              rfmeta.py     # §3.5
-                                 CMakeLists.txt                hostrun.sh      # §7
-                                                               results/runs.jsonl
-                                                               tests/
+hdemg-bench/
+  firmware/
+    bench_common/      pipe.c control.c pacing.c instr.c source_synth.c
+                       sink_udp.c sink_tcp.c  include/{pipe,control,pacing,instr,hdemg_frame}.h
+    bench_options.cmake   BENCH_INGRESS / BENCH_RUNG defaults, resolved in one place
+    esp32s3/           CMakeLists.txt sdkconfig.defaults main/{app_main.c,pins_s3.h,source_qspi.c}
+    esp32c5/           same, plus main/source_sdio.c
+  host/
+    bench/             frame control receiver fakeesp ledger gates rungs parity rfmeta
+                       orchestrator drivers report palette
+    cli/bench.py       sim | run | report | parity | effort
+    rungs/             common-levers.yaml + s3/ c5/
+    matrices/          stage0 stage1 stage2
+    tools/apply_rung.py
+    results/runs.jsonl
+    tests/
+  hostrun.sh           the constrained runner that builds and flashes on the Mac
+  docs/                this file + the test plan
 ```
-
-The host repo is the one that pins everything together: it owns the rung ladders, the run matrices,
-the parity gate and the ledger. Neither firmware repo depends on the others; the host repo reads both.
 
 ## 9. Build order
 
