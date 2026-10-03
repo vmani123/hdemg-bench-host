@@ -62,6 +62,11 @@ class SimDriver:
             self._respawn(chip)
         return ControlClient("127.0.0.1", self._ports[chip], timeout=2.0)
 
+    def recover(self, chip: str) -> bool:
+        """Simulated power cycle: respawn the fake device."""
+        self._respawn(chip)
+        return True
+
     def shutdown(self) -> None:
         for esp in self._esps.values():
             esp.shutdown()
@@ -97,13 +102,15 @@ class HardwareDriver:
 
     def __init__(self, ips: dict[str, str], firmware_root: str | Path,
                  ports: dict[str, str], agent_dir: str | Path = "_agent",
-                 host_ip: str | None = None, interactive_band: bool = True):
+                 host_ip: str | None = None, interactive_band: bool = True,
+                 hub_ports: dict[str, str] | None = None):
         self.ips = ips
         self.firmware_root = Path(firmware_root)
         self.ports = ports
         self.agent_dir = Path(agent_dir)
         self._host_ip = host_ip
         self.interactive_band = interactive_band
+        self.hub_ports = hub_ports or {}
         self._flashed: dict[str, tuple] = {}
         self._band = None
 
@@ -128,7 +135,33 @@ class HardwareDriver:
         if self.interactive_band:
             input(f"\n>> Set Personal Hotspot -> Maximize Compatibility {toggle}, "
                   f"then press Enter. ")
+        else:
+            # Non-interactive: the band was set before the sweep started (one toggle per
+            # unattended block). Announce it; the pre-run gate verifies the band from the
+            # device itself, so a wrong toggle fails loudly rather than silently
+            # producing numbers for the other band.
+            print(f">> assuming hotspot is already on {band} GHz "
+                  f"(Maximize Compatibility {toggle})")
         self._band = band
+
+    def recover(self, chip: str) -> bool:
+        """Power-cycle a wedged board through a uhubctl-capable hub, if one is configured.
+
+        Without a switchable hub there is nothing to do but report it — pressing RESET is
+        the one step in the sweep that still needs hands."""
+        hub_port = self.hub_ports.get(chip)
+        if not hub_port:
+            print(f">> {chip} is not answering and no switchable hub port is configured "
+                  f"for it; skipping this point")
+            return False
+        try:
+            self._hostrun("power_cycle", hub_port=hub_port)
+        except (TimeoutError, OSError) as e:
+            print(f">> power cycle of {chip} failed: {e}")
+            return False
+        time.sleep(12.0)        # boot + Wi-Fi association
+        self._flashed.pop(chip, None)
+        return True
 
     def band_of(self, chip: str) -> str:
         try:

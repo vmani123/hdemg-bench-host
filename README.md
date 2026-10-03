@@ -111,6 +111,45 @@ property of the rig, not the silicon.
    orchestrator sorts runs by band so this happens at most twice per stage, and verifies
    the band from the device rather than taking your word for it.
 
+## Running a sweep unattended
+
+The hotspot serves one band at a time and the toggle is manual, so **one band is the unit
+that runs unattended**. Two blocks with one toggle between them, rather than six blocking
+prompts scattered through the night.
+
+Once per band, before anything else — measure the rig ceiling with a known-good client
+(a second laptop or tablet running `iperf3` to the Mac over the hotspot). Every run is
+refused without it, because a number above the rig's own ceiling is a property of the rig.
+
+**Block 1 — 2.4 GHz** (Maximize Compatibility ON), both boards flashed and associated:
+
+```bash
+cd host
+python3 -m cli.bench run --matrix matrices/stage1.yaml     --band 2.4 --unattended --ceilings 2.4=<measured>,5=<measured>     --s3-hub-port 2 --c5-hub-port 3        # omit if you have no switchable hub
+```
+
+Go to bed. In the morning, flip Maximize Compatibility **OFF** (5 GHz) and run block 2
+with `--band 5`. The S3 has no cells in that block — it is 2.4-only.
+
+```bash
+python3 -m cli.bench report
+```
+
+Three things keep it alive overnight:
+
+- **Keepalive.** Apple drops third-party hotspot clients after 90 s without traffic, and
+  the gaps between runs exceed that. A low-rate control-plane poll holds the association,
+  pauses during every measurement so it never appears in its own number, and records a
+  re-association on the next run's ledger record rather than absorbing it silently.
+- **`--unattended`** never blocks on a prompt. Set the band before starting; the pre-run
+  gate verifies it *from the device*, so a wrong toggle fails loudly instead of quietly
+  producing numbers for the other band.
+- **Auto power-cycle.** A board that stops answering gets one power cycle through a
+  `uhubctl` hub, then the point is recorded invalid and the sweep moves on. Resume retries
+  it later. One wedged board costs one measurement, not the night.
+
+Scale: Stage 1 is 288 runs at 60 s hold — about 5.5 hours, roughly 12 flashes.
+
 ## Status
 
 Stage 1 (paced synthetic source) is implemented and the host harness is fully tested.

@@ -224,7 +224,7 @@ settles plan §7.3b) and macOS `wdutil info` / `system_profiler SPAirPortDataTyp
 scan; plus IDF version, firmware and repo git SHA (with dirty flag), hotspot band, TX power, power-save state, `rig_ceiling_mbps` (plan §7.3), timestamp, duration and repeat
 index. Nothing is typed by a human.
 
-### 3.6 Band-ordered scheduling
+### 3.6 Band-ordered scheduling — IMPLEMENTED (`--band`, `--unattended`)
 
 The iPhone hotspot is on one band at a time and the switch is a manual toggle (Settings → Personal
 Hotspot → Maximize Compatibility: on = 2.4 GHz, off = 5 GHz). The orchestrator therefore:
@@ -237,7 +237,7 @@ Hotspot → Maximize Compatibility: on = 2.4 GHz, off = 5 GHz). The orchestrator
 - **Repeats of the same cell are not scheduled consecutively**, so phone thermal drift (plan §7.3c)
   shows up as spread rather than as a fake trend.
 
-### 3.7 Association keepalive
+### 3.7 Association keepalive — IMPLEMENTED (`bench/keepalive.py`)
 
 Apple disconnects third-party hotspot clients after **90 seconds without traffic**. Builds, flashes,
 metadata capture and gate checks can easily exceed that between runs. The orchestrator therefore runs

@@ -125,8 +125,9 @@ do_esp_build() {   # target rung ingress
     cd "$dir" || exit 64
     python3 "$WORK/host/tools/apply_rung.py" --rung "$frag" \
             --out "$dir/sdkconfig.rung" || exit 65
-    run_bounded 600 idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.rung" \
-                           set-target "$target"
+    local sdkdefs="sdkconfig.defaults;sdkconfig.rung"
+    [ -f "$dir/sdkconfig.local" ] && sdkdefs="sdkconfig.defaults;sdkconfig.local;sdkconfig.rung"
+    run_bounded 600 idf.py -D SDKCONFIG_DEFAULTS="$sdkdefs" set-target "$target"
     run_bounded 600 idf.py -DBENCH_INGRESS="$ingress" -DBENCH_RUNG="$rung" build )
 }
 

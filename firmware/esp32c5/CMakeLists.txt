@@ -16,5 +16,20 @@ set(EXTRA_COMPONENT_DIRS
 set(BENCH_INGRESS "synth" CACHE STRING "synth | qspi | sdio")
 set(BENCH_RUNG    "r0-baseline" CACHE STRING "tuning rung this binary was built with")
 
+# Wi-Fi credentials and anything else machine-specific live in sdkconfig.local, which is
+# gitignored. Putting them there rather than in sdkconfig means they survive a
+# set-target or a deleted sdkconfig — losing the SSID silently partway through a bench
+# session is exactly the kind of thing that wastes an evening.
+#
+# Guarded: hostrun.sh passes SDKCONFIG_DEFAULTS explicitly when applying a tuning rung,
+# and that must win.
+if(NOT DEFINED SDKCONFIG_DEFAULTS)
+    set(_defaults "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.defaults")
+    if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.local")
+        list(APPEND _defaults "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.local")
+    endif()
+    set(SDKCONFIG_DEFAULTS "${_defaults}")
+endif()
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(hdemg_esp32c5_uplink)

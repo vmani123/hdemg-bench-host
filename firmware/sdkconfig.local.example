@@ -1,0 +1,7 @@
+# Copy to firmware/<target>/sdkconfig.local and fill in. GITIGNORED — never committed.
+#
+# These are ENVIRONMENT, not tuning: both chips must join the same network for the
+# comparison to mean anything, so set the same values in both targets' files.
+CONFIG_EXAMPLE_CONNECT_WIFI=y
+CONFIG_EXAMPLE_WIFI_SSID="VikPhone"
+CONFIG_EXAMPLE_WIFI_PASSWORD="G7jHF7@%>^"

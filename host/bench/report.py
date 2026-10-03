@@ -41,7 +41,7 @@ def _style(ax, theme, *, xlabel="", ylabel="", title=""):
         ax.set_ylabel(ylabel, color=theme["text_secondary"], fontsize=10)
     if title:
         ax.set_title(title, color=theme["text_primary"], fontsize=12,
-                     loc="left", pad=12, fontweight="600")
+                     loc="left", pad=12, fontweight="bold")
 
 
 def group(records: list[dict]) -> dict:
@@ -216,7 +216,7 @@ def fig_baseline_vs_tuned(records, theme, transport="udp"):
                     color=theme["text_secondary"], fontsize=9)
         ax.annotate(f"{t:.0f}", (i + w / 2 + 0.01, t), ha="center", va="bottom",
                     textcoords="offset points", xytext=(0, 3),
-                    color=theme["text_primary"], fontsize=9, fontweight="600")
+                    color=theme["text_primary"], fontsize=9, fontweight="bold")
         gain = 100.0 * (t - b) / b if b else 0.0
         ax.annotate(f"+{gain:.0f}%", (i, max(b, t)), ha="center", va="bottom",
                     textcoords="offset points", xytext=(0, 18),
@@ -274,19 +274,21 @@ def matrix_table(records) -> str:
     """The table view. Required for accessibility, and the thing most readers want."""
     g = group(records)
     rows = ["| Cell | Variant | Transport | Knee (Mbit/s) | Goodput (Mbit/s) | "
-            "Loss @ knee | Repeats |", "|---|---|---|---|---|---|---|"]
+            "Spread (MAD) | Loss @ knee | Repeats |",
+            "|---|---|---|---|---|---|---|---|"]
     for (ent, variant, transport), by in sorted(g.items()):
         recs = [r for rs in by.values() for r in rs]
         k = knee(recs)
         if not k["knee_offered_bps"]:
             rows.append(f"| {ENTITY_LABEL.get(ent, ent)} | {variant} | {transport} | "
-                        f"— | — | — | {len(recs)} |")
+                        f"— | — | — | — | {len(recs)} |")
             continue
         at = by[k["knee_offered_bps"]]
         loss = _median(at, ["loss_pct"])
+        mad = k.get("goodput_mad_bps") or 0.0
         rows.append(f"| {ENTITY_LABEL.get(ent, ent)} | {variant} | {transport} | "
                     f"{k['knee_offered_bps']/1e6:.1f} | {k['goodput_bps']/1e6:.2f} | "
-                    f"{loss:.3f} % | {len(at)} |")
+                    f"±{mad/1e6:.2f} | {loss:.3f} % | {k.get('repeats', len(at))} |")
     return "\n".join(rows)
 
 

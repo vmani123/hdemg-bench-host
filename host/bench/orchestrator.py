@@ -11,13 +11,17 @@ are not cosmetic:
 """
 from __future__ import annotations
 import itertools
+import statistics
 import time
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
 
 from . import gates, rfmeta
+from .control import ControlError
+from .keepalive import Keepalive, NullKeepalive
 from .control import ControlClient
 from .frame import HDR_BYTES
 from .ledger import Ledger, git_sha, new_run_id
@@ -70,12 +74,21 @@ class Matrix:
         step = (e - s) / (n - 1)
         return [int((s + i * step) * 1e6) for i in range(n)]
 
-    def expand(self) -> list[Run]:
+    def expand(self, bands: list[str] | None = None) -> list[Run]:
+        """bands: restrict to these bands.
+
+        The hotspot serves one band at a time and the switch is a manual toggle, so a
+        sweep restricted to one band is the unit that can run unattended end to end.
+        Two such blocks with one toggle between them replaces six blocking prompts
+        scattered through the night.
+        """
         runs: list[Run] = []
         steps = self.offered_steps()
         for rep in range(1, self.repeats + 1):        # repeat is the OUTER loop
             for cell in self.cells:
                 chip, band = cell["chip"], str(cell["band"])
+                if bands and band not in bands:
+                    continue
                 source = cell.get("source", "synth")
                 for transport in _aslist(cell.get("transport", ["udp"])):
                     for tune in _aslist(cell.get("tune", ["tuned"])):
@@ -102,43 +115,113 @@ class Orchestrator:
     def __init__(self, matrix: Matrix, driver: Driver, ledger: Ledger, *,
                  rig_ceilings: dict[str, float] | None = None,
                  parity_ok: bool = True, recv_port: int = 3333,
-                 on_event=None):
+                 bands: list[str] | None = None, keepalive: bool = False,
+                 recover: bool = True, on_event=None):
         self.m = matrix
         self.driver = driver
         self.ledger = ledger
         self.rig_ceilings = rig_ceilings or {}
         self.parity_ok = parity_ok
         self.recv_port = recv_port
+        self.bands = [str(b) for b in bands] if bands else None
+        self.want_keepalive = keepalive
+        self.want_recover = recover
         self.on_event = on_event or (lambda *_a, **_k: None)
         self._first_rssi: dict[str, float] = {}
         self._current_band: str | None = None
+        self._keepalives: dict[str, object] = {}
 
     def pending(self) -> list[Run]:
         done = self.ledger.completed_keys()
-        return [r for r in self.m.expand() if r.key not in done]
+        return [r for r in self.m.expand(self.bands) if r.key not in done]
+
+    def _keepalive_for(self, chip: str):
+        """One keepalive per chip, created lazily once the device is reachable."""
+        if chip not in self._keepalives:
+            if not self.want_keepalive:
+                self._keepalives[chip] = NullKeepalive()
+            else:
+                self._keepalives[chip] = Keepalive(
+                    self.driver.control(chip), on_event=self.on_event).start()
+        return self._keepalives[chip]
+
+    def _hello_or_recover(self, chip: str, c):
+        """A board that has wedged must not stall the whole sweep.
+
+        One power-cycle attempt, then give up on this run and move on — the ledger
+        records the failure and resume will retry the point later.
+        """
+        try:
+            return c.hello(), False
+        except (ControlError, OSError) as e:
+            if not self.want_recover or not hasattr(self.driver, "recover"):
+                raise
+            self.on_event("recovering", chip=chip, error=str(e))
+            if not self.driver.recover(chip):
+                return None, True
+            try:
+                return c.hello(), True
+            except (ControlError, OSError):
+                return None, True
 
     def run_all(self, limit: int | None = None) -> dict:
         todo = self.pending()
         if limit:
             todo = todo[:limit]
         ok = invalid = 0
-        for r in todo:
-            if str(r.band) != str(self._current_band):
-                self.driver.request_band(str(r.band))
-                self._current_band = str(r.band)
-                self.on_event("band", band=r.band)
-            rec = self.run_one(r)
-            if rec.get("valid", True):
-                ok += 1
-            else:
-                invalid += 1
+        try:
+            for r in todo:
+                if str(r.band) != str(self._current_band):
+                    self.driver.request_band(str(r.band))
+                    self._current_band = str(r.band)
+                    self.on_event("band", band=r.band)
+                rec = self.run_one(r)
+                if rec.get("valid", True):
+                    ok += 1
+                else:
+                    invalid += 1
+        finally:
+            for ka in self._keepalives.values():
+                ka.stop()
         return {"attempted": len(todo), "valid": ok, "invalid": invalid,
                 "remaining": len(self.pending())}
+
+    def _dead_record(self, r: Run, recovered: bool) -> dict:
+        """The device did not answer even after a recovery attempt. Recorded as an
+        invalid run rather than raising, so one wedged board costs one point instead of
+        the remaining night."""
+        return {
+            "run_id": new_run_id(r.cell_id, r.offered_bps, r.repeat),
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "git_sha": git_sha("."), "target": r.chip, "variant": r.tune,
+            "source": r.source,
+            "link": {"synth": "none", "qspi": "qspi", "sdio": "sdio4"}.get(r.source, r.source),
+            "transport": r.transport, "offered_bps": r.offered_bps, "rate_hz": None,
+            "duration_s": 0.0, "cell_id": r.cell_id, "repeat": r.repeat,
+            "rung": None, "fw_sha": None, "parity": {"ok": self.parity_ok},
+            "metrics": {"goodput_bps": 0.0, "frames": 0, "loss_pct": 0.0,
+                        "duration_s": 0.0, "not_run": True},
+            "rf": rfmeta.collect(band=str(r.band), ap=self.m.ap,
+                                 rig_ceiling_mbps=self.rig_ceilings.get(str(r.band)),
+                                 device_stat={}, idf_version=None),
+            "valid": False, "reassociated": recovered, "source_limited": False,
+            "gate_failures": ["device did not answer the control plane"
+                              + (" even after a power cycle" if recovered else "")],
+            "gate_warnings": [],
+        }
 
     def run_one(self, r: Run) -> dict:
         self.driver.ensure_flashed(r.chip, r.source, r.tune)
         c = self.driver.control(r.chip)
-        hello = c.hello()
+        ka = self._keepalive_for(r.chip)
+        reassociated = ka.take_reassociation()
+
+        hello, recovered = self._hello_or_recover(r.chip, c)
+        if hello is None:
+            rec = self._dead_record(r, recovered)
+            self.ledger.append(rec)
+            self.on_event("run", run=r, valid=False, goodput_mbps=0.0, loss=None)
+            return rec
         stat0 = c.stat()
         ceiling = self.rig_ceilings.get(str(r.band))
 
@@ -165,6 +248,7 @@ class Orchestrator:
         stat1: dict = {}
 
         if pre.ok:
+          with ka.paused():        # the instrument must not appear in its own number
             rx = Receiver(r.transport, self.recv_port, payload_bytes,
                           duration_s=hold, discard_s=float(self.m.sweep["discard_s"]))
             rx.start()
@@ -208,6 +292,8 @@ class Orchestrator:
                                  device_stat={**stat0, **stat1},
                                  idf_version=hello.get("idf")),
             "valid": valid,
+            "reassociated": reassociated or recovered,
+            "keepalive": ka.snapshot(),
             "source_limited": gates.source_limited({
                 "commanded_bps": r.offered_bps,
                 "achieved_bps": stat1.get("achieved_bps")}),
@@ -221,20 +307,44 @@ class Orchestrator:
         return rec
 
 
-def knee(records: list[dict], threshold_pct: float = LOSS_THRESHOLD_PCT) -> dict:
-    """Highest offered load whose loss stays under the threshold, plus the goodput there.
+def _unused_marker():
+    pass
 
-    This — not the saturated number — is what the plan calls the ceiling, because a part
-    that degrades gracefully and one that collapses can share a saturated figure.
+
+def knee(records: list[dict], threshold_pct: float = LOSS_THRESHOLD_PCT) -> dict:
+    """Highest offered load whose MEDIAN loss across repeats stays under the threshold,
+    with the MEDIAN goodput there and its spread.
+
+    Aggregating across repeats before applying the threshold is the whole point. Judging
+    each record on its own lets a single lucky repeat — one run that happened to slip
+    under the loss bar — set the knee for the entire cell, which biases every headline
+    number upward and is invisible in the output. The plan calls for median + spread over
+    >= 3 repeats (§3, §1.2 rule 5); this is where that gets enforced.
+
+    Spread is the median absolute deviation, reported so a cell whose repeats disagree is
+    visible as a wide number rather than a confident wrong one.
     """
-    ok = [r for r in records
-          if r.get("valid", True) and r["metrics"].get("loss_pct", 100) < threshold_pct]
-    if not ok:
-        return {"knee_offered_bps": None, "goodput_bps": None, "n": 0}
-    best = max(ok, key=lambda r: r["offered_bps"])
-    return {"knee_offered_bps": best["offered_bps"],
-            "goodput_bps": best["metrics"]["goodput_bps"],
-            "n": len(ok)}
+    by_load: dict[int, list[dict]] = defaultdict(list)
+    for r in records:
+        if r.get("valid", True):
+            by_load[int(r["offered_bps"])].append(r)
+
+    passing = []
+    for load, recs in by_load.items():
+        losses = [r["metrics"].get("loss_pct", 100.0) for r in recs]
+        if statistics.median(losses) < threshold_pct:
+            passing.append((load, recs))
+
+    if not passing:
+        return {"knee_offered_bps": None, "goodput_bps": None,
+                "goodput_mad_bps": None, "repeats": 0, "n": 0}
+
+    load, recs = max(passing, key=lambda t: t[0])
+    goods = [r["metrics"].get("goodput_bps", 0.0) for r in recs]
+    med = statistics.median(goods)
+    mad = statistics.median([abs(g - med) for g in goods]) if len(goods) > 1 else 0.0
+    return {"knee_offered_bps": load, "goodput_bps": med, "goodput_mad_bps": mad,
+            "repeats": len(recs), "n": sum(len(rs) for _, rs in passing)}
 
 
 def _aslist(v):

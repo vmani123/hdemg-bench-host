@@ -34,6 +34,13 @@ def _ceilings(s: str | None) -> dict:
 def _progress(kind, **kw):
     if kind == "band":
         print(f"\n--- band {kw['band']} ---")
+    elif kind == "keepalive_lost":
+        print(f"  !! keepalive lost the device ({kw.get('error')}) — will re-check")
+    elif kind == "keepalive_reassociated":
+        print(f"  ** device re-associated (#{kw.get('count')}); "
+              f"the next run is flagged in the ledger")
+    elif kind == "recovering":
+        print(f"  !! {kw.get('chip')} not answering — attempting power cycle")
     elif kind == "run":
         r = kw["run"]
         flag = "" if kw["valid"] else "  INVALID"
@@ -70,14 +77,23 @@ def cmd_run(a) -> int:
             print("refusing to run a cross-chip comparison; pass --force to override",
                   file=sys.stderr)
             return 2
+    hub = {}
+    if a.s3_hub_port:
+        hub["esp32s3"] = a.s3_hub_port
+    if a.c5_hub_port:
+        hub["esp32c5"] = a.c5_hub_port
     drv = HardwareDriver(
         ips={"esp32s3": a.s3_ip, "esp32c5": a.c5_ip},
         firmware_root=a.firmware,
         ports={"esp32s3": a.s3_port, "esp32c5": a.c5_port},
-        agent_dir=a.agent_dir)
+        agent_dir=a.agent_dir,
+        interactive_band=not a.unattended,
+        hub_ports=hub)
     orc = Orchestrator(m, drv, Ledger(a.ledger),
                        rig_ceilings=_ceilings(a.ceilings),
-                       parity_ok=par["ok"], on_event=_progress)
+                       parity_ok=par["ok"],
+                       bands=[a.band] if a.band else None,
+                       keepalive=True, recover=True, on_event=_progress)
     print(json.dumps(orc.run_all(limit=a.limit), indent=2))
     return 0
 
@@ -131,6 +147,18 @@ def main(argv=None) -> int:
     r.add_argument("--agent-dir", default="_agent")
     r.add_argument("--limit", type=int, default=None)
     r.add_argument("--force", action="store_true")
+    r.add_argument("--band", default=None, choices=["2.4", "5"],
+                   help="restrict the sweep to one band. The hotspot serves one band at "
+                        "a time and the toggle is manual, so one band is the unit that "
+                        "runs unattended: do 2.4 overnight, flip the toggle, do 5.")
+    r.add_argument("--unattended", action="store_true",
+                   help="never block on a prompt. Set the hotspot band BEFORE starting; "
+                        "the pre-run gate verifies it from the device, so a wrong toggle "
+                        "fails loudly instead of quietly measuring the other band.")
+    r.add_argument("--s3-hub-port", default=None,
+                   help="uhubctl port number for the S3, enabling auto power-cycle "
+                        "recovery of a wedged board")
+    r.add_argument("--c5-hub-port", default=None)
     r.set_defaults(fn=cmd_run)
 
     q = sub.add_parser("report", help="render figures and tables from the ledger")

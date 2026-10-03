@@ -6,5 +6,13 @@
 # and silently forgotten on the other.
 CONFIG_IDF_TARGET="esp32s3"
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
-CONFIG_FREERTOS_USE_IDLE_HOOK=y
+# NOT enabled on purpose. This option makes FreeRTOS's idle task call a user-supplied
+# vApplicationIdleHook(), which we do not define. Per-core idle accounting goes through
+# esp_register_freertos_idle_hook_for_cpu() in instr.c instead — a separate ESP-IDF
+# mechanism that needs no Kconfig option, and which is per-core, which is the whole point
+# on the dual-core S3.
 CONFIG_FREERTOS_HZ=1000
+
+idf.py -p /dev/cu.usbmodem5B8F0676581 flash monitor
+
+tty.
