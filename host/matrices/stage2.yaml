@@ -3,7 +3,7 @@
 # never directly against an S3 number.
 stage: 2
 repeats: 3
-ap: iphone-hotspot
+ap: verizon-router        # dual-band home router (SSID in firmware/*/sdkconfig.local); was iphone-hotspot
 expected_idf: v6.0.2
 frame_bytes: 270
 sweep: {start_mbps: 4, stop_mbps: 60, steps: 8, hold_s: 60, discard_s: 3}

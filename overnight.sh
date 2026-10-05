@@ -1,13 +1,20 @@
 #!/bin/bash
 # ============================================================================
-# overnight.sh — run ONE hotspot band block unattended, then render the report.
+# overnight.sh — run ONE band block unattended, then render the report.
 #
-#   CEILINGS=2.4=<mbps>,5=<mbps> bash overnight.sh 2.4    # Maximize Compatibility ON
-#   CEILINGS=2.4=<mbps>,5=<mbps> bash overnight.sh 5      # OFF; C5 only
+#   CEILINGS=2.4=<mbps>,5=<mbps> bash overnight.sh 2.4    # S3 and C5
+#   CEILINGS=2.4=<mbps>,5=<mbps> bash overnight.sh 5      # C5 only
 #
 # Before starting: hostrun.sh running in its own Terminal (started with
-# FLASH_WINDOW_MIN=720 so approval outlasts the night), the iPhone wired to the Mac
-# over USB with Personal Hotspot on the right band, both boards powered.
+# FLASH_WINDOW_MIN=720 so approval outlasts the night) and both boards on USB.
+#
+# The rig is the matrix's `ap:`. On the router rig (ap: verizon-router) the boards join
+# the home router and the band of each cell is pinned in the firmware build; this Mac
+# must be on the router's OTHER band, or wired to it — a cell on the Mac's own Wi-Fi
+# band is refused by the pre-run gate, because both hops would share one channel.
+# So: Mac on 5 GHz -> run the 2.4 block; for the 5 block, wire the Mac (or move it to
+# 2.4 GHz). On the iPhone rig (ap: iphone-hotspot) the Mac is wired to the phone over
+# USB and the band is the hotspot's Maximize Compatibility toggle.
 #
 # What it adds on top of `bench run`:
 #   * keeps the Mac awake for exactly as long as it runs (caffeinate -w);
@@ -58,6 +65,10 @@ args=(--matrix "$MATRIX" --band "$BAND" --unattended --passes "$PASSES"
 caffeinate -ims -w $$ &
 
 echo "overnight: band $BAND, log $LOG"
+# Record the rig before anything is flashed: access point, how this Mac reaches it, and
+# which boards already answer. Informational — boards that are not flashed yet do not
+# answer, and that is not an error.
+( cd "$ROOT/host" && "$PY" -m cli.bench discover --matrix "$MATRIX" ) 2>&1 | tee -a "$LOG"
 { echo "=== overnight.sh band=$BAND start $(date)"; echo "=== args: ${args[*]}"; } >> "$LOG"
 
 rc=1

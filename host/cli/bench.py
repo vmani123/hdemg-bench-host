@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 REPO = Path(__file__).resolve().parents[2]
 
-from bench import parity, report, rungs                      # noqa: E402
+from bench import parity, report, rfmeta, rungs                      # noqa: E402
 from bench.drivers import HardwareDriver, SimDriver          # noqa: E402
 from bench.ledger import Ledger                              # noqa: E402
 from bench.orchestrator import Matrix, Orchestrator          # noqa: E402
@@ -96,8 +96,10 @@ def cmd_run(a) -> int:
         agent_dir=a.agent_dir,
         host_ip=a.host_ip,
         interactive_band=not a.unattended,
-        hub_ports=hub)
-    print(f"host ip {drv.host_ip()}  expected idf {m.expected_idf}")
+        hub_ports=hub,
+        ap=m.ap)
+    print(f"access point '{m.ap}'  host ip {drv.host_ip()}  expected idf {m.expected_idf}")
+    print(f"host link: {_describe_path(rfmeta.host_path(_gateway_of(drv.host_ip()), m.ap))}")
     for chip, h in sorted(drv.rediscover().items()):
         print(f"  found {chip} at {h['ip']}  band={h.get('band')} rung={h.get('rung')} "
               f"idf={h.get('idf')}")
@@ -105,7 +107,8 @@ def cmd_run(a) -> int:
                        rig_ceilings=_ceilings(a.ceilings),
                        parity_ok=par["ok"],
                        bands=[a.band] if a.band else None,
-                       keepalive=True, recover=True, on_event=_progress)
+                       keepalive=True, recover=True, on_event=_progress,
+                       allow_shared_band=a.allow_shared_band)
     # Several passes: every point skipped or invalidated in one pass is retried in the
     # next (the ledger is the state). Stop early once nothing is left, or once a pass
     # makes no valid progress — repeating it would only repeat the failure.
@@ -120,16 +123,44 @@ def cmd_run(a) -> int:
     return 0 if res.get("remaining") == 0 else 3
 
 
+def _gateway_of(host_ip: str) -> str:
+    """An address on the host's own /24, good enough to ask the routing table which
+    interface carries the bench traffic before any board has been found."""
+    return host_ip.rsplit(".", 1)[0] + ".1"
+
+
+def _describe_path(p: dict) -> str:
+    link = p.get("link")
+    if link == "wifi":
+        return (f"Wi-Fi ({p.get('dev')}) on '{p.get('ssid')}', band {p.get('band')} GHz, "
+                f"channel {p.get('channel')}, {p.get('width_mhz')} MHz, {p.get('phy')}")
+    if link == "usb":
+        return "iPhone USB (wired to the hotspot)"
+    if link == "ethernet":
+        return f"Ethernet ({p.get('dev')}), wired"
+    return "unknown"
+
+
 def cmd_discover(a) -> int:
     """Pre-flight: what the harness will see when the sweep starts."""
-    from bench import rfmeta
     from bench.control import ControlClient
-    usb = rfmeta.iphone_usb_ip()
+    ap = Matrix.load(a.matrix).ap
     drv = HardwareDriver(ips={"esp32s3": None, "esp32c5": None}, firmware_root=".",
-                         ports={}, host_ip=a.host_ip)
+                         ports={}, host_ip=a.host_ip, ap=ap)
     host = drv.host_ip()
-    print(f"iPhone USB address : {usb or 'NOT UP — plug the iPhone in and enable Personal Hotspot'}")
+    path = rfmeta.host_path(_gateway_of(host), ap)
+    print(f"access point       : {ap}  (from {a.matrix})")
     print(f"host ip (stream to): {host}")
+    print(f"host link          : {_describe_path(path)}")
+    rig_ok = True
+    if ap == rfmeta.IPHONE_AP:
+        if path.get("link") != "usb":
+            rig_ok = False
+            print("  !! iPhone USB is NOT UP — plug the iPhone in and enable Personal Hotspot")
+    elif path.get("link") == "wifi":
+        print(f"  -> cells on band {path.get('band')} GHz would share this Mac's channel and "
+              f"are refused by the pre-run gate; the other band is clean. Wire the Mac to "
+              f"the router to run both.")
     found = drv.rediscover()
     if not found:
         print(f"no bench devices answered on {host.rsplit('.', 1)[0]}.0/24")
@@ -142,7 +173,7 @@ def cmd_discover(a) -> int:
         print(f"{chip:<8} {h['ip']:<15} band={h.get('band')} rung={h.get('rung')} "
               f"ingress={h.get('ingress')} idf={h.get('idf')} rssi={st.get('rssi')} "
               f"phy={st.get('phy_rate')}")
-    return 0 if usb else 1
+    return 0 if rig_ok else 1
 
 
 def cmd_report(a) -> int:
@@ -204,22 +235,30 @@ def main(argv=None) -> int:
                    help="re-run skipped/invalid points up to this many passes")
     r.add_argument("--force", action="store_true")
     r.add_argument("--band", default=None, choices=["2.4", "5"],
-                   help="restrict the sweep to one band. The hotspot serves one band at "
-                        "a time and the toggle is manual, so one band is the unit that "
-                        "runs unattended: do 2.4 overnight, flip the toggle, do 5.")
+                   help="restrict the sweep to one band: the unit that runs unattended. "
+                        "On a router rig the Mac's own Wi-Fi must be on the OTHER band "
+                        "(or wired); on the iPhone rig the hotspot serves one band at a "
+                        "time and the toggle is manual.")
     r.add_argument("--unattended", action="store_true",
-                   help="never block on a prompt. Set the hotspot band BEFORE starting; "
-                        "the pre-run gate verifies it from the device, so a wrong toggle "
-                        "fails loudly instead of quietly measuring the other band.")
+                   help="never block on a prompt. The pre-run gate verifies the band from "
+                        "the device, so a wrong band fails loudly instead of quietly "
+                        "measuring the other one.")
+    r.add_argument("--allow-shared-band", action="store_true",
+                   help="record a warning instead of refusing a cell when this Mac's own "
+                        "Wi-Fi is on the band being measured (both hops then share one "
+                        "channel and every number is depressed)")
     r.add_argument("--s3-hub-port", default=None,
                    help="uhubctl port number for the S3, enabling auto power-cycle "
                         "recovery of a wedged board")
     r.add_argument("--c5-hub-port", default=None)
     r.set_defaults(fn=cmd_run)
 
-    d = sub.add_parser("discover", help="pre-flight: find the boards on the hotspot "
-                                        "and show band, rung, IDF, RSSI, PHY")
+    d = sub.add_parser("discover", help="pre-flight: show the rig (access point, how this "
+                                        "Mac reaches it) and find the boards: band, rung, "
+                                        "IDF, RSSI, PHY")
     d.add_argument("--host-ip", default="auto")
+    d.add_argument("--matrix", default="matrices/stage1.yaml",
+                   help="the matrix whose `ap:` names the rig")
     d.set_defaults(fn=cmd_discover)
 
     q = sub.add_parser("report", help="render figures and tables from the ledger")

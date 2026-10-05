@@ -116,6 +116,7 @@ resolve_stm_prog() {
 }
 resolve_target()  { case "$1" in esp32s3|esp32c5) echo "$1" ;; *) return 1 ;; esac; }
 resolve_ingress() { case "$1" in synth|qspi|sdio) echo "$1" ;; *) return 1 ;; esac; }
+resolve_band()    { case "$1" in 2.4|5|auto) echo "$1" ;; *) return 1 ;; esac; }
 resolve_port()   { case "$1" in cu.*) [ -e "/dev/$1" ] && echo "/dev/$1" || return 1 ;; *) return 1 ;; esac; }
 
 grant_flash_window() {
@@ -162,8 +163,11 @@ do_discover() {
   echo "  uhubctl: $(command -v uhubctl || echo no)"
 }
 
-do_esp_build() {   # target rung ingress tree
-  local dir target rung ingress tdir pri
+do_esp_build() {   # target rung ingress tree band
+  local dir target rung ingress tdir pri wband
+  # The Wi-Fi band the build is pinned to (firmware/bench_options.cmake). A dual-band
+  # access point offers both bands under one SSID, so the board has to be told.
+  wband="$(resolve_band "${5:-auto}")" || { echo "REFUSED: band must be 2.4, 5 or auto"; return 64; }
   target="$(resolve_target "$1")"   || { echo "REFUSED: unknown target '$1'"; return 64; }
   tdir="$(resolve_tree "${4:-}")"   || { echo "REFUSED: unknown tree '${4:-}'"; return 64; }
   dir="$(resolve_target_dir "$1" "$tdir")" || { echo "REFUSED: unknown target '$1'"; return 64; }
@@ -180,7 +184,7 @@ do_esp_build() {   # target rung ingress tree
     ln -s "$WORK/firmware/$target/sdkconfig.local" "$dir/sdkconfig.local"
   fi
   restrict_path
-  audit "esp_build target=$target rung=$rung ingress=$ingress tree=${4:-.}"
+  audit "esp_build target=$target rung=$rung ingress=$ingress band=$wband tree=${4:-.}"
   ( . "$IDF_EXPORT" >/dev/null 2>&1
     cd "$dir" || exit 64
     python3 "$tdir/host/tools/apply_rung.py" --rung "$frag" \
@@ -188,7 +192,8 @@ do_esp_build() {   # target rung ingress tree
     local sdkdefs="sdkconfig.defaults;sdkconfig.rung"
     [ -f "$dir/sdkconfig.local" ] && sdkdefs="sdkconfig.defaults;sdkconfig.local;sdkconfig.rung"
     run_bounded 600 nice -n "$pri" idf.py -D SDKCONFIG_DEFAULTS="$sdkdefs" set-target "$target" || exit 66
-    run_bounded 600 nice -n "$pri" idf.py -DBENCH_INGRESS="$ingress" -DBENCH_RUNG="$rung" build )
+    run_bounded 600 nice -n "$pri" idf.py -DBENCH_INGRESS="$ingress" -DBENCH_RUNG="$rung" \
+        -DBENCH_BAND="$wband" build )
 }
 
 do_esp_flash() {   # target port tree
@@ -372,7 +377,7 @@ while true; do
     echo "hostrun: job $id -> $action"
     case "$action" in
       discover)    do_discover                                       >> "$log" 2>&1 ;;
-      esp_build)   do_esp_build  "$target" "${rung:-r0-baseline}" "${ingress:-synth}" "$tree" >> "$log" 2>&1 ;;
+      esp_build)   do_esp_build  "$target" "${rung:-r0-baseline}" "${ingress:-synth}" "$tree" "${band:-auto}" >> "$log" 2>&1 ;;
       esp_flash)   do_esp_flash  "$target" "$port" "$tree"          >> "$log" 2>&1 ;;
       stm_build)   do_stm_build  "${project:-hdemg_h745}" "${config:-Release}" "${core:-cm7}" "$tree" >> "$log" 2>&1 ;;
       stm_flash)   do_stm_flash  "${project:-hdemg_h745}" "${core:-cm7}" "${config:-Release}" "$tree" "${mode:-UR}" >> "$log" 2>&1 ;;

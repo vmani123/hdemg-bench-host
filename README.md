@@ -99,11 +99,32 @@ property of the rig, not the silicon.
 
 ---
 
+## The rig: which access point
+
+The matrix's `ap:` names the rig, and the harness behaves accordingly.
+
+- **`ap: verizon-router` (current bench).** The boards join a dual-band home router; the
+  network name and password live in `firmware/<target>/sdkconfig.local` (untracked). The
+  router offers both bands under one SSID, so **the band of each cell is pinned in the
+  firmware build** (`BENCH_BAND`, passed by the orchestrator through `hostrun.sh`) and
+  verified from the device. The Mac is the second hop and must not share the first hop's
+  air: keep it on the router's **other** band, or wire it. `discover` shows which band
+  the Mac is on, every ledger record stores it (`rf.mac_link`, `rf.host_path`), and a cell
+  on the Mac's own band is **refused by the pre-run gate** (`--allow-shared-band` turns
+  that into a warning). In practice: Mac on 5 GHz → run the 2.4 GHz block; for the 5 GHz
+  block, wire the Mac to the router.
+- **`ap: iphone-hotspot`.** The original plan: the Mac is wired to the phone over USB and
+  the band is the hotspot's Maximize Compatibility toggle. Everything below about the
+  hotspot applies to this rig only.
+
+Numbers taken on different rigs are not comparable with each other; the access point is
+recorded in every run (`rf.ap`).
+
 ## Before the first real measurement
 
-1. **iPhone hotspot with the Mac wired to it over USB-C.** If both the ESP and the Mac
-   join over Wi-Fi, every frame crosses the air twice on one channel and the whole matrix
-   is quietly deflated.
+1. **iPhone hotspot with the Mac wired to it over USB-C** (or the router rig above). If
+   both the ESP and the Mac join over Wi-Fi on one band, every frame crosses the air
+   twice on one channel and the whole matrix is quietly deflated.
 2. **Measure the rig ceiling per band** with a known-good client and pass it to
    `--ceilings`. It is the roof over every ESP number.
 3. **Start `hostrun.sh`** in its own Terminal and approve the flash window once.

@@ -4,6 +4,11 @@
 set(BENCH_VALID_INGRESS synth qspi)
 include("${CMAKE_CURRENT_LIST_DIR}/../../bench_options.cmake")
 
+# The S3 has one band. BENCH_BAND=2.4 or auto build the same firmware; 5 cannot work.
+if(BENCH_BAND STREQUAL "5")
+    message(FATAL_ERROR "BENCH_BAND=5 is not possible on the ESP32-S3 (2.4 GHz only)")
+endif()
+
 set(SRCS "app_main.c")
 
 if(BENCH_INGRESS STREQUAL "qspi")

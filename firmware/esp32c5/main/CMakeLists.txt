@@ -18,4 +18,7 @@ idf_component_register(SRCS ${SRCS} INCLUDE_DIRS "."
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
     INGRESS_NAME="${BENCH_INGRESS}"
     RUNG_NAME="${BENCH_RUNG}"
+    # 2 = 2.4 GHz only, 5 = 5 GHz only, 0 = either (see app_main.c). The C5 is the
+    # dual-band chip, so it is the one that has to be told.
+    BENCH_BAND_PIN=${BENCH_BAND_PIN}
 )
