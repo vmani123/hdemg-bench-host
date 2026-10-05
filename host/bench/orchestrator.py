@@ -96,8 +96,17 @@ class Matrix:
                         for off in steps:
                             runs.append(Run(cid, chip, band, source, transport,
                                             tune, off, rep))
-        # Band-ordered: minimise manual hotspot switches.
-        runs.sort(key=lambda r: (r.repeat, str(r.band), r.chip, r.cell_id, r.offered_bps))
+        # Band-ordered: minimise manual hotspot switches. Within a chip, group by tune
+        # (the only axis that needs a reflash; transport and load are runtime) and
+        # alternate its direction per repeat, so each repeat starts on the build the
+        # previous one ended with: 2 flashes per chip in repeat 1, 1 per repeat after.
+        tunes = sorted({r.tune for r in runs})
+
+        def tune_rank(r: Run) -> int:
+            i = tunes.index(r.tune)
+            return i if r.repeat % 2 else -i
+        runs.sort(key=lambda r: (r.repeat, str(r.band), r.chip, tune_rank(r),
+                                 r.cell_id, r.offered_bps))
         return runs
 
 
@@ -141,8 +150,11 @@ class Orchestrator:
             if not self.want_keepalive:
                 self._keepalives[chip] = NullKeepalive()
             else:
-                self._keepalives[chip] = Keepalive(
-                    self.driver.control(chip), on_event=self.on_event).start()
+                # Keepalive starts paused; it must be resumed or it never polls, and the
+                # idle board is dropped by the hotspot 90 s into the other chip's block.
+                ka = Keepalive(self.driver.control(chip), on_event=self.on_event).start()
+                ka.resume()
+                self._keepalives[chip] = ka
         return self._keepalives[chip]
 
     def _hello_or_recover(self, chip: str, c):
@@ -168,14 +180,26 @@ class Orchestrator:
         todo = self.pending()
         if limit:
             todo = todo[:limit]
-        ok = invalid = 0
+        ok = invalid = errors = 0
+        broken: dict[str, str] = {}     # cell_id -> why it was abandoned this pass
         try:
             for r in todo:
+                if r.cell_id in broken:
+                    continue
                 if str(r.band) != str(self._current_band):
                     self.driver.request_band(str(r.band))
                     self._current_band = str(r.band)
                     self.on_event("band", band=r.band)
-                rec = self.run_one(r)
+                try:
+                    rec = self.run_one(r)
+                except Exception as e:                       # noqa: BLE001
+                    # A failed build/flash or an unreachable board costs this cell for
+                    # the rest of the pass, not the night. Nothing is written to the
+                    # ledger, so the next pass (resume) retries every skipped point.
+                    broken[r.cell_id] = f"{type(e).__name__}: {e}"
+                    errors += 1
+                    self.on_event("run_error", run=r, error=broken[r.cell_id])
+                    continue
                 if rec.get("valid", True):
                     ok += 1
                 else:
@@ -183,7 +207,9 @@ class Orchestrator:
         finally:
             for ka in self._keepalives.values():
                 ka.stop()
+            self._keepalives.clear()    # a stopped keepalive never polls again
         return {"attempted": len(todo), "valid": ok, "invalid": invalid,
+                "errors": errors, "abandoned_cells": broken,
                 "remaining": len(self.pending())}
 
     def _dead_record(self, r: Run, recovered: bool) -> dict:

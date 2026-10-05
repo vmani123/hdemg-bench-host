@@ -95,6 +95,49 @@ class Ladder:
     def unmeasured(self) -> list[str]:
         return [i for i in self.order if not self.rungs[i].is_measured]
 
+    def top(self) -> str:
+        """The rung at the end of the longest parent chain: the chip's current best.
+
+        Ambiguous if the ladder has forked into two equally deep branches — that is a
+        decision for the ladder author, not something to be resolved silently here.
+        """
+        parents = {r.parent for r in self.rungs.values() if r.parent}
+        leaves = [i for i in self.order if i not in parents]
+        if not leaves:
+            raise ValueError(f"the {self.chip} ladder has no leaf rung")
+
+        def depth(i: str) -> int:
+            n = 0
+            while self.rungs[i].parent:
+                i, n = self.rungs[i].parent, n + 1
+            return n
+        best = max(depth(i) for i in leaves)
+        top = [i for i in leaves if depth(i) == best]
+        if len(top) > 1:
+            raise ValueError(f"the {self.chip} ladder forks into {top}; name the tuned "
+                             f"rung explicitly in the matrix")
+        return top[0]
+
+    def rung_for_tune(self, tune: str) -> str:
+        """Map a matrix `tune` label to the rung id that gets built.
+
+        The matrix speaks in `baseline` / `tuned`; hostrun builds rung FILES. Passing the
+        label straight through refused the build, and the stale binary already in
+        build/ was flashed instead — every tuned run would have measured baseline.
+        """
+        if tune in self.rungs:
+            return tune
+        if tune == "baseline":
+            roots = [i for i in self.order if not self.rungs[i].parent]
+            if len(roots) != 1:
+                raise ValueError(f"the {self.chip} ladder needs exactly one root rung, "
+                                 f"found {roots}")
+            return roots[0]
+        if tune == "tuned":
+            return self.top()
+        raise KeyError(f"tune {tune!r} is neither 'baseline', 'tuned', nor a rung id in "
+                       f"the {self.chip} ladder")
+
 
 def load_common_levers(root: str | Path) -> dict:
     p = Path(root) / "common-levers.yaml"

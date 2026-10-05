@@ -23,3 +23,6 @@ _agent/queue/
 _agent/out/
 _agent/heartbeat
 _agent/audit.log
+
+# overnight.sh logs
+host/results/*.log

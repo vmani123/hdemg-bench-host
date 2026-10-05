@@ -12,7 +12,7 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
 # mechanism that needs no Kconfig option, and which is per-core, which is the whole point
 # on the dual-core S3.
 CONFIG_FREERTOS_HZ=1000
-
-idf.py -p /dev/cu.usbmodem5B8F0676581 flash monitor
-
-tty.
+# Rejoin forever. protocol_examples_common stops calling esp_wifi_connect() after this
+# many disconnects, so a hotspot blip (or its 90 s idle kick) at 3 a.m. would leave the
+# board off the network until someone pressed RESET. Environment, not tuning.
+CONFIG_EXAMPLE_WIFI_CONN_MAX_RETRY=1000000

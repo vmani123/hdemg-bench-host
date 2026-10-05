@@ -10,22 +10,41 @@ import subprocess
 import time
 
 
-def host_link() -> str:
-    """How the receiving host reaches the AP. 'usb'/'ethernet' means the second hop is
-    wired and costs no airtime (plan §10)."""
+def iphone_usb_ip() -> str | None:
+    """IPv4 address of the Mac's 'iPhone USB' interface, or None if it is not up.
+
+    This is the address the ESPs must stream to. The default route usually points at
+    the Mac's own Wi-Fi instead, and a device on the hotspot cannot reach that.
+    """
     if platform.system() != "Darwin":
-        return "unknown"
+        return None
     try:
-        out = subprocess.run(["/usr/sbin/networksetup", "-listnetworkserviceorder"],
+        out = subprocess.run(["/usr/sbin/networksetup", "-listallhardwareports"],
                              capture_output=True, text=True, timeout=10).stdout
     except (OSError, subprocess.SubprocessError):
+        return None
+    lines = out.splitlines()
+    dev = None
+    for i, line in enumerate(lines):
+        if line.strip() == "Hardware Port: iPhone USB" and i + 1 < len(lines):
+            dev = lines[i + 1].partition(":")[2].strip()
+    if not dev:
+        return None
+    try:
+        ip = subprocess.run(["/usr/sbin/ipconfig", "getifaddr", dev],
+                            capture_output=True, text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return ip or None
+
+
+def host_link() -> str:
+    """How the receiving host reaches the AP. 'usb' means the second hop is wired and
+    costs no airtime (plan §10). Judged by whether the iPhone USB interface actually has
+    an address — the service merely existing says nothing about tonight's topology."""
+    if platform.system() != "Darwin":
         return "unknown"
-    low = out.lower()
-    if "iphone usb" in low:
-        return "usb"
-    if "ethernet" in low or "lan" in low:
-        return "ethernet"
-    return "wifi"
+    return "usb" if iphone_usb_ip() else "not-usb"
 
 
 def wifi_scan() -> dict:

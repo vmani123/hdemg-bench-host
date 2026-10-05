@@ -8,6 +8,9 @@ rationale: "S3-only, and the S3's only remaining structural advantage now that
   with core locking (r3) — the ladder decides which wins, and that interaction is a
   reportable result."
 config:
-  CONFIG_ESP_WIFI_TASK_CORE_ID_0: y
+  # The Kconfig choice is ESP_WIFI_TASK_CORE_ID but its members are
+  # ESP_WIFI_TASK_PINNED_TO_CORE_{0,1}; CONFIG_ESP_WIFI_TASK_CORE_ID_0 does not exist and
+  # was silently dropped (core 0 is the default, so the built binary was unaffected).
+  CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0: y
   CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU1: y
 measured_gain_pct: null

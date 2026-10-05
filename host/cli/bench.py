@@ -11,9 +11,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+REPO = Path(__file__).resolve().parents[2]
 
 from bench import parity, report, rungs                      # noqa: E402
 from bench.drivers import HardwareDriver, SimDriver          # noqa: E402
@@ -40,7 +42,10 @@ def _progress(kind, **kw):
         print(f"  ** device re-associated (#{kw.get('count')}); "
               f"the next run is flagged in the ledger")
     elif kind == "recovering":
-        print(f"  !! {kw.get('chip')} not answering — attempting power cycle")
+        print(f"  !! {kw.get('chip')} not answering — attempting recovery")
+    elif kind == "run_error":
+        print(f"  !! {kw['run'].cell_id}: {kw.get('error')}\n"
+              f"     skipping the rest of this cell for this pass; resume retries it")
     elif kind == "run":
         r = kw["run"]
         flag = "" if kw["valid"] else "  INVALID"
@@ -82,20 +87,62 @@ def cmd_run(a) -> int:
         hub["esp32s3"] = a.s3_hub_port
     if a.c5_hub_port:
         hub["esp32c5"] = a.c5_hub_port
+    if a.expected_idf:
+        m.expected_idf = a.expected_idf
     drv = HardwareDriver(
         ips={"esp32s3": a.s3_ip, "esp32c5": a.c5_ip},
         firmware_root=a.firmware,
         ports={"esp32s3": a.s3_port, "esp32c5": a.c5_port},
         agent_dir=a.agent_dir,
+        host_ip=a.host_ip,
         interactive_band=not a.unattended,
         hub_ports=hub)
+    print(f"host ip {drv.host_ip()}  expected idf {m.expected_idf}")
+    for chip, h in sorted(drv.rediscover().items()):
+        print(f"  found {chip} at {h['ip']}  band={h.get('band')} rung={h.get('rung')} "
+              f"idf={h.get('idf')}")
     orc = Orchestrator(m, drv, Ledger(a.ledger),
                        rig_ceilings=_ceilings(a.ceilings),
                        parity_ok=par["ok"],
                        bands=[a.band] if a.band else None,
                        keepalive=True, recover=True, on_event=_progress)
-    print(json.dumps(orc.run_all(limit=a.limit), indent=2))
-    return 0
+    # Several passes: every point skipped or invalidated in one pass is retried in the
+    # next (the ledger is the state). Stop early once nothing is left, or once a pass
+    # makes no valid progress — repeating it would only repeat the failure.
+    res: dict = {}
+    for p in range(1, max(1, a.passes) + 1):
+        print(f"\n=== pass {p}/{a.passes}  pending {len(orc.pending())} ===", flush=True)
+        res = orc.run_all(limit=a.limit)
+        print(json.dumps(res, indent=2), flush=True)
+        if res["remaining"] == 0 or res["valid"] == 0 or a.limit:
+            break
+        time.sleep(30.0)
+    return 0 if res.get("remaining") == 0 else 3
+
+
+def cmd_discover(a) -> int:
+    """Pre-flight: what the harness will see when the sweep starts."""
+    from bench import rfmeta
+    from bench.control import ControlClient
+    usb = rfmeta.iphone_usb_ip()
+    drv = HardwareDriver(ips={"esp32s3": None, "esp32c5": None}, firmware_root=".",
+                         ports={}, host_ip=a.host_ip)
+    host = drv.host_ip()
+    print(f"iPhone USB address : {usb or 'NOT UP — plug the iPhone in and enable Personal Hotspot'}")
+    print(f"host ip (stream to): {host}")
+    found = drv.rediscover()
+    if not found:
+        print(f"no bench devices answered on {host.rsplit('.', 1)[0]}.0/24")
+        return 1
+    for chip, h in sorted(found.items()):
+        try:
+            st = ControlClient(h["ip"]).stat()
+        except Exception as e:                               # noqa: BLE001
+            st = {"error": str(e)}
+        print(f"{chip:<8} {h['ip']:<15} band={h.get('band')} rung={h.get('rung')} "
+              f"ingress={h.get('ingress')} idf={h.get('idf')} rssi={st.get('rssi')} "
+              f"phy={st.get('phy_rate')}")
+    return 0 if usb else 1
 
 
 def cmd_report(a) -> int:
@@ -139,13 +186,22 @@ def main(argv=None) -> int:
     r.add_argument("--matrix", required=True)
     r.add_argument("--ledger", default="results/runs.jsonl")
     r.add_argument("--ceilings", required=True, help='e.g. "5=95,2.4=60"')
-    r.add_argument("--firmware", default="../firmware")
-    r.add_argument("--s3-ip", default="192.168.2.10")
-    r.add_argument("--c5-ip", default="192.168.2.11")
+    r.add_argument("--firmware", default=str(REPO / "firmware"))
+    r.add_argument("--s3-ip", default="auto",
+                   help="'auto' finds it by asking every address on the host's /24")
+    r.add_argument("--c5-ip", default="auto")
+    r.add_argument("--host-ip", default="auto",
+                   help="address the ESPs stream to; 'auto' = the iPhone USB interface")
     r.add_argument("--s3-port", default="cu.usbmodem1101")
     r.add_argument("--c5-port", default="cu.usbmodem1201")
-    r.add_argument("--agent-dir", default="_agent")
+    r.add_argument("--agent-dir", default=str(REPO / "_agent"),
+                   help="must be the directory hostrun.sh watches (<repo>/_agent)")
+    r.add_argument("--expected-idf", default=None,
+                   help="override the matrix's expected_idf (the pre-run gate compares "
+                        "it to what the firmware reports)")
     r.add_argument("--limit", type=int, default=None)
+    r.add_argument("--passes", type=int, default=1,
+                   help="re-run skipped/invalid points up to this many passes")
     r.add_argument("--force", action="store_true")
     r.add_argument("--band", default=None, choices=["2.4", "5"],
                    help="restrict the sweep to one band. The hotspot serves one band at "
@@ -160,6 +216,11 @@ def main(argv=None) -> int:
                         "recovery of a wedged board")
     r.add_argument("--c5-hub-port", default=None)
     r.set_defaults(fn=cmd_run)
+
+    d = sub.add_parser("discover", help="pre-flight: find the boards on the hotspot "
+                                        "and show band, rung, IDF, RSSI, PHY")
+    d.add_argument("--host-ip", default="auto")
+    d.set_defaults(fn=cmd_discover)
 
     q = sub.add_parser("report", help="render figures and tables from the ledger")
     q.add_argument("--ledger", default="results/runs.jsonl")

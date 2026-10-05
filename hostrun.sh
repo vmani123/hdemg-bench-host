@@ -42,14 +42,19 @@ Q="$AGENT/queue"; O="$AGENT/out"; AUDIT="$AGENT/audit.log"
 mkdir -p "$Q" "$O"
 
 # ---- user-editable config ---------------------------------------------------
-IDF_EXPORT="$HOME/esp/esp-idf/export.sh"
-FLASH_WINDOW_MIN=240        # session flash approval lasts this many minutes
+IDF_EXPORT="${IDF_EXPORT:-$HOME/Desktop/Research/esp-idf/export.sh}"
+# Session flash approval lasts this many minutes. An overnight block runs ~5 h; if the
+# window lapses mid-sweep the next flash blocks on a prompt nobody is awake to answer,
+# so start an unattended night with FLASH_WINDOW_MIN=720.
+FLASH_WINDOW_MIN="${FLASH_WINDOW_MIN:-240}"
 MAX_SECONDS=900             # hard ceiling on any single action
 # -----------------------------------------------------------------------------
 
 FLASH_OK_UNTIL=0
 
-restrict_path() { PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin"; export PATH; }
+# /opt/local/bin is MacPorts: this Mac's cmake and ninja live there, and ESP-IDF does
+# not ship its own, so without it every build fails with "cmake not found".
+restrict_path() { PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin:/opt/local/bin"; export PATH; }
 audit() { printf '%s  %s\n' "$(date -u +%FT%TZ)" "$*" >> "$AUDIT"; }
 valid() { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]; }
 
@@ -127,7 +132,7 @@ do_esp_build() {   # target rung ingress
             --out "$dir/sdkconfig.rung" || exit 65
     local sdkdefs="sdkconfig.defaults;sdkconfig.rung"
     [ -f "$dir/sdkconfig.local" ] && sdkdefs="sdkconfig.defaults;sdkconfig.local;sdkconfig.rung"
-    run_bounded 600 idf.py -D SDKCONFIG_DEFAULTS="$sdkdefs" set-target "$target"
+    run_bounded 600 idf.py -D SDKCONFIG_DEFAULTS="$sdkdefs" set-target "$target" || exit 66
     run_bounded 600 idf.py -DBENCH_INGRESS="$ingress" -DBENCH_RUNG="$rung" build )
 }
 
