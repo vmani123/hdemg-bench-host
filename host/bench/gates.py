@@ -25,14 +25,28 @@ class GateResult:
 def pre_run(ctx: dict) -> GateResult:
     """ctx: band, expected_band, associated, rig_ceiling_mbps, offered_bps, rssi_dbm,
     first_rssi_dbm, ambient_ok, esp_reset_since_last, idf_version, expected_idf,
-    proto_ok, parity_ok."""
+    proto_ok, parity_ok, host_link, host_band, allow_shared_band."""
     f: list[str] = []
     w: list[str] = []
 
     if not ctx.get("associated", False):
         f.append("device is not associated with the access point")
     if str(ctx.get("band")) != str(ctx.get("expected_band")):
-        f.append(f"hotspot on band {ctx.get('band')}, expected {ctx.get('expected_band')}")
+        f.append(f"board is on band {ctx.get('band')}, expected {ctx.get('expected_band')}")
+
+    # The second hop (access point -> this host) must not share the first hop's air.
+    # On a dual-band router the host sits on the OTHER band or on a wire; if it is on the
+    # cell's band, every frame crosses one channel twice and every number is roughly
+    # halved. Wired links and the iPhone USB link carry no band and always pass.
+    if ctx.get("host_link") == "wifi":
+        hb = ctx.get("host_band")
+        if hb is None:
+            w.append("could not read this host's own Wi-Fi band — cannot confirm it is "
+                     "off the band being measured")
+        elif str(hb) == str(ctx.get("expected_band")):
+            msg = (f"this host is on Wi-Fi band {hb}, the band being measured — both hops "
+                   f"share one channel's airtime; move the host to the other band or wire it")
+            (w if ctx.get("allow_shared_band") else f).append(msg)
 
     ceiling = ctx.get("rig_ceiling_mbps")
     if ceiling in (None, 0):

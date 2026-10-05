@@ -97,14 +97,14 @@ for chip in $CHIPS; do
     # instead of after the first ten-minute hold.
     say "$chip qspi @ $hz Hz: smoke test (${SMOKE_HOLD}s at 4 Mbit/s)"
     if ! "$PY" -u -m cli.bench linktest --chip "$chip" --link qspi --loads 4 \
-           --hold "$SMOKE_HOLD" --link-opt "qspi_hz=$hz" "${common[@]}" \
+           --hold "$SMOKE_HOLD" --band "$BAND" --link-opt "qspi_hz=$hz" "${common[@]}" \
            --out "$RES/linktest-$STAMP-$chip-$hz-smoke.json"; then
       say "$chip qspi @ $hz Hz: smoke test failed"
       continue
     fi
     say "$chip qspi @ $hz Hz: full link test (${HOLD}s per load)"
     if "$PY" -u -m cli.bench linktest --chip "$chip" --link qspi \
-           --hold "$HOLD" --link-opt "qspi_hz=$hz" "${common[@]}" \
+           --hold "$HOLD" --band "$BAND" --link-opt "qspi_hz=$hz" "${common[@]}" \
            --out "$RES/linktest-$STAMP-$chip-$hz.json"; then
       ok_hz="$hz"
       break

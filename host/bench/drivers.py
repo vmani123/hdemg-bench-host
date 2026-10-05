@@ -134,10 +134,12 @@ class HardwareDriver:
                  host_ip: str | None = None, interactive_band: bool = True,
                  hub_ports: dict[str, str] | None = None,
                  rungs_root: str | Path | None = None,
-                 tree: str | None = None, h7_port: str = DEFAULT_H7_PORT):
-        # An IP of None or "auto" is found by discovery on the host's /24: the hotspot
-        # assigns addresses by DHCP, so they are not known in advance.
+                 tree: str | None = None, h7_port: str = DEFAULT_H7_PORT,
+                 ap: str = rfmeta.IPHONE_AP):
+        # An IP of None or "auto" is found by discovery on the host's /24: the access
+        # point assigns addresses by DHCP, so they are not known in advance.
         self.ips = {k: (None if v in (None, "", "auto") else v) for k, v in ips.items()}
+        self.ap = ap
         self.firmware_root = Path(firmware_root)
         self.ports = ports
         self.agent_dir = Path(agent_dir)
@@ -158,17 +160,25 @@ class HardwareDriver:
         self._h7_ready = False
 
     def host_ip(self) -> str:
-        """The address the ESPs stream to: the Mac's end of the iPhone USB link.
+        """The address the ESPs stream to.
 
-        Not the default route — that is usually the Mac's own Wi-Fi, which a device on
-        the hotspot cannot reach, so every frame would go nowhere."""
+        iPhone rig: the Mac's end of the iPhone USB link — not the default route, which
+        is usually the Mac's own Wi-Fi and unreachable from the hotspot. Router rig: the
+        Mac's address on the router's LAN, which is where the default route points. The
+        iPhone link is ignored there even if a phone happens to be plugged in: an address
+        on the phone's subnet would send every frame nowhere."""
         if self._host_ip:
             return self._host_ip
-        ip = rfmeta.iphone_usb_ip()
-        if ip:
-            return ip
+        if self.ap == rfmeta.IPHONE_AP:
+            ip = rfmeta.iphone_usb_ip()
+            if ip:
+                return ip
         known = next((i for i in self.ips.values() if i), None)
         return _local_ip_toward(known or "8.8.8.8")
+
+    def host_path(self, chip: str) -> dict:
+        """How this Mac reaches a board: the second hop of the rig (rfmeta.host_path)."""
+        return rfmeta.host_path(self.ips.get(chip), self.ap)
 
     def rediscover(self) -> dict:
         """Find the managed boards on the host's /24 and update their addresses in
@@ -188,23 +198,31 @@ class HardwareDriver:
         return self._ladders[chip].rung_for_tune(tune)
 
     def request_band(self, band: str) -> None:
-        """The hotspot serves one band at a time and the switch is a manual toggle.
-        Pause, say exactly what to change, then verify from the device rather than
-        assuming (spec §3.6)."""
+        """Make the next cells run on `band`.
+
+        The band is pinned in the board's firmware (BENCH_BAND), so the next
+        ensure_flashed() builds for it; a dual-band chip is rebuilt when the band
+        changes. On the iPhone rig the access point also serves only one band at a time
+        and the switch is a manual toggle: pause and say exactly what to change. Either
+        way the pre-run gate verifies the band from the device rather than assuming
+        (spec §3.6)."""
         band = str(band)
         if self._band == band:
             return
-        toggle = "ON (2.4 GHz)" if band == "2.4" else "OFF (5 GHz)"
-        if self.interactive_band:
-            input(f"\n>> Set Personal Hotspot -> Maximize Compatibility {toggle}, "
-                  f"then press Enter. ")
+        if self.ap == rfmeta.IPHONE_AP:
+            toggle = "ON (2.4 GHz)" if band == "2.4" else "OFF (5 GHz)"
+            if self.interactive_band:
+                input(f"\n>> Set Personal Hotspot -> Maximize Compatibility {toggle}, "
+                      f"then press Enter. ")
+            else:
+                # Non-interactive: the band was set before the sweep started (one toggle
+                # per unattended block). A wrong toggle fails loudly at the gate rather
+                # than silently producing numbers for the other band.
+                print(f">> assuming hotspot is already on {band} GHz "
+                      f"(Maximize Compatibility {toggle})")
         else:
-            # Non-interactive: the band was set before the sweep started (one toggle per
-            # unattended block). Announce it; the pre-run gate verifies the band from the
-            # device itself, so a wrong toggle fails loudly rather than silently
-            # producing numbers for the other band.
-            print(f">> assuming hotspot is already on {band} GHz "
-                  f"(Maximize Compatibility {toggle})")
+            print(f">> band {band} GHz: pinned in the firmware build; access point "
+                  f"'{self.ap}' serves both bands")
         self._band = band
 
     def recover(self, chip: str) -> bool:
@@ -240,13 +258,20 @@ class HardwareDriver:
 
     def ensure_flashed(self, chip: str, source: str, tune: str) -> dict:
         rung = self.rung_for(chip, tune)
-        want = (source, rung)
+        # The band is part of the build: the firmware pins the radio to it, because a
+        # dual-band access point would otherwise let the chip choose. request_band() is
+        # always called before the first run of a band, so it is known here.
+        band = self._band
+        want = (source, rung, band)
         if self._flashed.get(chip) == want:
             return {"flashed": False, "chip": chip, "rung": rung}
         self._flashed.pop(chip, None)
-        self._hostrun("esp_build", target=chip, rung=rung, ingress=source)
+        build = {"target": chip, "rung": rung, "ingress": source}
+        if band:
+            build["band"] = band
+        self._hostrun("esp_build", **build)
         self._hostrun("esp_flash", target=chip, port=self.ports[chip])
-        self._await_boot(chip, rung, source)
+        self._await_boot(chip, rung, source, band)
         self._flashed[chip] = want
         return {"flashed": True, "chip": chip, "rung": rung}
 
@@ -296,7 +321,7 @@ class HardwareDriver:
         self.control(chip)                       # makes sure the address is known
         return ingress_stat(self.ips[chip])
 
-    def _await_boot(self, chip: str, rung: str, source: str) -> dict:
+    def _await_boot(self, chip: str, rung: str, source: str, band: str | None = None) -> dict:
         """Wait for a freshly flashed board to rejoin and answer, then check it is
         running the build that was asked for (spec §3.2 step 2). A mismatch means the
         flash did not take, and measuring anyway would mislabel every point."""
@@ -314,6 +339,10 @@ class HardwareDriver:
                 raise RuntimeError(
                     f"{chip} answers with rung={h.get('rung')} ingress={h.get('ingress')}"
                     f", expected rung={rung} ingress={source} — the flash did not take")
+            if band and str(h.get("band")) not in (str(band), "None", "unknown"):
+                raise RuntimeError(
+                    f"{chip} joined on band {h.get('band')} but this build pins band "
+                    f"{band} — the band pin did not hold; measuring would mislabel the cell")
             return h
         raise TimeoutError(f"{chip} did not answer within {self.BOOT_TIMEOUT_S:.0f} s "
                            f"of flashing ({last})")
@@ -326,7 +355,7 @@ class HardwareDriver:
                 self.rediscover()
             if not self.ips.get(chip):
                 raise ControlError(f"{chip} not found on {self.host_ip()}/24 — is it "
-                                   f"powered and joined to the hotspot?")
+                                   f"powered and joined to the access point?")
             self._clients[chip] = ControlClient(self.ips[chip])
         return self._clients[chip]
 

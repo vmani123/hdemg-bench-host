@@ -137,12 +137,16 @@ class Orchestrator:
                  bands: list[str] | None = None, keepalive: bool = False,
                  recover: bool = True, on_event=None,
                  chips: list[str] | None = None, sources: list[str] | None = None,
-                 link_opts: dict | None = None):
+                 link_opts: dict | None = None,
+                 allow_shared_band: bool = False):
         self.m = matrix
         self.driver = driver
         self.ledger = ledger
         self.rig_ceilings = rig_ceilings or {}
         self.parity_ok = parity_ok
+        # Downgrades "this host is on the same Wi-Fi band as the cell" from a failed
+        # gate to a warning. Only for a rig where that is knowingly accepted.
+        self.allow_shared_band = allow_shared_band
         self.recv_port = recv_port
         self.bands = [str(b) for b in bands] if bands else None
         self.chips = list(chips) if chips else None
@@ -246,7 +250,8 @@ class Orchestrator:
                         "duration_s": 0.0, "not_run": True},
             "rf": rfmeta.collect(band=str(r.band), ap=self.m.ap,
                                  rig_ceiling_mbps=self.rig_ceilings.get(str(r.band)),
-                                 device_stat={}, idf_version=None),
+                                 device_stat={}, idf_version=None,
+                                 host_path_info=self._host_path(r.chip)),
             "valid": False, "reassociated": recovered, "source_limited": False,
             "gate_failures": ["device did not answer the control plane"
                               + (" even after a power cycle" if recovered else "")],
@@ -266,6 +271,17 @@ class Orchestrator:
                 last = e
                 time.sleep(0.5)
         raise RuntimeError(f"no {r.source} link between the H7 and {r.chip}: {last}")
+
+    def _host_path(self, chip: str) -> dict:
+        """How this host reaches the board (the second hop). Drivers that know say so;
+        the loopback fake has no second hop."""
+        fn = getattr(self.driver, "host_path", None)
+        if fn is None:
+            return {"link": "loopback"}
+        try:
+            return fn(chip) or {"link": "unknown"}
+        except Exception:                                    # noqa: BLE001
+            return {"link": "unknown"}
 
     def run_one(self, r: Run) -> dict:
         wired = r.source in WIRED_SOURCES
@@ -287,10 +303,13 @@ class Orchestrator:
             return rec
         stat0 = c.stat()
         ceiling = self.rig_ceilings.get(str(r.band))
+        host_path = self._host_path(r.chip)
 
         first_rssi = self._first_rssi.setdefault(r.cell_id, stat0.get("rssi"))
         pre_ctx = {
             "associated": True, "band": self.driver.band_of(r.chip),
+            "host_link": host_path.get("link"), "host_band": host_path.get("band"),
+            "allow_shared_band": self.allow_shared_band,
             "expected_band": r.band, "rig_ceiling_mbps": ceiling,
             "offered_bps": r.offered_bps, "rssi_dbm": stat0.get("rssi"),
             "first_rssi_dbm": first_rssi, "ambient_ok": True,
@@ -389,7 +408,8 @@ class Orchestrator:
             "rf": rfmeta.collect(band=str(r.band), ap=self.m.ap,
                                  rig_ceiling_mbps=ceiling,
                                  device_stat={**stat0, **stat1},
-                                 idf_version=hello.get("idf")),
+                                 idf_version=hello.get("idf"),
+                                 host_path_info=host_path),
             "valid": valid,
             "reassociated": reassociated or recovered,
             "keepalive": ka.snapshot(),

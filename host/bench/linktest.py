@@ -69,11 +69,16 @@ def verdict(h7: dict, esp: dict, seed: int) -> tuple[bool, list[str], list[str]]
 
 def run(driver, chip: str, link: str, loads_bps: list[int], *, hold_s: float = GUIDE_HOLD_S,
         tune: str = "tuned", link_opts: dict | None = None, recv_port: int = 3333,
+        band: str | None = None,
         say=print, sleep=time.sleep, rng: random.Random | None = None) -> dict:
     """Run the link test at each load. Never raises for a link that fails: the result
     says so. Raises only if the boards cannot be built, flashed or reached."""
     link_opts = dict(link_opts or {})
     rng = rng or random.Random()
+    # The band is part of the ESP build (the firmware pins its radio to it), so name it
+    # here: the build that passes this test is then the build the Stage 2 cells run.
+    if band:
+        driver.request_band(str(band))
     driver.ensure_flashed(chip, link, tune)
     driver.ensure_h7()
     h7, c = driver.h7(), driver.control(chip)

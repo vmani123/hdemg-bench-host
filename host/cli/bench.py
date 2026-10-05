@@ -19,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 REPO = Path(__file__).resolve().parents[2]
 
-from bench import linktest, parity, report, rungs            # noqa: E402
+from bench import linktest, parity, report, rfmeta, rungs    # noqa: E402
 from bench.h7 import DEFAULT_H7_PORT, H7Control, H7Error     # noqa: E402
 from bench.drivers import HardwareDriver, SimDriver          # noqa: E402
 from bench.ledger import Ledger                              # noqa: E402
@@ -51,7 +51,8 @@ def _csv(s: str | None) -> list[str] | None:
     return [x.strip() for x in s.split(",") if x.strip()] if s else None
 
 
-def _hardware(a, *, interactive_band: bool = False) -> HardwareDriver:
+def _hardware(a, *, interactive_band: bool = False,
+              ap: str = rfmeta.IPHONE_AP) -> HardwareDriver:
     hub = {}
     if getattr(a, "s3_hub_port", None):
         hub["esp32s3"] = a.s3_hub_port
@@ -65,7 +66,7 @@ def _hardware(a, *, interactive_band: bool = False) -> HardwareDriver:
         host_ip=a.host_ip,
         interactive_band=interactive_band,
         hub_ports=hub,
-        tree=a.tree, h7_port=a.h7_port)
+        tree=a.tree, h7_port=a.h7_port, ap=ap)
 
 
 def _progress(kind, **kw):
@@ -119,8 +120,9 @@ def cmd_run(a) -> int:
             return 2
     if a.expected_idf:
         m.expected_idf = a.expected_idf
-    drv = _hardware(a, interactive_band=not a.unattended)
-    print(f"host ip {drv.host_ip()}  expected idf {m.expected_idf}")
+    drv = _hardware(a, interactive_band=not a.unattended, ap=m.ap)
+    print(f"access point '{m.ap}'  host ip {drv.host_ip()}  expected idf {m.expected_idf}")
+    print(f"host link: {_describe_path(rfmeta.host_path(_gateway_of(drv.host_ip()), m.ap))}")
     for chip, h in sorted(drv.rediscover().items()):
         print(f"  found {chip} at {h['ip']}  band={h.get('band')} rung={h.get('rung')} "
               f"idf={h.get('idf')}")
@@ -130,7 +132,8 @@ def cmd_run(a) -> int:
                        bands=[a.band] if a.band else None,
                        keepalive=True, recover=True, on_event=_progress,
                        chips=_csv(a.chips), sources=_csv(a.sources),
-                       link_opts=_link_opts(a.link_opt))
+                       link_opts=_link_opts(a.link_opt),
+                       allow_shared_band=a.allow_shared_band)
     # Several passes: every point skipped or invalidated in one pass is retried in the
     # next (the ledger is the state). Stop early once nothing is left, or once a pass
     # makes no valid progress — repeating it would only repeat the failure.
@@ -147,7 +150,7 @@ def cmd_run(a) -> int:
 
 def cmd_linktest(a) -> int:
     """Stage 2 gate: prove the wire clean with Wi-Fi out of the loop (guide §7.2)."""
-    drv = _hardware(a)
+    drv = _hardware(a, ap=Matrix.load(a.matrix).ap)
     loads = [int(float(x) * 1e6) for x in a.loads.split(",")]
     opts = _link_opts(a.link_opt)
     print(f"link test: {a.chip} {a.link}  loads {a.loads} Mbit/s  hold {a.hold:g} s  "
@@ -157,7 +160,8 @@ def cmd_linktest(a) -> int:
               f"test, not the pass criterion", flush=True)
     try:
         res = linktest.run(drv, a.chip, a.link, loads, hold_s=a.hold, tune=a.tune,
-                           link_opts=opts, say=lambda m: print(m, flush=True))
+                           band=a.band, link_opts=opts,
+                           say=lambda m: print(m, flush=True))
     except Exception as e:                                   # noqa: BLE001
         res = {"chip": a.chip, "link": a.link, "passed": False, "steps": [],
                "error": f"{type(e).__name__}: {e}", "link_opts": opts, "hold_s": a.hold}
@@ -185,16 +189,44 @@ def cmd_h7(a) -> int:
         h.close()
 
 
+def _gateway_of(host_ip: str) -> str:
+    """An address on the host's own /24, good enough to ask the routing table which
+    interface carries the bench traffic before any board has been found."""
+    return host_ip.rsplit(".", 1)[0] + ".1"
+
+
+def _describe_path(p: dict) -> str:
+    link = p.get("link")
+    if link == "wifi":
+        return (f"Wi-Fi ({p.get('dev')}) on '{p.get('ssid')}', band {p.get('band')} GHz, "
+                f"channel {p.get('channel')}, {p.get('width_mhz')} MHz, {p.get('phy')}")
+    if link == "usb":
+        return "iPhone USB (wired to the hotspot)"
+    if link == "ethernet":
+        return f"Ethernet ({p.get('dev')}), wired"
+    return "unknown"
+
+
 def cmd_discover(a) -> int:
     """Pre-flight: what the harness will see when the sweep starts."""
-    from bench import rfmeta
     from bench.control import ControlClient
-    usb = rfmeta.iphone_usb_ip()
+    ap = Matrix.load(a.matrix).ap
     drv = HardwareDriver(ips={"esp32s3": None, "esp32c5": None}, firmware_root=".",
-                         ports={}, host_ip=a.host_ip)
+                         ports={}, host_ip=a.host_ip, ap=ap)
     host = drv.host_ip()
-    print(f"iPhone USB address : {usb or 'NOT UP — plug the iPhone in and enable Personal Hotspot'}")
+    path = rfmeta.host_path(_gateway_of(host), ap)
+    print(f"access point       : {ap}  (from {a.matrix})")
     print(f"host ip (stream to): {host}")
+    print(f"host link          : {_describe_path(path)}")
+    rig_ok = True
+    if ap == rfmeta.IPHONE_AP:
+        if path.get("link") != "usb":
+            rig_ok = False
+            print("  !! iPhone USB is NOT UP — plug the iPhone in and enable Personal Hotspot")
+    elif path.get("link") == "wifi":
+        print(f"  -> cells on band {path.get('band')} GHz would share this Mac's channel and "
+              f"are refused by the pre-run gate; the other band is clean. Wire the Mac to "
+              f"the router to run both.")
     found = drv.rediscover()
     if not found:
         print(f"no bench devices answered on {host.rsplit('.', 1)[0]}.0/24")
@@ -207,7 +239,7 @@ def cmd_discover(a) -> int:
         print(f"{chip:<8} {h['ip']:<15} band={h.get('band')} rung={h.get('rung')} "
               f"ingress={h.get('ingress')} idf={h.get('idf')} rssi={st.get('rssi')} "
               f"phy={st.get('phy_rate')}")
-    return 0 if usb else 1
+    return 0 if rig_ok else 1
 
 
 def cmd_report(a) -> int:
@@ -280,13 +312,18 @@ def main(argv=None) -> int:
                    help="re-run skipped/invalid points up to this many passes")
     r.add_argument("--force", action="store_true")
     r.add_argument("--band", default=None, choices=["2.4", "5"],
-                   help="restrict the sweep to one band. The hotspot serves one band at "
-                        "a time and the toggle is manual, so one band is the unit that "
-                        "runs unattended: do 2.4 overnight, flip the toggle, do 5.")
+                   help="restrict the sweep to one band: the unit that runs unattended. "
+                        "On a router rig the Mac's own Wi-Fi must be on the OTHER band "
+                        "(or wired); on the iPhone rig the hotspot serves one band at a "
+                        "time and the toggle is manual.")
     r.add_argument("--unattended", action="store_true",
-                   help="never block on a prompt. Set the hotspot band BEFORE starting; "
-                        "the pre-run gate verifies it from the device, so a wrong toggle "
-                        "fails loudly instead of quietly measuring the other band.")
+                   help="never block on a prompt. The pre-run gate verifies the band from "
+                        "the device, so a wrong band fails loudly instead of quietly "
+                        "measuring the other one.")
+    r.add_argument("--allow-shared-band", action="store_true",
+                   help="record a warning instead of refusing a cell when this Mac's own "
+                        "Wi-Fi is on the band being measured (both hops then share one "
+                        "channel and every number is depressed)")
     r.add_argument("--s3-hub-port", default=None,
                    help="uhubctl port number for the S3, enabling auto power-cycle "
                         "recovery of a wedged board")
@@ -308,6 +345,11 @@ def main(argv=None) -> int:
     lt.add_argument("--hold", type=float, default=linktest.GUIDE_HOLD_S,
                     help="seconds per load; the guide's pass criterion is 600")
     lt.add_argument("--tune", default="tuned")
+    lt.add_argument("--band", default=None, choices=["2.4", "5"],
+                    help="build the ESP for this band, as the Stage 2 cells that follow "
+                         "will be, so the build tested is the build measured")
+    lt.add_argument("--matrix", default="matrices/stage2.yaml",
+                    help="the matrix whose `ap:` names the rig")
     lt.add_argument("--out", default=None, help="write the result as JSON here")
     lt.add_argument("--firmware", default=str(REPO / "firmware"))
     lt.add_argument("--s3-ip", default="auto")
@@ -325,9 +367,12 @@ def main(argv=None) -> int:
     h.add_argument("--timeout", type=float, default=3.0)
     h.set_defaults(fn=cmd_h7)
 
-    d = sub.add_parser("discover", help="pre-flight: find the boards on the hotspot "
-                                        "and show band, rung, IDF, RSSI, PHY")
+    d = sub.add_parser("discover", help="pre-flight: show the rig (access point, how this "
+                                        "Mac reaches it) and find the boards: band, rung, "
+                                        "IDF, RSSI, PHY")
     d.add_argument("--host-ip", default="auto")
+    d.add_argument("--matrix", default="matrices/stage1.yaml",
+                   help="the matrix whose `ap:` names the rig")
     d.set_defaults(fn=cmd_discover)
 
     q = sub.add_parser("report", help="render figures and tables from the ledger")
