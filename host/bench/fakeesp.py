@@ -121,7 +121,12 @@ class FakeESP:
 
     def _stat(self) -> dict:
         offered = float(self.cfg["rate_bps"]) or 1.0
-        if self.cpu_bound_bps:
+        if not self._running:
+            # Faithful to the firmware: once the stream stops there is no achieved rate
+            # to report (the source zeroes it at once) and the CPU is simply idle. A
+            # harness that reads these from the `stop` summary gets nonsense.
+            idle = 99.0
+        elif self.cpu_bound_bps:
             idle = max(0.0, 100.0 * (1.0 - offered / self.cpu_bound_bps))
         else:
             idle = max(25.0, 100.0 - 45.0 * offered / max(self.ceiling_bps, 1.0))
@@ -133,6 +138,8 @@ class FakeESP:
                 "heap": 180000, "achieved_bps": self._achieved_bps()}
 
     def _achieved_bps(self) -> float:
+        if not self._running:
+            return 0.0
         offered = float(self.cfg["rate_bps"])
         return min(offered, self.ceiling_bps)
 

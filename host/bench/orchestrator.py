@@ -299,14 +299,28 @@ class Orchestrator:
             rx.start()
             c.cfg(rate_bps=r.offered_bps, transport=r.transport,
                   dst=f"{self.driver.host_ip()}:{self.recv_port}",
-                  dur_s=int(hold) + 2, frame_bytes=self.m.frame_bytes,
+                  dur_s=int(hold) + 5, frame_bytes=self.m.frame_bytes,
                   payload="rand", label=f"{r.cell_id}-r{r.repeat}")
             c.start()
             metrics = rx.join()
+            # Sample the device WHILE IT IS STILL STREAMING, then stop it. The achieved
+            # source rate and the CPU-idle figure describe the stream only while it runs:
+            # the firmware zeroes its achieved rate the moment the run ends, and after
+            # that the CPU is merely idle. Read from the `stop` summary — as this used
+            # to — every run came back "achieved 0", was labelled source-limited, and
+            # carried an idle figure for a board doing nothing. (dur_s leaves a few
+            # seconds of margin so the board has not stopped on its own by now.)
+            try:
+                live = c.stat()
+            except Exception:                                 # noqa: BLE001
+                live = {}
             try:
                 stat1 = c.stop().get("summary", {}) or c.stat()
             except Exception:                                 # noqa: BLE001
                 stat1 = {}
+            for k in ("achieved_bps", "idle_pct"):
+                if live.get(k) is not None:
+                    stat1[k] = live[k]
             metrics_d = metrics.as_dict()
             post = gates.post_run({
                 "commanded_bps": r.offered_bps,
