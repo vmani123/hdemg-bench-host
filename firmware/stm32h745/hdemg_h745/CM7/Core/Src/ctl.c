@@ -4,6 +4,7 @@
  *   cfg k=v ...                   rate_bps= dur_s= link=none|qspi|sdio seed= frame_bytes=270
  *                                 qspi_hz= qspi_rd_hz= qspi_dummy= qspi_addr_lines=1|4
  *                                 qspi_sshift=0|1 qspi_even=0|1 qspi_nocredit=0|1 sdio_hz= batch=
+ *   probe                         open the configured link, report whether a slave answers, close it
  *   start                         open the link (fails if no slave answers), start generating
  *   stat                          counters, any time
  *   stop                          end the run now; reply carries the summary
@@ -292,6 +293,30 @@ static void cmd_start(void)
     s_seed_set = 0;                 /* a seed applies to one run unless set again */
 }
 
+/* Link check without a run: lets the host refuse a cell in a second instead of
+ * discovering sixty seconds later that nothing was listening. */
+static void cmd_probe(void)
+{
+    if (busy()) return;
+    if (s_debug_open) { reply_err("q_open is holding the link; q_close first"); return; }
+    const char *err = "";
+    int rc = link_open(&s_link, &err);
+    link_stats_t l;
+    link_stats(&l);
+    if (rc == 0) link_close();
+    j_begin();
+    j_b("ok", rc == 0);
+    if (rc != 0) { j_s("err", err); j_u("code", (uint64_t)(uint32_t)(-rc)); }
+    j_s("link", link_name(s_link.kind));
+    j_u("link_hz", l.actual_hz);
+    j_u("read_value", l.last_loaded);
+    j_u("loaded", l.last_loaded);
+    j_u("completed", l.last_completed);
+    j_u("link_errors", l.errors);
+    j_u("torn_reads", l.torn_reads);
+    j_end();
+}
+
 static void cmd_stat(void)
 {
     j_begin();
@@ -444,6 +469,7 @@ void ctl_poll(void)
     if      (!strcmp(verb, "hello"))  cmd_hello();
     else if (!strcmp(verb, "cfg"))    cmd_cfg();
     else if (!strcmp(verb, "start"))  cmd_start();
+    else if (!strcmp(verb, "probe"))  cmd_probe();
     else if (!strcmp(verb, "stat"))   cmd_stat();
     else if (!strcmp(verb, "stop"))   cmd_stop();
     else if (!strcmp(verb, "reboot")) { j_begin(); j_b("ok", 1); j_end(); HAL_Delay(50); NVIC_SystemReset(); }

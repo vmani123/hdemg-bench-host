@@ -70,7 +70,13 @@ def check(firmware_root: str | Path) -> dict:
                                 f"measurement core must exist in exactly one place")
 
     # The protocol version must be defined once, in the shared component.
-    defs = [p for p in root.rglob("*.h") if PROTO_RE.search(p.read_text())]
+    # Only the ESP trees: firmware/ also holds the STM32 project and megabytes of vendor
+    # headers, which are neither part of this contract nor guaranteed to be UTF-8.
+    esp_dirs = [common] + [root / t for t in TARGETS if (root / t).is_dir()]
+    defs = [p for d in esp_dirs for p in d.rglob("*.h")
+            if "build" not in p.relative_to(d).parts
+            and "managed_components" not in p.relative_to(d).parts
+            and PROTO_RE.search(p.read_text(errors="replace"))]
     proto = None
     if not defs:
         problems.append("CONTROL_PROTOCOL_VERSION is not defined anywhere")

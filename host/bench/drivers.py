@@ -14,6 +14,8 @@ from pathlib import Path
 from . import rfmeta
 from .control import ControlClient, ControlError, discover
 from .fakeesp import FakeESP
+from .h7 import (DEFAULT_H7_PORT, FakeH7, H7Control, H7Error, fake_ingress_stat,
+                 ingress_stat)
 from .rungs import Ladder
 
 CHIP_SHORT = {"esp32s3": "s3", "esp32c5": "c5"}
@@ -38,9 +40,28 @@ class SimDriver:
         self._base_port = base_port
         self.flashes = 0
         self._flashed: dict[str, tuple] = {}
+        self.h7_faults: dict = {}          # tests inject what a broken rig would report
+        self._h7 = None
 
     def host_ip(self) -> str:
         return "127.0.0.1"
+
+    def ensure_h7(self) -> dict:
+        return {"flashed": False}
+
+    def h7(self):
+        if self._h7 is None:
+            self._h7 = FakeH7(self.h7_faults)
+        return self._h7
+
+    def ingress_stat(self, chip: str) -> dict:
+        # The fake ESP was told which mode to run in, exactly as a real one is.
+        payload = str(self._esps[chip].cfg.get("payload", "")) if chip in self._esps else ""
+        faults = dict(self.h7_faults)
+        if payload.startswith("lt:"):
+            faults.setdefault("link_test", 1)
+            faults.setdefault("seed", int(payload[3:], 0))
+        return fake_ingress_stat(self.h7().stat(), faults)
 
     def request_band(self, band: str) -> None:
         self.band = str(band)
@@ -106,12 +127,14 @@ class HardwareDriver:
     BOOT_TIMEOUT_S = 90.0      # flash -> boot -> associate -> DHCP -> control plane up
     REJOIN_TIMEOUT_S = 45.0    # how long recover() looks for a board that dropped off
     HOSTRUN_WAIT_S = 1800      # hostrun bounds set-target and build at 600 s each
+    TREE_ACTIONS = ("esp_build", "esp_flash", "stm_build", "stm_flash")
 
     def __init__(self, ips: dict[str, str | None], firmware_root: str | Path,
                  ports: dict[str, str], agent_dir: str | Path = "_agent",
                  host_ip: str | None = None, interactive_band: bool = True,
                  hub_ports: dict[str, str] | None = None,
-                 rungs_root: str | Path | None = None):
+                 rungs_root: str | Path | None = None,
+                 tree: str | None = None, h7_port: str = DEFAULT_H7_PORT):
         # An IP of None or "auto" is found by discovery on the host's /24: the hotspot
         # assigns addresses by DHCP, so they are not known in advance.
         self.ips = {k: (None if v in (None, "", "auto") else v) for k, v in ips.items()}
@@ -127,6 +150,12 @@ class HardwareDriver:
         self._clients: dict[str, ControlClient] = {}
         self._ladders: dict[str, Ladder] = {}
         self._band = None
+        # hostrun builds the repo root unless told to build a named worktree (work in
+        # progress that must not touch the checkout a sweep is measuring from).
+        self.tree = tree or None
+        self.h7_port = h7_port
+        self._h7: H7Control | None = None
+        self._h7_ready = False
 
     def host_ip(self) -> str:
         """The address the ESPs stream to: the Mac's end of the iPhone USB link.
@@ -221,6 +250,52 @@ class HardwareDriver:
         self._flashed[chip] = want
         return {"flashed": True, "chip": chip, "rung": rung}
 
+    # ---- Stage 2: the STM32H745 generator ------------------------------------------
+    def h7(self) -> H7Control:
+        if self._h7 is None:
+            self._h7 = H7Control(self.h7_port)
+        return self._h7
+
+    def _tree_sha(self) -> str | None:
+        """What hostrun's stm_build stamps into the firmware as fw_sha."""
+        root = self.firmware_root.parent
+        try:
+            out = subprocess.run(["git", "-C", str(root), "describe", "--always", "--dirty"],
+                                 capture_output=True, text=True, timeout=10)
+            return out.stdout.strip() or None
+        except (OSError, subprocess.SubprocessError):
+            return None
+
+    def ensure_h7(self) -> dict:
+        """Make sure the generator is running the firmware of the tree being measured.
+        One image serves both links (the link is a runtime setting), so this flashes at
+        most once per session — and not at all if the board already reports this build."""
+        if self._h7_ready:
+            return {"flashed": False}
+        want = self._tree_sha()
+        try:
+            have = self.h7().hello().get("fw_sha")
+        except H7Error:
+            have = None
+        flashed = False
+        if have is None or want is None or have != want:
+            self.h7().close()
+            self._hostrun("stm_build", project="hdemg_h745", config="Release", core="all")
+            self._hostrun("stm_flash", project="hdemg_h745", config="Release", core="cm4")
+            self._hostrun("stm_flash", project="hdemg_h745", config="Release", core="cm7")
+            time.sleep(1.5)
+            have = self.h7().hello().get("fw_sha")
+            flashed = True
+            if want and have != want:
+                raise RuntimeError(f"H7 reports fw_sha {have}, expected {want} — the "
+                                   f"flash did not take")
+        self._h7_ready = True
+        return {"flashed": flashed, "fw_sha": have}
+
+    def ingress_stat(self, chip: str) -> dict:
+        self.control(chip)                       # makes sure the address is known
+        return ingress_stat(self.ips[chip])
+
     def _await_boot(self, chip: str, rung: str, source: str) -> dict:
         """Wait for a freshly flashed board to rejoin and answer, then check it is
         running the build that was asked for (spec §3.2 step 2). A mismatch means the
@@ -264,8 +339,13 @@ class HardwareDriver:
         q.mkdir(parents=True, exist_ok=True)
         o.mkdir(parents=True, exist_ok=True)
         jid = f"{int(time.time()*1000)}"
+        if self.tree and action in self.TREE_ACTIONS:
+            params = {**params, "tree": self.tree}
         body = f"action={action}\n" + "".join(f"{k}={v}\n" for k, v in params.items())
-        (q / f"{jid}.job").write_text(body)
+        # Written under another name and renamed in: hostrun must never read half a job.
+        tmp = q / f".{jid}.tmp"
+        tmp.write_text(body)
+        tmp.rename(q / f"{jid}.job")
         log = o / f"{jid}.log"
         for _ in range(self.HOSTRUN_WAIT_S):
             if log.exists():

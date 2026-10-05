@@ -3,6 +3,8 @@
 
     python3 -m cli.bench sim      --matrix matrices/stage1.yaml
     python3 -m cli.bench run      --matrix matrices/stage1.yaml --ceilings 5=95,2.4=60
+    python3 -m cli.bench linktest --chip esp32s3 --link qspi      # Stage 2 gate (guide §7.2)
+    python3 -m cli.bench h7 hello                                  # talk to the H7 generator
     python3 -m cli.bench report
     python3 -m cli.bench parity
     python3 -m cli.bench effort
@@ -17,7 +19,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 REPO = Path(__file__).resolve().parents[2]
 
-from bench import parity, report, rungs                      # noqa: E402
+from bench import linktest, parity, report, rungs            # noqa: E402
+from bench.h7 import DEFAULT_H7_PORT, H7Control, H7Error     # noqa: E402
 from bench.drivers import HardwareDriver, SimDriver          # noqa: E402
 from bench.ledger import Ledger                              # noqa: E402
 from bench.orchestrator import Matrix, Orchestrator          # noqa: E402
@@ -31,6 +34,38 @@ def _ceilings(s: str | None) -> dict:
         band, _, val = part.partition("=")
         out[band.strip()] = float(val)
     return out
+
+
+def _link_opts(items) -> dict:
+    """--link-opt qspi_hz=25000000 ... -> settings passed to the H7 generator's cfg."""
+    out = {}
+    for it in items or []:
+        k, sep, v = it.partition("=")
+        if not sep or not k:
+            raise SystemExit(f"--link-opt wants key=value, got {it!r}")
+        out[k.strip()] = v.strip()
+    return out
+
+
+def _csv(s: str | None) -> list[str] | None:
+    return [x.strip() for x in s.split(",") if x.strip()] if s else None
+
+
+def _hardware(a, *, interactive_band: bool = False) -> HardwareDriver:
+    hub = {}
+    if getattr(a, "s3_hub_port", None):
+        hub["esp32s3"] = a.s3_hub_port
+    if getattr(a, "c5_hub_port", None):
+        hub["esp32c5"] = a.c5_hub_port
+    return HardwareDriver(
+        ips={"esp32s3": a.s3_ip, "esp32c5": a.c5_ip},
+        firmware_root=a.firmware,
+        ports={"esp32s3": a.s3_port, "esp32c5": a.c5_port},
+        agent_dir=a.agent_dir,
+        host_ip=a.host_ip,
+        interactive_band=interactive_band,
+        hub_ports=hub,
+        tree=a.tree, h7_port=a.h7_port)
 
 
 def _progress(kind, **kw):
@@ -82,21 +117,9 @@ def cmd_run(a) -> int:
             print("refusing to run a cross-chip comparison; pass --force to override",
                   file=sys.stderr)
             return 2
-    hub = {}
-    if a.s3_hub_port:
-        hub["esp32s3"] = a.s3_hub_port
-    if a.c5_hub_port:
-        hub["esp32c5"] = a.c5_hub_port
     if a.expected_idf:
         m.expected_idf = a.expected_idf
-    drv = HardwareDriver(
-        ips={"esp32s3": a.s3_ip, "esp32c5": a.c5_ip},
-        firmware_root=a.firmware,
-        ports={"esp32s3": a.s3_port, "esp32c5": a.c5_port},
-        agent_dir=a.agent_dir,
-        host_ip=a.host_ip,
-        interactive_band=not a.unattended,
-        hub_ports=hub)
+    drv = _hardware(a, interactive_band=not a.unattended)
     print(f"host ip {drv.host_ip()}  expected idf {m.expected_idf}")
     for chip, h in sorted(drv.rediscover().items()):
         print(f"  found {chip} at {h['ip']}  band={h.get('band')} rung={h.get('rung')} "
@@ -105,7 +128,9 @@ def cmd_run(a) -> int:
                        rig_ceilings=_ceilings(a.ceilings),
                        parity_ok=par["ok"],
                        bands=[a.band] if a.band else None,
-                       keepalive=True, recover=True, on_event=_progress)
+                       keepalive=True, recover=True, on_event=_progress,
+                       chips=_csv(a.chips), sources=_csv(a.sources),
+                       link_opts=_link_opts(a.link_opt))
     # Several passes: every point skipped or invalidated in one pass is retried in the
     # next (the ledger is the state). Stop early once nothing is left, or once a pass
     # makes no valid progress — repeating it would only repeat the failure.
@@ -118,6 +143,46 @@ def cmd_run(a) -> int:
             break
         time.sleep(30.0)
     return 0 if res.get("remaining") == 0 else 3
+
+
+def cmd_linktest(a) -> int:
+    """Stage 2 gate: prove the wire clean with Wi-Fi out of the loop (guide §7.2)."""
+    drv = _hardware(a)
+    loads = [int(float(x) * 1e6) for x in a.loads.split(",")]
+    opts = _link_opts(a.link_opt)
+    print(f"link test: {a.chip} {a.link}  loads {a.loads} Mbit/s  hold {a.hold:g} s  "
+          f"opts {opts or '{}'}", flush=True)
+    if a.hold < linktest.GUIDE_HOLD_S:
+        print(f"  note: hold is under the guide's {linktest.GUIDE_HOLD_S:g} s — a smoke "
+              f"test, not the pass criterion", flush=True)
+    try:
+        res = linktest.run(drv, a.chip, a.link, loads, hold_s=a.hold, tune=a.tune,
+                           link_opts=opts, say=lambda m: print(m, flush=True))
+    except Exception as e:                                   # noqa: BLE001
+        res = {"chip": a.chip, "link": a.link, "passed": False, "steps": [],
+               "error": f"{type(e).__name__}: {e}", "link_opts": opts, "hold_s": a.hold}
+        print(f"  could not run the link test: {res['error']}", flush=True)
+    if a.out:
+        out = Path(a.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(res, indent=2, sort_keys=True))
+        print(f"wrote {out}")
+    print(f"link test {'PASSED' if res['passed'] else 'FAILED'}: {a.chip} {a.link}")
+    return 0 if res["passed"] else 1
+
+
+def cmd_h7(a) -> int:
+    """Send one command line to the H7 generator and print its reply."""
+    h = H7Control(a.h7_port)
+    try:
+        print(json.dumps(h._rpc(" ".join(a.words), timeout=a.timeout), sort_keys=True))
+        return 0
+    except H7Error as e:
+        print(json.dumps({"ok": False, "err": str(e), **({"reply": e.reply} if e.reply else {})},
+                         sort_keys=True))
+        return 1
+    finally:
+        h.close()
 
 
 def cmd_discover(a) -> int:
@@ -169,6 +234,17 @@ def cmd_effort(a) -> int:
     return 0
 
 
+def _wired_args(p) -> None:
+    p.add_argument("--tree", default=None,
+                   help="build and flash from this git worktree (.claude/worktrees/<name>) "
+                        "instead of the repo root; passed to hostrun.sh as tree=<name>")
+    p.add_argument("--h7-port", default=DEFAULT_H7_PORT,
+                   help="serial port of the STM32H745 generator (the ST-LINK VCP)")
+    p.add_argument("--link-opt", action="append", default=[], metavar="KEY=VALUE",
+                   help="extra H7 link setting for wired cells, e.g. qspi_hz=25000000; "
+                        "repeatable, and recorded with every run")
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="bench", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -215,7 +291,39 @@ def main(argv=None) -> int:
                    help="uhubctl port number for the S3, enabling auto power-cycle "
                         "recovery of a wedged board")
     r.add_argument("--c5-hub-port", default=None)
+    r.add_argument("--chips", default=None,
+                   help="restrict to these chips (comma separated). For Stage 2: only a "
+                        "chip that is physically wired to the H7 can run a wired cell")
+    r.add_argument("--sources", default=None,
+                   help="restrict to these sources (synth,qspi,sdio)")
+    _wired_args(r)
     r.set_defaults(fn=cmd_run)
+
+    lt = sub.add_parser("linktest", help="Stage 2 gate: verify the H7->ESP wire with "
+                                         "Wi-Fi out of the loop (guide §7.2)")
+    lt.add_argument("--chip", required=True, choices=["esp32s3", "esp32c5"])
+    lt.add_argument("--link", required=True, choices=["qspi", "sdio"])
+    lt.add_argument("--loads", default="4,12,20,28,36,44,52,60",
+                    help="offered loads in Mbit/s, comma separated")
+    lt.add_argument("--hold", type=float, default=linktest.GUIDE_HOLD_S,
+                    help="seconds per load; the guide's pass criterion is 600")
+    lt.add_argument("--tune", default="tuned")
+    lt.add_argument("--out", default=None, help="write the result as JSON here")
+    lt.add_argument("--firmware", default=str(REPO / "firmware"))
+    lt.add_argument("--s3-ip", default="auto")
+    lt.add_argument("--c5-ip", default="auto")
+    lt.add_argument("--host-ip", default="auto")
+    lt.add_argument("--s3-port", default="cu.usbmodem101")
+    lt.add_argument("--c5-port", default="cu.usbserial-110")
+    lt.add_argument("--agent-dir", default=str(REPO / "_agent"))
+    _wired_args(lt)
+    lt.set_defaults(fn=cmd_linktest)
+
+    h = sub.add_parser("h7", help="send one command to the H7 generator (hello, stat, ...)")
+    h.add_argument("words", nargs="+")
+    h.add_argument("--h7-port", default=DEFAULT_H7_PORT)
+    h.add_argument("--timeout", type=float, default=3.0)
+    h.set_defaults(fn=cmd_h7)
 
     d = sub.add_parser("discover", help="pre-flight: find the boards on the hotspot "
                                         "and show band, rung, IDF, RSSI, PHY")

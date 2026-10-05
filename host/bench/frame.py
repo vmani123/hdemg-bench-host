@@ -38,6 +38,29 @@ def pack(seq: int, t_src: int, payload: bytes, *, n_ch: int = 128,
                     t_src & 0xFFFFFFFF, n_ch) + payload
 
 
+# ---- Stage 2 wired-ingress payload (mirror of firmware/bench_common/include/hdemg_link.h)
+# A wired frame's 256 payload bytes are a xorshift32 stream seeded from the frame's own
+# seq and a per-run seed, so a receiver that knows the seed can regenerate and compare
+# them: the only way to catch link corruption that leaves the header intact.
+PAYLOAD_WORDS = RAW16_128CH_PAYLOAD // 4
+
+
+def _xs32(x: int) -> int:
+    x ^= (x << 13) & 0xFFFFFFFF
+    x ^= x >> 17
+    x ^= (x << 5) & 0xFFFFFFFF
+    return x
+
+
+def wired_payload(seq: int, seed: int) -> bytes:
+    x = (seq ^ seed) & 0xFFFFFFFF or 0x9E3779B9      # xorshift has a fixed point at 0
+    out = []
+    for _ in range(PAYLOAD_WORDS):
+        x = _xs32(x)
+        out.append(x)
+    return struct.pack(f"<{PAYLOAD_WORDS}I", *out)
+
+
 def frame_bytes_for(payload_bytes: int) -> int:
     return HDR_BYTES + payload_bytes
 

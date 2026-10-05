@@ -97,6 +97,60 @@ def post_run(ctx: dict) -> GateResult:
     return GateResult(not f, f, w)
 
 
+def ingress(ctx: dict) -> GateResult:
+    """Stage 2 wired ingress (guide §8). ctx: h7 (the generator's run summary), esp (the
+    ESP's ingress counters), h7_error (why the generator did not start, if it did not).
+
+    Corruption on the wire is a RIG FAULT, not a result: a run with any of it is invalid.
+    Frames the generator had to drop because the link gave it no credit are a RESULT —
+    the link could not keep up at that load — and are labelled, like source_limited."""
+    f: list[str] = []
+    w: list[str] = []
+    h7, esp = ctx.get("h7") or {}, ctx.get("esp") or {}
+
+    if ctx.get("h7_error"):
+        f.append(f"generator did not start: {ctx['h7_error']}")
+        return GateResult(False, f, w)
+    if not h7:
+        f.append("no run summary from the H7 generator — the offered load is unverified")
+    if not esp:
+        f.append("no ingress counters from the ESP — link integrity is unverified")
+    if f:
+        return GateResult(False, f, w)
+
+    if esp.get("init_err"):
+        f.append(f"ESP ingress link failed to initialise (err {esp['init_err']})")
+    bad = {k: esp.get(k, 0) for k in ("len_errors", "magic_errors", "seq_backwards",
+                                      "payload_errors") if esp.get(k, 0)}
+    if bad:
+        f.append("link corruption seen by the ESP: "
+                 + ", ".join(f"{k}={v}" for k, v in sorted(bad.items())))
+    for k in ("link_errors", "credit_errors"):
+        if h7.get(k, 0):
+            f.append(f"H7 link reported {k}={h7[k]}")
+    # Every gap the ESP sees between consecutive frames must be a frame the generator
+    # itself dropped at its ring. Any more than that went missing on the wire.
+    drops, gaps = int(h7.get("ring_drops", 0)), int(esp.get("seq_gaps", 0))
+    if gaps > drops:
+        f.append(f"{gaps - drops} frames lost on the link (ESP saw {gaps} missing, "
+                 f"the generator dropped {drops})")
+
+    frames = int(h7.get("frames", 0))
+    if drops:
+        w.append(f"ingress-limited: the link refused {drops} of {frames} frames "
+                 f"({100.0 * drops / max(1, frames):.2f}%) — dropped at the H7 ring")
+    if h7.get("ready_timeouts", 0):
+        w.append(f"{h7['ready_timeouts']} waits of more than 10 ms for link credit")
+    if esp.get("pool_starved", 0):
+        w.append(f"ESP buffer pool ran dry {esp['pool_starved']} times — the sink, "
+                 f"not the link, was pushing back")
+    return GateResult(not f, f, w)
+
+
+def ingress_limited(h7: dict | None) -> bool:
+    return bool(h7 and int(h7.get("ring_drops", 0)) > 0)
+
+
 def source_limited(ctx: dict) -> bool:
     cmd = float(ctx.get("commanded_bps") or 0)
     ach = ctx.get("achieved_bps")
