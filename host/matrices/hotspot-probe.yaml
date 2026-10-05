@@ -1,0 +1,33 @@
+# Hotspot probe — a short targeted test, NOT a stage of the plan and not comparable with
+# the staged sweeps. Run it with hotspot_probe.sh, which keeps its results in a ledger of
+# its own (results/hotspot-probe.jsonl).
+#
+# Two questions, on both chips at 2.4 GHz:
+#   1. Is the TCP ceiling the default send buffer?  TCP with the stock build (baseline)
+#      against TCP with ONLY the send buffer enlarged 8x (rung p1-tcp-sndbuf).
+#   2. What does UDP look like once this Mac no longer drops datagrams itself?  UDP on
+#      the stock build, at a handful of loads.
+#
+# THE RIG IS ENFORCED. `ssid` names the one network this may run on: the boards'
+# firmware must be configured for it and this Mac must be associated to it, or nothing
+# is built, flashed or measured.
+#
+# The Mac is on the hotspot's own Wi-Fi here (ap: iphone-hotspot-wifi), so the boards
+# and the Mac share one channel and every frame crosses the same air twice. Expect
+# roughly half of what a rig with a wired second hop would show. `allow_shared_band`
+# accepts that knowingly; every run carries the warning.
+#
+# 6 loads x 2 repeats x (2 TCP builds + 1 UDP) x 2 chips = 72 runs of 30 s: ~1 hour.
+stage: 1
+repeats: 2
+ap: iphone-hotspot-wifi
+ssid: VikPhone
+allow_shared_band: true
+expected_idf: v6.0-dev-2980-gab149384e1-dirty
+frame_bytes: 270
+sweep: {start_mbps: 4, stop_mbps: 44, steps: 6, hold_s: 30, discard_s: 3}
+cells:
+  - {chip: esp32c5, band: "2.4", source: synth, transport: [tcp], tune: [baseline, p1-tcp-sndbuf]}
+  - {chip: esp32c5, band: "2.4", source: synth, transport: [udp], tune: [baseline]}
+  - {chip: esp32s3, band: "2.4", source: synth, transport: [tcp], tune: [baseline, p1-tcp-sndbuf]}
+  - {chip: esp32s3, band: "2.4", source: synth, transport: [udp], tune: [baseline]}

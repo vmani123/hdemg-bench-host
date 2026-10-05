@@ -76,3 +76,41 @@ def test_a_sweep_can_be_restricted_to_one_transport():
     tcp = m.expand(transports=["tcp"])
     assert tcp and {r.transport for r in tcp} == {"tcp"}
     assert len(tcp) * 2 == len(m.expand())
+
+
+def test_drift_can_be_kept_as_a_warning_when_explicitly_asked(tmp_path, monkeypatch):
+    """For a board whose REPORTED RSSI wanders by itself: the run is kept and labelled,
+    and both readings travel with it so it can be filtered afterwards."""
+    real_stat = FakeESP._stat
+    state = {"rssi": -42}
+
+    def stat(self):
+        d = real_stat(self)
+        d["rssi"] = state["rssi"]
+        return d
+    monkeypatch.setattr(FakeESP, "_stat", stat)
+
+    drv = SimDriver(base_port=17500)
+    led = Ledger(tmp_path / "runs.jsonl")
+    orc = Orchestrator(_matrix(), drv, led, rig_ceilings={"2.4": 60.0}, recv_port=17533,
+                       rssi_drift_warn_only=True)
+    try:
+        runs = orc.pending()
+        drv.request_band("2.4")
+        orc.run_one(runs[0])
+        state["rssi"] = -55
+        rec = orc.run_one(runs[1])
+    finally:
+        drv.shutdown()
+    assert rec["valid"] is True, rec["gate_failures"]
+    assert any("RSSI drifted 13.0 dB" in w for w in rec["gate_warnings"])
+    assert (rec["rssi_ref_dbm"], rec["rssi_pre_dbm"]) == (-42, -55)
+
+
+def test_the_drift_gate_is_strict_unless_told_otherwise():
+    from bench import gates
+    ctx = {"associated": True, "band": "2.4", "expected_band": "2.4", "rig_ceiling_mbps": 60.0,
+           "offered_bps": 4_000_000, "rssi_dbm": -55, "first_rssi_dbm": -42}
+    assert not gates.pre_run(ctx).ok
+    g = gates.pre_run({**ctx, "rssi_drift_warn_only": True})
+    assert g.ok and any("RSSI drifted" in w for w in g.warnings)

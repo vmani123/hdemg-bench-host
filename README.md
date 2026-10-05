@@ -117,6 +117,18 @@ The matrix's `ap:` names the rig, and the harness behaves accordingly.
   the band is the hotspot's Maximize Compatibility toggle. Everything below about the
   hotspot applies to this rig only.
 
+- **`ap: iphone-hotspot-wifi`.** The phone's hotspot with the Mac on the hotspot's own
+  Wi-Fi. Both hops share one channel, so every frame crosses the same air twice and the
+  numbers are roughly half of what a wired second hop would show; the matrix accepts
+  that with `allow_shared_band: true` and every run carries the warning. Used by the
+  short probe `hotspot_probe.sh` (`matrices/hotspot-probe.yaml`).
+
+A matrix can also name the network it must run on with `ssid:`. That is **enforced**:
+nothing is built, flashed or measured unless this Mac is associated to that network and
+each board's `sdkconfig.local` is configured for it (a board can only ever join the one
+network it was built for). The staged matrices name the router; the probe names the
+hotspot.
+
 Numbers taken on different rigs are not comparable with each other; the access point is
 recorded in every run (`rf.ap`).
 

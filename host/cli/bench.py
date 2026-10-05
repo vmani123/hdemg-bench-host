@@ -97,7 +97,26 @@ def cmd_run(a) -> int:
         host_ip=a.host_ip,
         interactive_band=not a.unattended,
         hub_ports=hub,
-        ap=m.ap)
+        ap=m.ap, ssid=m.ssid)
+    if m.ssid:
+        # Enforced before anything is built or flashed: this Mac on the named network,
+        # and every board's firmware configured to join it.
+        on = rfmeta.host_ssid()
+        problems = []
+        if on != m.ssid:
+            problems.append(f"this Mac is on Wi-Fi network {on!r}; join {m.ssid!r} first")
+        for chip in sorted({c["chip"] for c in m.cells}):
+            built_for = drv.board_ssid(chip)
+            if built_for != m.ssid:
+                problems.append(f"firmware/{chip}/sdkconfig.local joins {built_for!r}, "
+                                f"not {m.ssid!r}")
+        if problems:
+            print(f"this matrix must run on Wi-Fi network {m.ssid!r}:", file=sys.stderr)
+            for p in problems:
+                print(f"  - {p}", file=sys.stderr)
+            print("refusing to run; nothing was built or flashed", file=sys.stderr)
+            return 2
+        print(f"network '{m.ssid}': this Mac and every board's firmware are set to it")
     print(f"access point '{m.ap}'  host ip {drv.host_ip()}  expected idf {m.expected_idf}")
     print(f"host link: {_describe_path(rfmeta.host_path(_gateway_of(drv.host_ip()), m.ap))}")
     for chip, h in sorted(drv.rediscover().items()):
@@ -146,29 +165,54 @@ def _describe_path(p: dict) -> str:
 def cmd_discover(a) -> int:
     """Pre-flight: what the harness will see when the sweep starts."""
     from bench.control import ControlClient
-    ap = Matrix.load(a.matrix).ap
-    drv = HardwareDriver(ips={"esp32s3": None, "esp32c5": None}, firmware_root=".",
-                         ports={}, host_ip=a.host_ip, ap=ap)
+    mx = Matrix.load(a.matrix)
+    ap = mx.ap
+    drv = HardwareDriver(ips={"esp32s3": None, "esp32c5": None},
+                         firmware_root=str(REPO / "firmware"),
+                         ports={}, host_ip=a.host_ip, ap=ap, ssid=mx.ssid)
     host = drv.host_ip()
     path = rfmeta.host_path(_gateway_of(host), ap)
     print(f"access point       : {ap}  (from {a.matrix})")
     print(f"host ip (stream to): {host}")
     print(f"host link          : {_describe_path(path)}")
+    ssid_ok = True
+    if mx.ssid:
+        on = rfmeta.host_ssid()
+        print(f"required network   : {mx.ssid}")
+        if on != mx.ssid:
+            ssid_ok = False
+            print(f"  !! this Mac is on {on!r}, not {mx.ssid!r} — the test will refuse to run")
+        for chip in sorted({c["chip"] for c in mx.cells}):
+            built_for = drv.board_ssid(chip)
+            if built_for != mx.ssid:
+                ssid_ok = False
+                print(f"  !! firmware/{chip}/sdkconfig.local joins {built_for!r}, not "
+                      f"{mx.ssid!r} — the test will refuse to build")
     filters = rfmeta.content_filters_active()
     if filters:
         print(f"  !! {filters} socket content filter(s) active on this Mac (VPN / endpoint-"
               f"security software). It inspects every datagram and at bench rates makes the "
               f"kernel discard some: UDP loss would then be the Mac's, and such runs are "
               f"refused. TCP is unaffected. Turn the filter off to measure UDP.")
-    rig_ok = True
+    rig_ok = ssid_ok
     if ap == rfmeta.IPHONE_AP:
         if path.get("link") != "usb":
             rig_ok = False
             print("  !! iPhone USB is NOT UP — plug the iPhone in and enable Personal Hotspot")
+    elif path.get("link") == "wifi" and mx.allow_shared_band:
+        print(f"  -> this Mac and the boards share the access point's one channel (band "
+              f"{path.get('band')} GHz): every frame crosses the same air twice, so numbers "
+              f"here are lower than on a rig with a wired second hop. Accepted by this "
+              f"matrix and recorded as a warning on every run.")
     elif path.get("link") == "wifi":
         print(f"  -> cells on band {path.get('band')} GHz would share this Mac's channel and "
               f"are refused by the pre-run gate; the other band is clean. Wire the Mac to "
               f"the router to run both.")
+    if mx.ssid and rfmeta.host_ssid() != mx.ssid:
+        # Never go looking for boards on a network that is not the bench's: that would
+        # be probing every address of somebody else's subnet.
+        print("not looking for boards: this Mac is not on the required network")
+        return 1
     found = drv.rediscover()
     if not found:
         print(f"no bench devices answered on {host.rsplit('.', 1)[0]}.0/24")

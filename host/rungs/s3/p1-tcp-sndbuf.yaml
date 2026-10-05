@@ -1,0 +1,18 @@
+# PROBE rung — a side branch off the baseline, not a step on the tuning ladder.
+# It hangs off r0, so the ladder's deepest leaf (what `tuned` resolves to) is unchanged.
+#
+# Question it answers: is the ~5 Mbit/s TCP ceiling seen on every build the default
+# TCP send buffer? Stock ESP-IDF gives a TCP socket 5760 bytes (4 segments) of send
+# buffer; with at most 4 segments in flight, throughput is bounded by roughly
+# buffer / round-trip-time, whatever the radio could carry. Nothing else differs from
+# the baseline, so any change in TCP goodput is this one setting. Identical to the C5's
+# probe rung on purpose.
+id: p1-tcp-sndbuf
+applies_to: esp32s3
+parent: r0-baseline
+lever: lwip_window
+rationale: "Baseline with an 8x larger TCP send buffer (46080 B = 32 segments), and nothing
+  else, to test whether the default 5760 B buffer is what caps TCP goodput."
+config:
+  CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 46080
+measured_gain_pct: null

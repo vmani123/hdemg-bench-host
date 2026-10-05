@@ -3,7 +3,8 @@
 # never directly against an S3 number.
 stage: 2
 repeats: 3
-ap: verizon-router        # dual-band home router (SSID in firmware/*/sdkconfig.local); was iphone-hotspot
+ap: verizon-router        # dual-band home router; was iphone-hotspot
+ssid: Verizon_SLD967      # enforced: the Mac and the boards' firmware must be on this network
 expected_idf: v6.0.2
 frame_bytes: 270
 sweep: {start_mbps: 4, stop_mbps: 60, steps: 8, hold_s: 60, discard_s: 3}

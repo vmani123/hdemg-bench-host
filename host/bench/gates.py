@@ -30,7 +30,8 @@ class GateResult:
 def pre_run(ctx: dict) -> GateResult:
     """ctx: band, expected_band, associated, rig_ceiling_mbps, offered_bps, rssi_dbm,
     first_rssi_dbm, ambient_ok, esp_reset_since_last, idf_version, expected_idf,
-    proto_ok, parity_ok, host_link, host_band, allow_shared_band."""
+    proto_ok, parity_ok, host_link, host_band, allow_shared_band, expected_ssid,
+    host_ssid, rssi_drift_warn_only."""
     f: list[str] = []
     w: list[str] = []
 
@@ -38,6 +39,14 @@ def pre_run(ctx: dict) -> GateResult:
         f.append("device is not associated with the access point")
     if str(ctx.get("band")) != str(ctx.get("expected_band")):
         f.append(f"board is on band {ctx.get('band')}, expected {ctx.get('expected_band')}")
+
+    # A matrix can name the Wi-Fi network it must run on. The boards are built for it;
+    # this is the other half — the host has to be on it too, or the boards' stream has
+    # nowhere to go and whatever is measured is not this rig.
+    want_ssid = ctx.get("expected_ssid")
+    if want_ssid and ctx.get("host_ssid") != want_ssid:
+        f.append(f"this host is on Wi-Fi network {ctx.get('host_ssid')!r}, not the "
+                 f"required {want_ssid!r}")
 
     # The second hop (access point -> this host) must not share the first hop's air.
     # On a dual-band router the host sits on the OTHER band or on a wire; if it is on the

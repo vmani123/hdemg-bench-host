@@ -57,6 +57,14 @@ class Matrix:
     ap: str = "iphone-hotspot"
     frame_bytes: int = 270
     expected_idf: str = "v6.0.2"
+    # The Wi-Fi network this matrix must run on. When set it is ENFORCED: the boards'
+    # firmware must be built for it, and this host must be associated to it, or nothing
+    # is flashed and no run is taken.
+    ssid: str | None = None
+    # True for a rig where this host and the boards knowingly share one Wi-Fi band (a
+    # single-band hotspot with the Mac on its Wi-Fi): the shared-band refusal becomes a
+    # warning carried by every run.
+    allow_shared_band: bool = False
 
     @classmethod
     def load(cls, path: str | Path) -> "Matrix":
@@ -65,7 +73,9 @@ class Matrix:
                    sweep={**DEFAULT_SWEEP, **(raw.get("sweep") or {})},
                    cells=raw.get("cells") or [], ap=raw.get("ap", "iphone-hotspot"),
                    frame_bytes=raw.get("frame_bytes", 270),
-                   expected_idf=raw.get("expected_idf", "v6.0.2"))
+                   expected_idf=raw.get("expected_idf", "v6.0.2"),
+                   ssid=raw.get("ssid"),
+                   allow_shared_band=bool(raw.get("allow_shared_band", False)))
 
     def offered_steps(self) -> list[int]:
         s, e, n = self.sweep["start_mbps"], self.sweep["stop_mbps"], self.sweep["steps"]
@@ -140,7 +150,7 @@ class Orchestrator:
         self.parity_ok = parity_ok
         # Downgrades "this host is on the same Wi-Fi band as the cell" from a failed
         # gate to a warning. Only for a rig where that is knowingly accepted.
-        self.allow_shared_band = allow_shared_band
+        self.allow_shared_band = allow_shared_band or matrix.allow_shared_band
         self.recv_port = recv_port
         self.bands = [str(b) for b in bands] if bands else None
         self.transports = [str(t) for t in transports] if transports else None
@@ -288,6 +298,7 @@ class Orchestrator:
             "associated": True, "band": self.driver.band_of(r.chip),
             "host_link": host_path.get("link"), "host_band": host_path.get("band"),
             "allow_shared_band": self.allow_shared_band,
+            "expected_ssid": self.m.ssid, "host_ssid": host_path.get("ssid"),
             "expected_band": r.band, "rig_ceiling_mbps": ceiling,
             "offered_bps": r.offered_bps,
             "rssi_dbm": stat0.get("rssi") if first_rssi is not None else None,

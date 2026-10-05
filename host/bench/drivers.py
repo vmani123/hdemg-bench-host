@@ -112,11 +112,12 @@ class HardwareDriver:
                  host_ip: str | None = None, interactive_band: bool = True,
                  hub_ports: dict[str, str] | None = None,
                  rungs_root: str | Path | None = None,
-                 ap: str = rfmeta.IPHONE_AP):
+                 ap: str = rfmeta.IPHONE_AP, ssid: str | None = None):
         # An IP of None or "auto" is found by discovery on the host's /24: the access
         # point assigns addresses by DHCP, so they are not known in advance.
         self.ips = {k: (None if v in (None, "", "auto") else v) for k, v in ips.items()}
         self.ap = ap
+        self.ssid = ssid          # when set, firmware is only built if it joins this network
         self.firmware_root = Path(firmware_root)
         self.ports = ports
         self.agent_dir = Path(agent_dir)
@@ -174,7 +175,7 @@ class HardwareDriver:
         if missing and now - getattr(self, "_last_full_scan", -1e9) >= self.FULL_SCAN_MIN_INTERVAL_S:
             self._last_full_scan = now
             seen = set(first)
-            rest = [f"{base}.{i}" for i in range(1, 255) if f"{base}.{i}" not in seen]
+            rest = [a for a in rfmeta.subnet_hosts(self.host_ip()) if a not in seen]
             found = {**discover(rest), **found}
         for chip, reply in found.items():
             if chip in self.ips:
@@ -211,10 +212,25 @@ class HardwareDriver:
                 # than silently producing numbers for the other band.
                 print(f">> assuming hotspot is already on {band} GHz "
                       f"(Maximize Compatibility {toggle})")
+        elif self.ap == rfmeta.HOTSPOT_WIFI_AP:
+            toggle = "ON" if band == "2.4" else "OFF"
+            print(f">> band {band} GHz: the hotspot serves one band at a time — Personal "
+                  f"Hotspot > Maximize Compatibility must be {toggle}. The band is also "
+                  f"pinned in the firmware, and verified from each board.")
         else:
             print(f">> band {band} GHz: pinned in the firmware build; access point "
                   f"'{self.ap}' serves both bands")
         self._band = band
+
+    def board_ssid(self, chip: str) -> str | None:
+        """The network a chip's firmware is built to join (CONFIG_EXAMPLE_WIFI_SSID in
+        firmware/<chip>/sdkconfig.local), or None if that cannot be read."""
+        try:
+            text = (self.firmware_root / chip / "sdkconfig.local").read_text()
+        except OSError:
+            return None
+        m = re.search(r'^CONFIG_EXAMPLE_WIFI_SSID="([^"]*)"', text, re.M)
+        return m.group(1) if m else None
 
     def recover(self, chip: str) -> bool:
         """Get a board that stopped answering back on the control plane.
@@ -257,6 +273,14 @@ class HardwareDriver:
         if self._flashed.get(chip) == want:
             return {"flashed": False, "chip": chip, "rung": rung}
         self._flashed.pop(chip, None)
+        if self.ssid:
+            # The firmware can only ever join the one network it is built for, so
+            # checking that before building is what enforces where the board ends up.
+            built_for = self.board_ssid(chip)
+            if built_for != self.ssid:
+                raise RuntimeError(
+                    f"firmware/{chip}/sdkconfig.local joins {built_for!r}, but this test "
+                    f"must run on {self.ssid!r} — not building or flashing")
         build = {"target": chip, "rung": rung, "ingress": source}
         if band:
             build["band"] = band

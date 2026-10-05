@@ -20,7 +20,9 @@ import shutil
 import subprocess
 import time
 
-IPHONE_AP = "iphone-hotspot"
+IPHONE_AP = "iphone-hotspot"            # Mac wired to the phone over USB
+HOTSPOT_WIFI_AP = "iphone-hotspot-wifi"  # Mac on the phone's Wi-Fi: both hops share a channel
+HOTSPOT_APS = (IPHONE_AP, HOTSPOT_WIFI_AP)
 
 
 def _run(cmd: list[str], timeout: float = 15.0) -> str:
@@ -69,6 +71,47 @@ def content_filters_active() -> int | None:
         return None
     out = _run(["/usr/sbin/sysctl", "-n", "net.cfil.active_count"]).strip()
     return int(out) if out.isdigit() else None
+
+
+def wifi_device() -> str | None:
+    """BSD name of this Mac's Wi-Fi interface (usually en0)."""
+    if platform.system() != "Darwin":
+        return None
+    lines = _run(["/usr/sbin/networksetup", "-listallhardwareports"]).splitlines()
+    for i, line in enumerate(lines):
+        if line.strip() == "Hardware Port: Wi-Fi" and i + 1 < len(lines):
+            return lines[i + 1].partition(":")[2].strip() or None
+    return None
+
+
+def host_ssid(dev: str | None = None) -> str | None:
+    """The Wi-Fi network this Mac is associated to right now, or None. Read fresh every
+    time (it is what a matrix's `ssid:` is enforced against) and needs no privileges."""
+    dev = dev or wifi_device()
+    if not dev:
+        return None
+    for line in _run(["/usr/sbin/ipconfig", "getsummary", dev]).splitlines():
+        k, _, v = line.partition(" : ")
+        if k.strip() == "SSID":
+            return v.strip() or None
+    return None
+
+
+def subnet_hosts(host_ip: str) -> list[str]:
+    """Every usable address on the subnet host_ip sits in, from the interface's own
+    netmask — a phone hotspot hands out a /28 (14 addresses), a home router a /24.
+    Nothing wider than a /24 is ever scanned."""
+    import ipaddress
+    prefix = 24
+    for line in _run(["/sbin/ifconfig"]).splitlines():
+        p = line.split()
+        if len(p) >= 4 and p[0] == "inet" and p[1] == host_ip and p[2] == "netmask":
+            try:
+                prefix = max(24, bin(int(p[3], 16)).count("1"))
+            except ValueError:
+                prefix = 24
+    net = ipaddress.ip_network(f"{host_ip}/{prefix}", strict=False)
+    return [str(h) for h in net.hosts()]
 
 
 def lan_neighbours(prefix: str) -> list[str]:
@@ -179,6 +222,7 @@ def host_path(dest_ip: str | None, ap: str = "") -> dict:
     if kind == "wifi":
         w = host_wifi()
         path.update({k: w.get(k) for k in ("ssid", "channel", "band", "width_mhz", "phy")})
+        path["ssid"] = host_ssid(dev) or path.get("ssid")     # fresh, not the cached one
     return path
 
 
