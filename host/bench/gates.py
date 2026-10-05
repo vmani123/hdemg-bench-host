@@ -9,6 +9,11 @@ from dataclasses import dataclass
 
 RSSI_DRIFT_DB = 3.0
 SOURCE_RATE_TOLERANCE = 0.05     # achieved vs commanded
+# Datagrams the HOST may drop at its own socket during a UDP run before the run is
+# refused. The counter is system-wide, so a handful from unrelated software is tolerated;
+# 50 datagrams keeps the host's share of the loss under the 0.1 % knee criterion at every
+# load in the sweep (a datagram carries at most 30 frames).
+HOST_UDP_DROP_LIMIT = 50
 AIRTIME_WARN_PCT = 80.0
 
 
@@ -79,7 +84,7 @@ def pre_run(ctx: dict) -> GateResult:
 
 def post_run(ctx: dict) -> GateResult:
     """ctx: commanded_bps, achieved_bps, esp_reset_during, heap_min, heap_floor,
-    metrics (RunMetrics-as-dict), rig_ceiling_mbps."""
+    metrics (RunMetrics-as-dict), rig_ceiling_mbps, host_udp_drops."""
     f: list[str] = []
     w: list[str] = []
 
@@ -108,6 +113,15 @@ def post_run(ctx: dict) -> GateResult:
     if m.get("reorder_count", 0) > 0.01 * max(1, m.get("frames", 1)):
         w.append(f"{m['reorder_count']} reordered frames (>1%) — reordering is not loss "
                  f"but can still break a downstream decoder")
+
+    # The instrument must not be the thing that loses the data. If this host discarded
+    # datagrams at its own socket during the window, the loss figure describes the host
+    # (a full buffer, or a content filter holding data back), not the device or the air.
+    hd = ctx.get("host_udp_drops")
+    if hd is not None and hd > 0:
+        msg = (f"this host discarded {hd} datagrams at its own socket during the run "
+               f"(full socket buffer / content filter) — the loss figure is not the device's")
+        (f if hd > HOST_UDP_DROP_LIMIT else w).append(msg)
     return GateResult(not f, f, w)
 
 

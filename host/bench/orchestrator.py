@@ -292,8 +292,14 @@ class Orchestrator:
         post = gates.GateResult(True, [], [])
         stat1: dict = {}
 
+        host_drops: int | None = None      # datagrams THIS HOST discarded during the window
+
         if pre.ok:
           with ka.paused():        # the instrument must not appear in its own number
+            # UDP only, and not on loopback (the fake has no real network path): what
+            # the host itself has dropped so far, to compare after the window closes.
+            drops0 = rfmeta.host_udp_drops() \
+                if r.transport == "udp" and host_path.get("link") != "loopback" else None
             rx = Receiver(r.transport, self.recv_port, payload_bytes,
                           duration_s=hold, discard_s=float(self.m.sweep["discard_s"]))
             rx.start()
@@ -303,6 +309,9 @@ class Orchestrator:
                   payload="rand", label=f"{r.cell_id}-r{r.repeat}")
             c.start()
             metrics = rx.join()
+            if drops0 is not None:
+                drops1 = rfmeta.host_udp_drops()
+                host_drops = max(0, drops1 - drops0) if drops1 is not None else None
             # Sample the device WHILE IT IS STILL STREAMING, then stop it. The achieved
             # source rate and the CPU-idle figure describe the stream only while it runs:
             # the firmware zeroes its achieved rate the moment the run ends, and after
@@ -328,6 +337,7 @@ class Orchestrator:
                 "esp_reset_during": False,
                 "heap_min": stat1.get("heap"), "heap_floor": 20000,
                 "metrics": metrics_d, "rig_ceiling_mbps": ceiling,
+                "host_udp_drops": host_drops,
             })
 
         valid = pre.ok and post.ok
@@ -345,7 +355,8 @@ class Orchestrator:
             "metrics": {**metrics_d,
                         "idle_pct": stat1.get("idle_pct", stat0.get("idle_pct")),
                         "retries": stat1.get("retries"),
-                        "achieved_bps": stat1.get("achieved_bps")},
+                        "achieved_bps": stat1.get("achieved_bps"),
+                        "host_udp_drops": host_drops},
             "rf": rfmeta.collect(band=str(r.band), ap=self.m.ap,
                                  rig_ceiling_mbps=ceiling,
                                  device_stat={**stat0, **stat1},

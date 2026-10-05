@@ -63,8 +63,15 @@ class Ledger:
 
     def read(self, *, skip_bad: bool = True) -> list[dict]:
         """Read all records. A truncated final line (killed mid-write) is skipped, which
-        is what makes resume safe after a hard stop."""
+        is what makes resume safe after a hard stop.
+
+        VOID MARKERS. The ledger is append-only, so a run found to be wrong after the
+        fact is never edited or deleted: a marker line naming its run_id is appended
+        (see void()). Here every voided run comes back with valid=False and the reason
+        among its gate_failures, so it leaves every median and counts as not done —
+        while the original line, and the reason it was withdrawn, stay on the record."""
         out: list[dict] = []
+        voided: dict[str, str] = {}
         if not self.path.exists():
             return out
         for line in self.path.read_text().splitlines():
@@ -73,13 +80,35 @@ class Ledger:
                 continue
             try:
                 rec = json.loads(line)
+                if isinstance(rec, dict) and "void" in rec and "cell_id" not in rec:
+                    for rid in rec.get("void") or []:
+                        voided[str(rid)] = str(rec.get("reason") or "voided")
+                    continue
                 validate(rec)
             except (json.JSONDecodeError, SchemaError):
                 if skip_bad:
                     continue
                 raise
             out.append(rec)
+        for rec in out:
+            why = voided.get(str(rec.get("run_id")))
+            if why:
+                rec["voided"] = why
+                rec["valid"] = False
+                rec["gate_failures"] = list(rec.get("gate_failures") or []) + [f"voided: {why}"]
         return out
+
+    def void(self, run_ids, reason: str) -> int:
+        """Withdraw recorded runs by appending a marker (nothing is rewritten). Returns
+        how many run ids the marker names. Readers that predate markers skip the line."""
+        ids = sorted({str(r) for r in run_ids})
+        if not ids:
+            return 0
+        marker = {"void": ids, "reason": reason, "valid": False,
+                  "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        with self.path.open("a") as f:
+            f.write(json.dumps(marker, sort_keys=True) + "\n")
+        return len(ids)
 
     def completed_keys(self) -> set[tuple]:
         """Keys of runs that count as done: present and not marked invalid."""

@@ -44,6 +44,33 @@ def iphone_usb_ip() -> str | None:
     return _run(["/usr/sbin/ipconfig", "getifaddr", dev]).strip() or None
 
 
+def host_udp_drops() -> int | None:
+    """Datagrams THIS HOST has discarded because a receiving socket was full, since boot
+    (system-wide counter; None where it cannot be read).
+
+    Sampled before and after a UDP run: a rise means the host threw data away before
+    the harness read it, so the run's loss figure is not the device's. It happens with a
+    fast reader too — a socket content filter (VPN / endpoint-security software) holds
+    data back while it inspects it, and the kernel counts what does not fit as exactly
+    this."""
+    if platform.system() != "Darwin":
+        return None
+    for line in _run(["/usr/sbin/netstat", "-s", "-p", "udp"]).splitlines():
+        if "dropped due to full socket buffers" in line:
+            head = line.strip().split()[0]
+            return int(head) if head.isdigit() else None
+    return None
+
+
+def content_filters_active() -> int | None:
+    """How many socket content filters are attached on this host (None if unknown).
+    Non-zero means every datagram passes through third-party inspection first."""
+    if platform.system() != "Darwin":
+        return None
+    out = _run(["/usr/sbin/sysctl", "-n", "net.cfil.active_count"]).strip()
+    return int(out) if out.isdigit() else None
+
+
 def lan_neighbours(prefix: str) -> list[str]:
     """Addresses under `prefix` ("192.168.1") that this host has actually resolved a MAC
     for — hosts known to exist. Discovery asks these first: a datagram to a resolved
@@ -205,6 +232,7 @@ def collect(*, band: str, ap: str, rig_ceiling_mbps: float | None,
         "ap": ap,
         "mac_link": link_label(path),
         "host_path": path,
+        "host_content_filters": content_filters_active(),
         "shielded": shielded,
         "rig_ceiling_mbps": rig_ceiling_mbps,
         "captured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

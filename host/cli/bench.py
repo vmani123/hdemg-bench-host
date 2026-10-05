@@ -152,6 +152,12 @@ def cmd_discover(a) -> int:
     print(f"access point       : {ap}  (from {a.matrix})")
     print(f"host ip (stream to): {host}")
     print(f"host link          : {_describe_path(path)}")
+    filters = rfmeta.content_filters_active()
+    if filters:
+        print(f"  !! {filters} socket content filter(s) active on this Mac (VPN / endpoint-"
+              f"security software). It inspects every datagram and at bench rates makes the "
+              f"kernel discard some: UDP loss would then be the Mac's, and such runs are "
+              f"refused. TCP is unaffected. Turn the filter off to measure UDP.")
     rig_ok = True
     if ap == rfmeta.IPHONE_AP:
         if path.get("link") != "usb":
@@ -179,6 +185,33 @@ def cmd_discover(a) -> int:
 def cmd_report(a) -> int:
     res = report.render(a.ledger, a.out)
     print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_void(a) -> int:
+    """Withdraw recorded runs that turned out to be wrong. Append-only: the runs stay in
+    the ledger with the reason, leave every median, and count as not done, so the next
+    sweep measures them again."""
+    led = Ledger(a.ledger)
+    hit = []
+    for r in led.read():
+        if not r.get("valid", True) or r.get("voided"):
+            continue
+        if a.transport and r.get("transport") != a.transport:
+            continue
+        if a.target and r.get("target") != a.target:
+            continue
+        if a.cell and a.cell not in str(r.get("cell_id")):
+            continue
+        hit.append(r)
+    for r in hit:
+        m = r.get("metrics", {})
+        print(f"  {r['run_id']}  good={m.get('goodput_bps', 0) / 1e6:.2f} loss={m.get('loss_pct')}")
+    if a.dry_run:
+        print(f"{len(hit)} valid run(s) match; nothing written (--dry-run)")
+        return 0
+    n = led.void([r["run_id"] for r in hit], a.reason)
+    print(f"voided {n} run(s): {a.reason}")
     return 0
 
 
@@ -265,6 +298,16 @@ def main(argv=None) -> int:
     q.add_argument("--ledger", default="results/runs.jsonl")
     q.add_argument("--out", default="results/report")
     q.set_defaults(fn=cmd_report)
+
+    v = sub.add_parser("void", help="withdraw recorded runs that turned out to be wrong "
+                                    "(appends a marker; nothing is rewritten)")
+    v.add_argument("--ledger", default="results/runs.jsonl")
+    v.add_argument("--reason", required=True, help="why — stored with the runs")
+    v.add_argument("--transport", default=None, choices=["udp", "tcp"])
+    v.add_argument("--target", default=None, choices=["esp32s3", "esp32c5"])
+    v.add_argument("--cell", default=None, help="substring of the cell id")
+    v.add_argument("--dry-run", action="store_true", help="list the matches, write nothing")
+    v.set_defaults(fn=cmd_void)
 
     c = sub.add_parser("parity", help="check shared-core integrity (bench/parity.py)")
     c.add_argument("--firmware", default="../firmware")
