@@ -187,6 +187,73 @@ class H7Control:
         except H7Error:
             pass
 
+    def measure_clock_ppm(self, seconds: float = 20.0, period: float = 1.0) -> float:
+        """How fast the board's clock runs against this host's, in ppm (see clock_mark)."""
+        return measure_clock_ppm(self, seconds, period)
+
+
+# ---- the generator's clock ---------------------------------------------------------------
+# The receiver gets latency by subtracting each frame's t_stm from its own clock, so the
+# generator's clock has to hold still against this host's. Measured on the bench:
+#   * the Nucleo's 8 MHz reference (supplied by its ST-LINK) ran ~0.27 % fast and wandered
+#     between +2300 and +3200 ppm from one half-minute to the next — a 20 ms-per-run ramp;
+#   * its 32.768 kHz crystal sits at -18 ppm and holds within 2 ppm.
+# The firmware therefore paces and timestamps from the crystal (`hello` reports
+# "timebase":"lse"; "hse" means the crystal did not start and the wandering clock is in
+# use). What is left is a small constant offset, which the host measures here and hands
+# back as cfg clk_ppm= so the generator runs in host-true microseconds. `hello`'s t_us is
+# the reference clock's untrimmed counter, so measuring is always against the same thing.
+CLOCK_PPM_LIMIT = 50000.0          # beyond this it is not a clock error, it is a fault
+
+
+def clock_mark(h7) -> tuple[float, int]:
+    """(host monotonic seconds, board raw µs). The board stamps on receipt, so the host
+    time taken is the send time; the fixed latency cancels between two marks."""
+    t0 = time.monotonic()
+    return t0, int(h7.hello()["t_us"])
+
+
+def ppm_between(a: tuple[float, int], b: tuple[float, int], min_s: float = 10.0) -> float | None:
+    """ppm the board ran fast between two marks; None if they are too close together to
+    say (the round trip jitters by ~0.5 ms) or the answer is not believable. The board
+    counter wraps every 71.6 minutes: marks must be closer than that."""
+    host = b[0] - a[0]
+    if host < min_s:
+        return None
+    dev = ((b[1] - a[1]) & 0xFFFFFFFF) / 1e6
+    ppm = (dev / host - 1.0) * 1e6
+    return ppm if abs(ppm) < CLOCK_PPM_LIMIT else None
+
+
+def measure_clock_ppm(h7, seconds: float = 20.0, period: float = 1.0) -> float:
+    """Least-squares slope over repeated marks, keeping the quicker half of the round
+    trips. ~20 s gives a few tens of ppm; runs then refine it from their own start and
+    end marks at no cost in time."""
+    samples = []
+    end = time.monotonic() + seconds
+    while True:
+        t0 = time.monotonic()
+        dev = int(h7.hello()["t_us"])
+        samples.append((t0, time.monotonic() - t0, dev))
+        if time.monotonic() >= end:
+            break
+        time.sleep(period)
+    if len(samples) < 3:
+        return 0.0
+    cut = sorted(s[1] for s in samples)[len(samples) // 2]
+    keep = [s for s in samples if s[1] <= cut] or samples
+    base = keep[0][2]
+    xs = [s[0] for s in keep]
+    ys = [((s[2] - base) & 0xFFFFFFFF) / 1e6 for s in keep]
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    den = sum((x - mx) ** 2 for x in xs)
+    if den <= 0:
+        return 0.0
+    ppm = (sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / den - 1.0) * 1e6
+    if abs(ppm) >= CLOCK_PPM_LIMIT:
+        raise H7Error(f"the H7's clock reads {ppm:+.0f} ppm against this host — not believable")
+    return ppm
+
 
 def ingress_stat(ip: str, port: int = INGRESS_STAT_PORT, timeout: float = 2.0,
                  retries: int = 3) -> dict:
@@ -228,7 +295,8 @@ class FakeH7:
 
     def hello(self) -> dict:
         return {"ok": True, "proto": H7_PROTO, "chip": "stm32h745", "fw_sha": "simh7",
-                "state": "running" if self.running else "idle", "simulated": True}
+                "state": "running" if self.running else "idle", "simulated": True,
+                "t_us": int(time.monotonic() * 1e6) & 0xFFFFFFFF}
 
     def cfg(self, **kw) -> dict:
         self.cfg_kv.update(kw)

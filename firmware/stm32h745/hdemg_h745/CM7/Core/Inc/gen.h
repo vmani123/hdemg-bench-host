@@ -21,7 +21,9 @@ typedef struct {
     uint32_t dur_s;
     uint32_t seed;
     uint32_t t0_us;          /* board_micros() at start */
-    uint64_t elapsed_us;     /* generation time so far (frozen when the run ends) */
+    uint64_t elapsed_us;     /* generation time so far, in TRIMMED µs (frozen at the end) */
+    uint64_t raw_elapsed_us; /* the same interval on the untrimmed board clock */
+    int32_t  clk_ppm;        /* trim applied: how fast the board clock runs, in ppm */
     uint32_t frames;         /* seq numbers consumed this run (generated + ring-dropped) */
     uint32_t ring_drops;     /* frames dropped because the ring was full */
     uint32_t ring_fill;      /* frames waiting right now */
@@ -31,7 +33,12 @@ typedef struct {
 } gen_stats_t;
 
 void gen_init(void);
-int  gen_start(uint64_t rate_bps, uint32_t dur_s, uint32_t seed);   /* 0 = started */
+/* clk_ppm: how many ppm FAST the generator's reference clock runs against the host's
+ * (negative = slow), as measured by the host from `hello`'s t_us. The reference is the
+ * board's 32.768 kHz crystal when it is up (board.h), so this is normally a few tens of
+ * ppm of crystal offset; in the TIM2 fallback it is thousands and unstable. Either way,
+ * with the trim applied, pacing, the run duration and t_stm are in host-true µs. */
+int  gen_start(uint64_t rate_bps, uint32_t dur_s, uint32_t seed, int32_t clk_ppm);   /* 0 = started */
 void gen_stop(void);
 void gen_stats(gen_stats_t *out);
 int  gen_running(void);            /* cheap: safe to call from the service loop */

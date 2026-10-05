@@ -24,8 +24,8 @@ later section disagrees with it, this section wins.
 
 | Piece | Location | State |
 |---|---|---|
-| H7 generator firmware | `firmware/stm32h745/hdemg_h745/` (CubeIDE project, CM7 + CM4) | builds headless, 0 warnings; **not yet flashed or run** |
-| Runner actions | `hostrun.sh`: `stm_build`, `stm_flash`, and `tree=<worktree>` on build/flash jobs | build path tested through a runner instance; **flash path never exercised** |
+| H7 generator firmware | `firmware/stm32h745/hdemg_h745/` (CubeIDE project, CM7 + CM4) | builds headless, 0 warnings; **flashed and verified standalone** (see *Bench results* below); nothing on the wire yet |
+| Runner actions | `hostrun.sh`: `stm_build`, `stm_flash`, and `tree=<worktree>` on build/flash jobs | both exercised on the real runner: the H7's two images were built from a worktree and flashed with them |
 | ESP QSPI ingress (S3, C5) | `firmware/bench_common/ingress_qspi.c`, `ingress_common.c`; entry points `firmware/<chip>/main/source_qspi.c` | compiles and links for both chips (baseline and tuned rungs); **never flashed** |
 | ESP SDIO ingress (C5) | `firmware/bench_common/ingress_sdio.c`, `firmware/esp32c5/main/source_sdio.c` | compiles and links; **never flashed, harness not built** |
 | Shared link contract | `firmware/bench_common/include/hdemg_link.h` (used by the H7 and the ESP) | — |
@@ -37,6 +37,24 @@ There is **no `.ioc` and no CubeMX step** (§2 is superseded): the project was a
 from the pack's `Templates/BootCM4_CM7`, made self-contained (own `Drivers/`), and the
 peripheral setup is written by hand in `CM7/Core/Src/board.c` and the link files. The
 direct-SMPS supply define (`USE_PWR_DIRECT_SMPS_SUPPLY`) is kept in both cores' builds.
+
+### Bench results so far (2026-10-05, H7 alone, nothing wired)
+
+- Both images flash and verify through `hostrun.sh`; the CM7 boots at 400 MHz, the two
+  cores synchronise, and `hello` answers on the VCP.
+- **Pacing** (`link=none`, 10-20 s runs at 4, 20 and 60 Mbit/s): exactly the commanded
+  number of frames, no ring drops, achieved rate within 1 ppm by the board's own clock
+  and within ~20 ppm by the Mac's.
+- **The board's main clock is not a usable reference.** The 8 MHz HSE input comes from
+  the ST-LINK. Against the Mac, the microsecond timer derived from it ran about 0.27 %
+  fast and *wandered* between +2300 and +3200 ppm across consecutive 30 s windows. The
+  receiver computes latency from each frame's `t_stm`, so that would have been a ramp of
+  20 ms or more across a 60 s run. §4.2's "use TIM2 at 1 MHz" is therefore superseded:
+  the generator takes its time from the board's **32.768 kHz crystal** (LSE, counted by
+  LPTIM1), which measured **−18 ppm, steady within 2 ppm**. `hello` reports
+  `"timebase":"lse"`; `"hse"` means the crystal did not start and the wandering clock is
+  in use (the host flags such runs). The host measures the small remaining offset and
+  passes it back as `cfg clk_ppm=`.
 
 ### Where the code departs from this guide, and why
 
@@ -84,7 +102,7 @@ $PY -m cli.bench run --matrix matrices/stage2.yaml --band 2.4 --chips esp32s3 --
 
 ### Still unverified — nothing below has touched hardware
 
-1. Flashing either board with this code, and the H7's pacing on the real clock.
+1. Flashing an ESP with a wired-ingress build (the H7 itself is flashed and verified).
 2. Every QSPI phase on the wire: the 8 dummy cycles, the 4-line address, `WR_END`,
    single-line `RDBUF` at speed (§7.1 has not been done).
 3. Segment-mode behaviour at load: that a 270·n-byte transaction ended by `WR_END`

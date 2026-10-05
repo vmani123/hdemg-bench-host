@@ -23,5 +23,35 @@ void led_yellow(int on);             /* LD2 PE1  — a run is active */
 void led_red(int on);                /* LD3 PB14 — fault */
 
 /* Microseconds since board_us_timer_init(), free-running and wrapping at 2^32 (71.6 min).
- * This is what goes into hdemg_hdr_t.t_stm: the host treats that field as µs. */
+ * Fast and fine-grained, but only as accurate as the board's 8 MHz reference — see below.
+ * Used for short timeouts; NOT for pacing or timestamps. */
 static inline uint32_t board_micros(void) { return TIM2->CNT; }
+
+/* ---- the reference clock -----------------------------------------------------------
+ * The Nucleo's 8 MHz HSE input is supplied by the on-board ST-LINK and is not
+ * crystal-grade: on this bench it measured ~0.27 % fast and WANDERED by several hundred
+ * ppm from one half-minute to the next. Anything timed from it inherits that: the
+ * offered load, and worse, the t_stm in every frame, which the receiver subtracts from
+ * its own clock to get latency (a 400 ppm error is a 24 ms ramp across a 60 s run).
+ *
+ * The board also carries a 32.768 kHz crystal (LSE, X2). LPTIM1 counts it, and the
+ * generator takes elapsed time from that count: exact rational arithmetic
+ * (ticks * 15625 / 512 µs), 30.5 µs resolution, crystal stability. If the crystal does
+ * not start, everything falls back to TIM2 and `hello` says so. */
+#define BOARD_LSE_HZ 32768U
+extern int g_board_lse_ok;                    /* 1 = LSE + LPTIM1 are the reference */
+int board_ref_clock_init(void);               /* returns g_board_lse_ok */
+
+/* The 16-bit LSE tick counter. LPTIM1 runs asynchronously to the bus, so a single read
+ * is not trustworthy: read until two in a row agree. Safe from any context. */
+static inline uint32_t board_lse_ticks16(void)
+{
+    uint32_t a, b;
+    do { a = LPTIM1->CNT; b = LPTIM1->CNT; } while (a != b);
+    return a & 0xFFFFU;
+}
+static inline uint64_t board_lse_ticks_to_us(uint64_t ticks) { return ticks * 15625ULL / 512ULL; }
+
+/* µs since board_ref_clock_init() on the reference clock (LSE if it is up, else TIM2).
+ * MAIN LOOP ONLY, and it must be called at least every 2 s (the LSE counter's wrap). */
+uint64_t board_ref_micros(void);

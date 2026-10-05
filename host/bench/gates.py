@@ -10,6 +10,7 @@ from dataclasses import dataclass
 RSSI_DRIFT_DB = 3.0
 SOURCE_RATE_TOLERANCE = 0.05     # achieved vs commanded
 AIRTIME_WARN_PCT = 80.0
+CLOCK_DRIFT_WARN_MS = 2.0        # Stage 2: timestamp drift across a run worth flagging
 
 
 @dataclass
@@ -158,6 +159,19 @@ def ingress(ctx: dict) -> GateResult:
     if esp.get("pool_starved", 0):
         w.append(f"ESP buffer pool ran dry {esp['pool_starved']} times — the sink, "
                  f"not the link, was pushing back")
+    if h7.get("timebase") == "hse":
+        w.append("generator is on its fallback clock (the 32.768 kHz crystal did not "
+                 "start): it wanders by hundreds of ppm, so latency figures are unreliable")
+    # The generator's clock is trimmed with the value measured BEFORE this run. If the
+    # run's own measurement disagrees, its timestamps drifted by the difference: the
+    # goodput and loss stand, but the latency figures carry that ramp.
+    applied, measured = ctx.get("clk_applied_ppm"), ctx.get("clk_measured_ppm")
+    if applied is not None and measured is not None:
+        resid = float(measured) - float(applied)
+        drift_ms = abs(resid) * 1e-6 * float(ctx.get("hold_s") or 0) * 1e3
+        if drift_ms > CLOCK_DRIFT_WARN_MS:
+            w.append(f"generator clock was {resid:+.0f} ppm off its trim: latency figures "
+                     f"carry up to {drift_ms:.1f} ms of drift across the run")
     return GateResult(not f, f, w)
 
 

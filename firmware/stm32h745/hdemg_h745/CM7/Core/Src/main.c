@@ -23,6 +23,7 @@ int main(void)
 
     board_leds_init();
     board_us_timer_init();
+    board_ref_clock_init();         /* 32.768 kHz crystal; falls back to TIM2 if it is dead */
     console_init();
     gen_init();
     ctl_init(cm4_synced);

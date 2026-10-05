@@ -84,6 +84,44 @@ def test_unverifiable_runs_are_invalid():
     assert not gates.ingress({"h7": H7_OK, "esp": {**ESP_OK, "init_err": 258}}).ok
 
 
+def test_a_clock_off_its_trim_is_flagged_but_does_not_invalidate():
+    base = {"h7": H7_OK, "esp": ESP_OK, "clk_applied_ppm": 2887, "hold_s": 60}
+    drifted = gates.ingress({**base, "clk_measured_ppm": 3100})       # 213 ppm x 60 s = 12.8 ms
+    assert drifted.ok and any("off its trim" in w for w in drifted.warnings)
+    steady = gates.ingress({**base, "clk_measured_ppm": 2895})        # 0.5 ms: not worth a flag
+    assert steady.ok and not steady.warnings
+
+
+def test_the_fallback_clock_is_flagged():
+    g = gates.ingress({"h7": {**H7_OK, "timebase": "hse"}, "esp": ESP_OK})
+    assert g.ok and any("fallback clock" in w for w in g.warnings)
+    assert not gates.ingress({"h7": {**H7_OK, "timebase": "lse"}, "esp": ESP_OK}).warnings
+
+
+# -- the generator's clock ----------------------------------------------------------
+def test_clock_error_is_measured_between_two_marks():
+    from bench.h7 import ppm_between
+    a = (100.0, 1_000_000)
+    assert abs(ppm_between(a, (160.0, 1_000_000 + 60_173_220)) - 2887) < 1   # the bench's figure
+    assert ppm_between(a, (105.0, 6_000_000)) is None                 # too close together to say
+    assert ppm_between(a, (160.0, 1_000_000 + 70_000_000)) is None    # 16 %: a fault, not a clock
+    # the board's 32-bit counter may wrap between the two marks
+    assert abs(ppm_between((0.0, 0xFFFFFFFF - 5_000_000), (60.0, 55_000_000 - 1))) < 1
+
+
+def test_wired_runs_hand_the_measured_clock_error_to_the_generator(tmp_path):
+    drv = SimDriver(base_port=16000)
+    drv.h7_clk_ppm = 2887.4
+    try:
+        _orc(tmp_path, drv, 15933, steps=1).run_all()
+    finally:
+        drv.shutdown()
+    rec = Ledger(tmp_path / "runs.jsonl").read()[0]
+    assert drv.h7().cfg_kv["clk_ppm"] == 2887
+    assert rec["ingress"]["clk_applied_ppm"] == 2887
+    assert rec["ingress"]["clk_measured_ppm"] is None      # a 1 s run is too short to measure
+
+
 # -- H7 control client ------------------------------------------------------------
 class _Wire:
     """Scripted serial port: what the board 'says' in reply to each write."""

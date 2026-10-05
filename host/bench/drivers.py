@@ -42,6 +42,7 @@ class SimDriver:
         self._flashed: dict[str, tuple] = {}
         self.h7_faults: dict = {}          # tests inject what a broken rig would report
         self._h7 = None
+        self.h7_clk_ppm = 0.0              # the fake generator's clock is the host's
 
     def host_ip(self) -> str:
         return "127.0.0.1"
@@ -158,6 +159,9 @@ class HardwareDriver:
         self.h7_port = h7_port
         self._h7: H7Control | None = None
         self._h7_ready = False
+        # How fast the generator's clock runs against this host's (h7.py). Measured once
+        # in ensure_h7(), then refined by every wired run from its own start/end marks.
+        self.h7_clk_ppm = 0.0
 
     def host_ip(self) -> str:
         """The address the ESPs stream to.
@@ -314,8 +318,11 @@ class HardwareDriver:
             if want and have != want:
                 raise RuntimeError(f"H7 reports fw_sha {have}, expected {want} — the "
                                    f"flash did not take")
+        self.h7_clk_ppm = self.h7().measure_clock_ppm()
+        print(f">> H7 generator clock: {self.h7_clk_ppm:+.0f} ppm against this host "
+              f"(trimmed out in firmware)")
         self._h7_ready = True
-        return {"flashed": flashed, "fw_sha": have}
+        return {"flashed": flashed, "fw_sha": have, "clk_ppm": self.h7_clk_ppm}
 
     def ingress_stat(self, chip: str) -> dict:
         self.control(chip)                       # makes sure the address is known

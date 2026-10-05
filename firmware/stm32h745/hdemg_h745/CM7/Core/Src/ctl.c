@@ -4,6 +4,7 @@
  *   cfg k=v ...                   rate_bps= dur_s= link=none|qspi|sdio seed= frame_bytes=270
  *                                 qspi_hz= qspi_rd_hz= qspi_dummy= qspi_addr_lines=1|4
  *                                 qspi_sshift=0|1 qspi_even=0|1 qspi_nocredit=0|1 sdio_hz= batch=
+ *                                 clk_ppm=   (board clock error measured by the host; see gen.h)
  *   probe                         open the configured link, report whether a slave answers, close it
  *   start                         open the link (fails if no slave answers), start generating
  *   stat                          counters, any time
@@ -40,6 +41,7 @@ static uint64_t   s_rate_bps;
 static uint32_t   s_dur_s = 62;
 static uint32_t   s_seed;
 static int        s_seed_set;
+static int32_t    s_clk_ppm;            /* board clock trim, from the host */
 static uint32_t   s_drain_t0;
 static link_stats_t s_final_link;       /* link counters frozen when the run ended */
 static int        s_debug_open;         /* q_open is holding the link */
@@ -61,6 +63,12 @@ static void j_u64(uint64_t v)
 static void j_begin(void) { s_n = 0; s_first = 1; j_raw("{"); }
 static void j_key(const char *k) { if (!s_first) j_raw(","); s_first = 0; j_raw("\""); j_raw(k); j_raw("\":"); }
 static void j_u(const char *k, uint64_t v) { j_key(k); j_u64(v); }
+static void j_i(const char *k, int64_t v)
+{
+    j_key(k);
+    if (v < 0) { j_raw("-"); v = -v; }
+    j_u64((uint64_t)v);
+}
 static void j_b(const char *k, int v) { j_key(k); j_raw(v ? "true" : "false"); }
 static void j_s(const char *k, const char *v)
 {
@@ -102,6 +110,7 @@ static void j_cfg(void)
     j_u("frame_bytes", GEN_FRAME_BYTES);
     j_s("link", link_name(s_link.kind));
     j_u("seed", s_seed);
+    j_i("clk_ppm", s_clk_ppm);
     j_u("batch", s_link.batch_max);
     j_u("qspi_hz", s_link.qspi_hz);
     j_u("qspi_rd_hz", s_link.qspi_rd_hz);
@@ -133,6 +142,9 @@ static void j_run(void)
     j_u("achieved_bps", achieved);
     j_u("link_bps", link_bps);
     j_u("elapsed_us", g.elapsed_us);
+    j_u("raw_elapsed_us", g.raw_elapsed_us);
+    j_s("timebase", g_board_lse_ok ? "lse" : "hse");
+    j_i("clk_ppm", g.clk_ppm);
     j_u("frames", g.frames);
     j_u("ring_drops", g.ring_drops);
     j_u("ring_fill", g.ring_fill);
@@ -174,7 +186,10 @@ static void cmd_hello(void)
     j_u("sysclk_hz", HAL_RCC_GetSysClockFreq());
     j_u("hclk_hz", HAL_RCC_GetHCLKFreq());
     j_b("cm4_synced", s_cm4_synced);
-    j_u("t_us", board_micros());
+    /* The reference clock's µs counter (what pacing and t_stm run on), not TIM2: the
+     * host measures THIS against its own clock to find clk_ppm. */
+    j_u("t_us", (uint32_t)board_ref_micros());
+    j_s("timebase", g_board_lse_ok ? "lse" : "hse");
     j_s("state", state_name());
     j_u("ring_frames", GEN_RING_FRAMES);
     j_u("max_batch", HDEMG_LINK_MAX_FRAMES);
@@ -196,6 +211,11 @@ static const char *apply_kv(char *tok, link_cfg_t *lc)
     if      (!strcmp(k, "rate_bps"))        s_rate_bps = n;
     else if (!strcmp(k, "dur_s"))           s_dur_s = (uint32_t)n;
     else if (!strcmp(k, "seed"))          { s_seed = (uint32_t)n; s_seed_set = 1; }
+    else if (!strcmp(k, "clk_ppm")) {
+        long ppm = strtol(v, NULL, 0);
+        if (ppm < -50000 || ppm > 50000) return "clk_ppm must be within +/-50000";
+        s_clk_ppm = (int32_t)ppm;
+    }
     else if (!strcmp(k, "frame_bytes"))   { if (n != GEN_FRAME_BYTES) return "frame_bytes must be 270"; }
     else if (!strcmp(k, "link")) {
         if      (!strcmp(v, "none")) lc->kind = LINK_NONE;
@@ -268,7 +288,7 @@ static void cmd_start(void)
         return;
     }
     memset(&s_final_link, 0, sizeof s_final_link);
-    if (gen_start(s_rate_bps, s_dur_s, s_seed) != 0) {
+    if (gen_start(s_rate_bps, s_dur_s, s_seed, s_clk_ppm) != 0) {
         link_close();
         reply_err("generator refused to start");
         return;
@@ -453,6 +473,8 @@ void ctl_init(int cm4_synced)
 
 void ctl_poll(void)
 {
+    (void)board_ref_micros();       /* keeps the reference counter's wrap accounted for */
+
     /* Run service. Generation is in the TIM3 interrupt; this only moves frames out. */
     if (s_state == ST_RUNNING) {
         link_poll(0);

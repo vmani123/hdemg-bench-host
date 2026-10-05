@@ -138,6 +138,67 @@ void led_green(int on)  { HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0,  on ? GPIO_PIN_SE
 void led_yellow(int on) { HAL_GPIO_WritePin(GPIOE, GPIO_PIN_1,  on ? GPIO_PIN_SET : GPIO_PIN_RESET); }
 void led_red(int on)    { HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, on ? GPIO_PIN_SET : GPIO_PIN_RESET); }
 
+int g_board_lse_ok;
+static uint64_t s_ref_acc;          /* LSE ticks, or TIM2 µs in the fallback */
+static uint32_t s_ref_last;
+
+int board_ref_clock_init(void)
+{
+    RCC_OscInitTypeDef osc = {0};
+    RCC_PeriphCLKInitTypeDef pclk = {0};
+
+    g_board_lse_ok = 0;
+    s_ref_acc = 0;
+    s_ref_last = board_micros();
+
+    HAL_PWR_EnableBkUpAccess();                       /* LSE lives in the backup domain */
+    osc.OscillatorType = RCC_OSCILLATORTYPE_LSE;
+    osc.LSEState = RCC_LSE_ON;
+    osc.PLL.PLLState = RCC_PLL_NONE;                  /* leave the main PLL alone */
+    if (HAL_RCC_OscConfig(&osc) != HAL_OK) return 0;  /* crystal absent or not starting */
+
+    pclk.PeriphClockSelection = RCC_PERIPHCLK_LPTIM1;
+    pclk.Lptim1ClockSelection = RCC_LPTIM1CLKSOURCE_LSE;
+    if (HAL_RCCEx_PeriphCLKConfig(&pclk) != HAL_OK) return 0;
+
+    __HAL_RCC_LPTIM1_CLK_ENABLE();
+    __HAL_RCC_LPTIM1_FORCE_RESET();
+    __HAL_RCC_LPTIM1_RELEASE_RESET();
+    LPTIM1->CFGR = 0;                                 /* internal clock (LSE), prescaler /1 */
+    LPTIM1->CR = LPTIM_CR_ENABLE;
+    LPTIM1->ARR = 0xFFFFU;                            /* only writable once enabled */
+    uint32_t t0 = HAL_GetTick();
+    while (!(LPTIM1->ISR & LPTIM_ISR_ARROK)) {
+        if (HAL_GetTick() - t0 > 100U) return 0;
+    }
+    LPTIM1->CR |= LPTIM_CR_CNTSTRT;                   /* free-running */
+
+    /* Believe it only if it actually counts at about the right rate: 20 ms is 655 ticks. */
+    HAL_Delay(2);
+    uint32_t a = board_lse_ticks16();
+    HAL_Delay(20);
+    uint32_t n = (board_lse_ticks16() - a) & 0xFFFFU;
+    if (n < 550U || n > 760U) return 0;
+
+    s_ref_last = board_lse_ticks16();
+    g_board_lse_ok = 1;
+    return 1;
+}
+
+uint64_t board_ref_micros(void)
+{
+    if (g_board_lse_ok) {
+        uint32_t now = board_lse_ticks16();
+        s_ref_acc += (now - s_ref_last) & 0xFFFFU;
+        s_ref_last = now;
+        return board_lse_ticks_to_us(s_ref_acc);
+    }
+    uint32_t now = board_micros();
+    s_ref_acc += (uint32_t)(now - s_ref_last);
+    s_ref_last = now;
+    return s_ref_acc;
+}
+
 void board_us_timer_init(void)
 {
     __HAL_RCC_TIM2_CLK_ENABLE();

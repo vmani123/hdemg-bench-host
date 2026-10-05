@@ -21,11 +21,34 @@ static volatile uint32_t s_w, s_r;
 static volatile uint32_t s_running, s_done;
 static uint64_t s_rate_bps, s_dur_us;
 static uint32_t s_dur_s, s_seed, s_t0;
-static volatile uint64_t s_elapsed_us;
+static volatile uint64_t s_elapsed_us;       /* trimmed */
+static volatile uint64_t s_raw_us;           /* untrimmed reference µs since the run started */
+static uint64_t s_lse_ticks;                 /* LSE ticks since the run started (reference = LSE) */
+static uint32_t s_last_lse;
+static uint64_t s_trim_den;                  /* 1e6 + clk_ppm */
+static int32_t  s_clk_ppm;
 static uint32_t s_last_us;
 static volatile uint32_t s_frames, s_drops, s_max;
 static uint32_t s_seq;                       /* monotonic across runs, like the synth source */
 static volatile uint32_t s_first_seq;
+
+/* Advance and return the run's elapsed time on the reference clock, untrimmed: the
+ * 32.768 kHz crystal when it is up (board.h), TIM2 otherwise. Call from the generation
+ * interrupt, or from the main loop with that interrupt masked. */
+static inline uint64_t raw_elapsed_now(void)
+{
+    if (g_board_lse_ok) {
+        uint32_t lp = board_lse_ticks16();
+        s_lse_ticks += (lp - s_last_lse) & 0xFFFFU;
+        s_last_lse = lp;
+        s_raw_us = board_lse_ticks_to_us(s_lse_ticks);
+    } else {
+        uint32_t now = board_micros();
+        s_raw_us += (uint32_t)(now - s_last_us);
+        s_last_us = now;
+    }
+    return s_raw_us;
+}
 
 static inline void emit(uint32_t now_us)
 {
@@ -57,18 +80,20 @@ void TIM3_IRQHandler(void)
     TIM3->SR = ~TIM_SR_UIF;
     if (!s_running) return;
 
-    uint32_t now = board_micros();
-    uint64_t el = s_elapsed_us + (uint32_t)(now - s_last_us);
-    s_last_us = now;
+    uint64_t raw = raw_elapsed_now();
+    /* Reference µs -> host-true µs (the residual trim the host measured). Everything
+     * below — the rate, the run length and the timestamp in each frame — is on it. */
+    uint64_t el = raw * 1000000ULL / s_trim_den;
     int last = 0;
     if (el >= s_dur_us) { el = s_dur_us; last = 1; }
     s_elapsed_us = el;
+    uint32_t stamp = s_t0 + (uint32_t)el;
 
     /* Scheduled against the run start, not the previous frame, so jitter cannot
      * accumulate into a rate error over a 60 s hold (same rule as pacing.c). */
     uint64_t due = el * s_rate_bps / (BITS_PER_FRAME * 1000000ULL);
     uint32_t burst = 0;
-    while ((uint64_t)s_frames < due && burst < MAX_BURST) { emit(now); burst++; }
+    while ((uint64_t)s_frames < due && burst < MAX_BURST) { emit(stamp); burst++; }
 
     if (last && (uint64_t)s_frames >= due) {
         s_running = 0;
@@ -92,16 +117,22 @@ void gen_init(void)
     HAL_NVIC_EnableIRQ(TIM3_IRQn);
 }
 
-int gen_start(uint64_t rate_bps, uint32_t dur_s, uint32_t seed)
+int gen_start(uint64_t rate_bps, uint32_t dur_s, uint32_t seed, int32_t clk_ppm)
 {
     if (s_running) return -1;
     if (rate_bps == 0 || dur_s == 0) return -2;
+    if (clk_ppm < -50000 || clk_ppm > 50000) return -3;      /* 5 %: not a clock, a fault */
 
     s_r = s_w;                      /* discard anything left from a previous run */
     s_rate_bps = rate_bps;
     s_dur_s = dur_s;
     s_dur_us = (uint64_t)dur_s * 1000000ULL;
     s_seed = seed;
+    s_clk_ppm = clk_ppm;
+    s_trim_den = (uint64_t)(1000000 + clk_ppm);
+    s_raw_us = 0;
+    s_lse_ticks = 0;
+    s_last_lse = g_board_lse_ok ? board_lse_ticks16() : 0U;
     s_elapsed_us = 0;
     s_frames = 0;
     s_drops = 0;
@@ -121,8 +152,7 @@ void gen_stop(void)
 {
     NVIC_DisableIRQ(TIM3_IRQn);
     if (s_running) {
-        uint32_t now = board_micros();
-        s_elapsed_us += (uint32_t)(now - s_last_us);
+        s_elapsed_us = raw_elapsed_now() * 1000000ULL / s_trim_den;
         s_running = 0;
         s_done = 1;
     }
@@ -139,8 +169,9 @@ void gen_stats(gen_stats_t *o)
     o->dur_s = s_dur_s;
     o->seed = s_seed;
     o->t0_us = s_t0;
-    o->elapsed_us = s_elapsed_us;
-    if (s_running) o->elapsed_us += (uint32_t)(board_micros() - s_last_us);
+    o->raw_elapsed_us = s_running ? raw_elapsed_now() : s_raw_us;
+    o->elapsed_us = s_running ? o->raw_elapsed_us * 1000000ULL / s_trim_den : s_elapsed_us;
+    o->clk_ppm = s_clk_ppm;
     o->frames = s_frames;
     o->ring_drops = s_drops;
     o->ring_fill = s_w - s_r;

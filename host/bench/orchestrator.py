@@ -24,7 +24,7 @@ from .control import ControlError
 from .keepalive import Keepalive, NullKeepalive
 from .control import ControlClient
 from .frame import HDR_BYTES
-from .h7 import H7Error
+from .h7 import H7Error, clock_mark, ppm_between
 from .ledger import Ledger, git_sha, new_run_id
 from .receiver import Receiver
 
@@ -331,6 +331,8 @@ class Orchestrator:
         h7_sum: dict = {}
         esp_ing: dict = {}
         h7_error: str | None = None
+        clk_applied = int(round(getattr(self.driver, "h7_clk_ppm", 0.0))) if wired else 0
+        clk_measured: float | None = None
 
         if pre.ok:
           with ka.paused():        # the instrument must not appear in its own number
@@ -345,18 +347,28 @@ class Orchestrator:
             if wired:
                 # ESP first, then the generator: the slave must be listening before the
                 # master offers load (guide §8). The commanded rate goes to the H7.
+                mark_a = mark_b = None
                 try:
                     h7.cfg(rate_bps=r.offered_bps, link=r.source, dur_s=int(hold) + 2,
-                           frame_bytes=self.m.frame_bytes, **self.link_opts)
+                           frame_bytes=self.m.frame_bytes, clk_ppm=clk_applied,
+                           **self.link_opts)
+                    mark_a = clock_mark(h7)
                     h7.start()
                 except H7Error as e:
                     h7_error = str(e)
             metrics = rx.join()
             if wired:                                         # stop the source first
                 try:
+                    mark_b = clock_mark(h7)
                     h7_sum = h7.stop()
                 except H7Error as e:
                     h7_error = h7_error or str(e)
+                # The run itself is the best clock calibration there is: a minute between
+                # two marks. What it finds trims the NEXT run; this one used clk_applied.
+                if mark_a and mark_b:
+                    clk_measured = ppm_between(mark_a, mark_b)
+                    if clk_measured is not None:
+                        self.driver.h7_clk_ppm = clk_measured
             try:
                 stat1 = c.stop().get("summary", {}) or c.stat()
             except Exception:                                 # noqa: BLE001
@@ -379,7 +391,9 @@ class Orchestrator:
                 "metrics": metrics_d, "rig_ceiling_mbps": ceiling,
             })
             if wired:
-                ing = gates.ingress({"h7": h7_sum, "esp": esp_ing, "h7_error": h7_error})
+                ing = gates.ingress({"h7": h7_sum, "esp": esp_ing, "h7_error": h7_error,
+                                     "clk_applied_ppm": clk_applied,
+                                     "clk_measured_ppm": clk_measured, "hold_s": hold})
                 post = gates.GateResult(post.ok and ing.ok, post.failures + ing.failures,
                                         post.warnings + ing.warnings)
 
@@ -403,7 +417,9 @@ class Orchestrator:
                             "link_bps": h7_sum.get("link_bps")} if wired else {})},
             # Stage 2 only: both ends' link counters, verbatim, plus the settings used.
             "ingress": ({"h7": h7_sum, "esp": esp_ing, "opts": self.link_opts,
-                         "h7_error": h7_error} if wired else None),
+                         "h7_error": h7_error,
+                         "clk_applied_ppm": clk_applied,
+                         "clk_measured_ppm": clk_measured} if wired else None),
             "ingress_limited": gates.ingress_limited(h7_sum) if wired else False,
             "rf": rfmeta.collect(band=str(r.band), ap=self.m.ap,
                                  rig_ceiling_mbps=ceiling,

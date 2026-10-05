@@ -85,12 +85,14 @@ def run(driver, chip: str, link: str, loads_bps: list[int], *, hold_s: float = G
     hello_esp, hello_h7 = c.hello(), h7.hello()
     steps: list[dict] = []
 
+    clk_ppm = int(round(getattr(driver, "h7_clk_ppm", 0.0)))
+
     for load in loads_bps:
         seed = rng.randrange(1, 2 ** 32)
         step = {"offered_bps": int(load), "seed": seed, "hold_s": hold_s}
         try:
             h7.cfg(link=link, rate_bps=int(load), dur_s=int(hold_s) + 5, seed=seed,
-                   frame_bytes=FRAME_BYTES, **link_opts)
+                   frame_bytes=FRAME_BYTES, clk_ppm=clk_ppm, **link_opts)
             h7.probe()
             c.cfg(rate_bps=int(load), transport="udp", dst=f"{driver.host_ip()}:{recv_port}",
                   dur_s=int(hold_s) + 8, frame_bytes=FRAME_BYTES, payload=f"lt:{seed}",
@@ -152,6 +154,7 @@ def run(driver, chip: str, link: str, loads_bps: list[int], *, hold_s: float = G
     passed = bool(steps) and len(steps) == len(loads_bps) and all(s["passed"] for s in steps)
     return {
         "chip": chip, "link": link, "tune": tune, "link_opts": link_opts,
+        "h7_clk_ppm": clk_ppm,
         "hold_s": hold_s, "meets_guide_hold": hold_s >= GUIDE_HOLD_S,
         "passed": passed, "steps": steps,
         "esp": {k: hello_esp.get(k) for k in ("fw_sha", "rung", "ingress", "idf", "band")},
