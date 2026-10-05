@@ -131,7 +131,8 @@ class Orchestrator:
                  bands: list[str] | None = None, keepalive: bool = False,
                  recover: bool = True, on_event=None,
                  allow_shared_band: bool = False,
-                 transports: list[str] | None = None):
+                 transports: list[str] | None = None,
+                 rssi_drift_warn_only: bool = False):
         self.m = matrix
         self.driver = driver
         self.ledger = ledger
@@ -143,6 +144,8 @@ class Orchestrator:
         self.recv_port = recv_port
         self.bands = [str(b) for b in bands] if bands else None
         self.transports = [str(t) for t in transports] if transports else None
+        # Record an RSSI drift as a warning instead of refusing the run (see gates.py).
+        self.rssi_drift_warn_only = rssi_drift_warn_only
         self.want_keepalive = keepalive
         self.want_recover = recover
         self.on_event = on_event or (lambda *_a, **_k: None)
@@ -289,6 +292,7 @@ class Orchestrator:
             "offered_bps": r.offered_bps,
             "rssi_dbm": stat0.get("rssi") if first_rssi is not None else None,
             "first_rssi_dbm": first_rssi, "ambient_ok": True,
+            "rssi_drift_warn_only": self.rssi_drift_warn_only,
             "esp_reset_since_last": False, "idf_version": hello.get("idf"),
             "expected_idf": self.m.expected_idf, "proto_ok": True,
             "parity_ok": self.parity_ok,
@@ -380,6 +384,10 @@ class Orchestrator:
                                  idf_version=hello.get("idf"),
                                  host_path_info=host_path),
             "valid": valid,
+            # What the drift gate compared: the cell's reference RSSI and the reading
+            # taken before this run. Kept so a run let through with only a warning can
+            # still be filtered or stratified afterwards.
+            "rssi_ref_dbm": first_rssi, "rssi_pre_dbm": stat0.get("rssi"),
             "reassociated": reassociated or recovered,
             "keepalive": ka.snapshot(),
             "source_limited": gates.source_limited({

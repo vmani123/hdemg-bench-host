@@ -33,6 +33,8 @@
 #   S3_HUB_PORT / C5_HUB_PORT   uhubctl ports, if a switchable hub is attached
 #   MATRIX        default matrices/stage1.yaml    PASSES  default 3
 #   TRANSPORT     tcp or udp: run only that transport; the other's points stay pending
+#   RSSI_DRIFT_WARN=1   keep runs whose RSSI drifted >3 dB, with a warning, instead of
+#                 refusing them (for a board whose reported RSSI wanders on its own)
 # ============================================================================
 set -u
 BAND="${1:-}"
@@ -61,6 +63,7 @@ args=(--matrix "$MATRIX" --band "$BAND" --unattended --passes "$PASSES"
       --ceilings "$CEILINGS" --s3-port "$S3_PORT" --c5-port "$C5_PORT")
 [ -n "${EXPECTED_IDF:-}" ] && args+=(--expected-idf "$EXPECTED_IDF")
 [ -n "${TRANSPORT:-}" ] && args+=(--transport "$TRANSPORT")
+[ "${RSSI_DRIFT_WARN:-0}" = "1" ] && args+=(--rssi-drift-warn)
 [ -n "${S3_HUB_PORT:-}" ] && args+=(--s3-hub-port "$S3_HUB_PORT")
 [ -n "${C5_HUB_PORT:-}" ] && args+=(--c5-hub-port "$C5_HUB_PORT")
 

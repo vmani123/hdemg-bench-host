@@ -67,7 +67,12 @@ def pre_run(ctx: dict) -> GateResult:
 
     rssi, first = ctx.get("rssi_dbm"), ctx.get("first_rssi_dbm")
     if rssi is not None and first is not None and abs(rssi - first) > RSSI_DRIFT_DB:
-        f.append(f"RSSI drifted {abs(rssi-first):.1f} dB from this cell's first repeat")
+        # A refusal by default: it is how "someone moved something" is caught. It can be
+        # downgraded to a warning for a board whose REPORTED RSSI wanders by more than
+        # this on its own (the S3 on the router rig: -43 to -58 dBm with nothing
+        # touched); the run is then kept, labelled, with both readings in its rf block.
+        msg = f"RSSI drifted {abs(rssi-first):.1f} dB from this cell's first repeat"
+        (w if ctx.get("rssi_drift_warn_only") else f).append(msg)
     if ctx.get("ambient_ok") is False:
         f.append("ambient RF scan differs materially from this cell's first repeat")
     if ctx.get("esp_reset_since_last"):

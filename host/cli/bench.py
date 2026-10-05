@@ -109,7 +109,8 @@ def cmd_run(a) -> int:
                        bands=[a.band] if a.band else None,
                        keepalive=True, recover=True, on_event=_progress,
                        allow_shared_band=a.allow_shared_band,
-                       transports=[a.transport] if a.transport else None)
+                       transports=[a.transport] if a.transport else None,
+                       rssi_drift_warn_only=a.rssi_drift_warn)
     # Several passes: every point skipped or invalidated in one pass is retried in the
     # next (the ledger is the state). Stop early once nothing is left, or once a pass
     # makes no valid progress — repeating it would only repeat the failure.
@@ -281,6 +282,11 @@ def main(argv=None) -> int:
                    help="restrict the sweep to one transport; the other's points stay "
                         "pending. Use tcp while this host cannot measure UDP (for "
                         "instance while a socket content filter is dropping datagrams).")
+    r.add_argument("--rssi-drift-warn", action="store_true",
+                   help="record an RSSI drift of more than 3 dB as a warning instead of "
+                        "refusing the run. For a board whose reported RSSI wanders on its "
+                        "own; both readings are stored with the run so it can be filtered "
+                        "later. Off by default: a drift normally means the rig moved.")
     r.add_argument("--allow-shared-band", action="store_true",
                    help="record a warning instead of refusing a cell when this Mac's own "
                         "Wi-Fi is on the band being measured (both hops then share one "
