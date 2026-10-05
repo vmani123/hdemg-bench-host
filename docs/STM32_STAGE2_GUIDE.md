@@ -13,6 +13,88 @@ loss-accounted* source — never "as fast as it will go".
 
 ---
 
+## Implementation status (2026-10-05) — read this first
+
+The guide below was written before any code existed. The code now exists, and in a few
+places it deliberately does **not** do what the guide says, because the installed IDF or
+the bench made the original plan unworkable. This section is the current truth; where a
+later section disagrees with it, this section wins.
+
+### What exists and where
+
+| Piece | Location | State |
+|---|---|---|
+| H7 generator firmware | `firmware/stm32h745/hdemg_h745/` (CubeIDE project, CM7 + CM4) | builds headless, 0 warnings; **not yet flashed or run** |
+| Runner actions | `hostrun.sh`: `stm_build`, `stm_flash`, and `tree=<worktree>` on build/flash jobs | build path tested through a runner instance; **flash path never exercised** |
+| ESP QSPI ingress (S3, C5) | `firmware/bench_common/ingress_qspi.c`, `ingress_common.c`; entry points `firmware/<chip>/main/source_qspi.c` | compiles and links for both chips (baseline and tuned rungs); **never flashed** |
+| ESP SDIO ingress (C5) | `firmware/bench_common/ingress_sdio.c`, `firmware/esp32c5/main/source_sdio.c` | compiles and links; **never flashed, harness not built** |
+| Shared link contract | `firmware/bench_common/include/hdemg_link.h` (used by the H7 and the ESP) | — |
+| C5 pin map | `firmware/esp32c5/main/pins_c5.h` — IO_MUX set of §3.2 | strapping-pin boot check **not done** |
+| Host | `host/bench/h7.py`, `linktest.py`, wired cells in `orchestrator.py`, `gates.ingress`, `bench linktest`, `bench h7` | 22 tests against fakes; no hardware |
+| Unattended chain | `stage2_chain.sh`, started by `overnight.sh` when `_agent/stage2.ready` exists | control flow tested against a stub |
+
+There is **no `.ioc` and no CubeMX step** (§2 is superseded): the project was assembled
+from the pack's `Templates/BootCM4_CM7`, made self-contained (own `Drivers/`), and the
+peripheral setup is written by hand in `CM7/Core/Src/board.c` and the link files. The
+direct-SMPS supply define (`USE_PWR_DIRECT_SMPS_SUPPLY`) is kept in both cores' builds.
+
+### Where the code departs from this guide, and why
+
+| Guide said | Code does | Why |
+|---|---|---|
+| §5.4, §8: Slave HD in **append mode**, 8192-byte RX buffers | **Segment mode**, 8192-byte RX buffers queued straight from the pool | The installed IDF's `spi_slave_hd_append_trans` rejects any buffer over 4092 bytes. Segment mode takes the full buffer, and its ISR loads the next queued buffer itself |
+| §6.3: SDIO `recv_buffer_size = 8192`, 30-frame packets | **4092 bytes, 15-frame packets** (`HDEMG_SDIO_RECV_BUF_BYTES`) | IDF caps it: `SDIO_SLAVE_RECV_MAX_BUFFER = 4096-4`. For a like-for-like 2a/2b comparison on the C5, run QSPI with `batch=15` too |
+| §5.2, §5.5: `HAL_QSPI_*` with MDMA | Direct-register QUADSPI with a **polled, word-wide FIFO fill** | Several times faster than the bus at 25 MHz, the CPU has nothing else to do (generation is in an interrupt), and it removes MDMA and its cache rules from the silent-corruption list. The ring is still in non-cacheable AXI SRAM |
+| §5.4: one credit word (15) | Words **13 MAGIC, 14 COMPLETED, 15 LOADED** | MAGIC lets the H7 refuse to start when no slave answers; COMPLETED lets it resynchronise its own count each time the link opens |
+| §5.2: `WR_END` as command + address + 8 dummy cycles | Command + address + **one data byte**, single line: the same 24 clocks | Does not depend on how QUADSPI treats a dummy phase with no data phase |
+| §5.3: one clock for everything | Data at `qspi_hz`; **RDBUF reads at `qspi_rd_hz`** (default 5 MHz), each value read twice | The slave's MISO is only good to ~10 MHz; the credit counter must never be misread |
+| §4.5: send whatever has accumulated | Same, but **even frame counts preferred** (`qspi_even`, default on) | Keeps the transaction length a multiple of 4 bytes; a lone frame waits at most 2 ms |
+| §4.4: seed from the RNG | **Seed supplied by the host** per run (`cfg seed=`) | Both ends must know it for the payload check; the RNG peripheral is not used |
+| §7.2: a `BENCH_LINK_TEST` build | A **runtime mode**: `cfg payload=lt:<seed>` on the ESP | Same binary as the Wi-Fi runs, so the thing tested is the thing measured |
+| §8: ingress counters in the control plane's `stat` | A **separate UDP port, 3335** (`istat`) | Leaves `control.c` / `instr.c` / `pipe.c` byte-identical between Stage 1 and Stage 2 builds |
+| §8: one ledger | Stage 2 writes **`host/results/stage2.jsonl`** | An unattended Stage 2 attempt can never disturb the Stage 1 ledger; `report --with-ledger` reads both |
+
+Additions the guide did not have: H7 verbs `probe` (open the link, check a slave answers,
+close), `reboot`, and `q_open` / `q_rd` / `q_tx` / `q_close` for §7.1 bring-up; `cfg` keys
+`qspi_hz qspi_rd_hz qspi_dummy qspi_addr_lines qspi_sshift qspi_even qspi_nocredit sdio_hz
+batch seed`; the link's pins are **Hi-Z whenever the link is closed**, so an idle H7 cannot
+disturb a board it is wired to.
+
+### Bring-up, in order (all from `host/`, with `hostrun.sh` running)
+
+```bash
+PY=../.venv/bin/python
+# 1. build + flash the generator (both cores once), then talk to it
+#    (hostrun jobs: stm_build core=all · stm_flash core=cm4 · stm_flash core=cm7)
+$PY -m cli.bench h7 hello
+# 2. pacing with nothing attached (§10 step 3): achieved_bps must match within 1 %
+$PY -m cli.bench h7 cfg rate_bps=60000000 dur_s=10 link=none
+$PY -m cli.bench h7 start ; sleep 11 ; $PY -m cli.bench h7 stat
+# 3. logic analyzer, no ESP attached (§7.1): 0xA3 + 270 bytes, then WR_END, at 1 MHz
+$PY -m cli.bench h7 cfg qspi_hz=1000000
+$PY -m cli.bench h7 q_open ; $PY -m cli.bench h7 q_tx frames=1 rep=1000 gap_us=2000
+$PY -m cli.bench h7 q_close
+# 4. wired to an ESP running the qspi build: smoke test, then the real link test (§7.2)
+$PY -m cli.bench linktest --chip esp32s3 --link qspi --loads 4 --hold 20 --link-opt qspi_hz=10000000
+$PY -m cli.bench linktest --chip esp32s3 --link qspi --link-opt qspi_hz=25000000
+# 5. only then, Wi-Fi (§7.3)
+$PY -m cli.bench run --matrix matrices/stage2.yaml --band 2.4 --chips esp32s3 --sources qspi \
+    --link-opt qspi_hz=25000000 --ceilings 2.4=60,5=95 --ledger results/stage2.jsonl
+```
+
+### Still unverified — nothing below has touched hardware
+
+1. Flashing either board with this code, and the H7's pacing on the real clock.
+2. Every QSPI phase on the wire: the 8 dummy cycles, the 4-line address, `WR_END`,
+   single-line `RDBUF` at speed (§7.1 has not been done).
+3. Segment-mode behaviour at load: that a 270·n-byte transaction ended by `WR_END`
+   reports `trans_len` exactly, and how long the slave takes to re-arm.
+4. The C5's boot with a harness on its strapping pins (GPIO2/7), for QSPI and for SDIO.
+5. All of SDIO, on both ends.
+6. Whether READY (PG9 ↔ ESP) is free on the Nucleo header as wired.
+
+---
+
 ## 0. What is on the bench (checked, not assumed)
 
 | Item | Found | How |
@@ -125,6 +207,10 @@ CubeMX can also regenerate code headless (`STM32CubeMX -q gen.txt` with `config 
 ---
 
 ## 2. One-time project setup in CubeMX (the only GUI step)
+
+> **Superseded.** No CubeMX step was needed: the project in
+> `firmware/stm32h745/hdemg_h745/` was built from the pack template and configures the
+> same peripherals by hand. The table below is kept as the specification it was built to.
 
 *File → New → STM32 Project → **Board Selector** → NUCLEO-H745ZI-Q*, "initialize all
 peripherals with default mode" **No** (you will add exactly what is below). Name it `hdemg_h745`.
@@ -395,6 +481,10 @@ exactly the loads being measured. **A READY level sampled right after `WR_END` i
 ESP retires the buffer in an ISR some microseconds later, so the H7 can still see the *previous*
 buffer's READY=1 and write into nothing. That loss is silent.
 
+> **Superseded in one respect:** the ESP side uses *segment* mode, not append mode — the
+> installed IDF limits an append-mode buffer to 4092 bytes. The credit scheme below is
+> unchanged; see *Implementation status*.
+
 Use the scheme IDF's append-mode example is built on
 (`examples/peripherals/spi_slave_hd/append_mode`, `SPI_SLAVE_HD_APPEND_MODE`):
 
@@ -476,6 +566,9 @@ that source before relying on it.
    chunk.
 4. `buffers_sent += need` (mod 4096).
 
+> **Superseded:** the IDF caps this at 4092 bytes (`SDIO_SLAVE_RECV_MAX_BUFFER`), so the
+> code uses 4092 and SDIO packets carry at most 15 frames.
+
 `RECV_BUF_SIZE` is the C5's `sdio_slave_config_t.recv_buffer_size`. Pick **8192**, so one
 30-frame packet is one buffer, and hard-code it on both sides with an assert. A mismatch
 silently splits or merges packets.
@@ -533,7 +626,8 @@ low load, the ingress path is costing goodput before the radio is even busy.
 
 ## 8. Plugging into the harness (what still has to be written)
 
-None of this exists yet. Tonight's Stage 1 run does not need it.
+> **All of this now exists.** See *Implementation status* at the top for where each
+> piece lives and where it differs from the description below.
 
 **H7 control plane** — line-oriented ASCII over the VCP (115200), JSON replies, deliberately
 the same verbs as the ESP's UDP control plane (`firmware/bench_common/control.c`):

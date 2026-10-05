@@ -36,12 +36,15 @@ int link_open(const link_cfg_t *c, const char **err)
     int rc = 0;
     *err = "";
     if (s_open) link_close();
+    /* Set before the attempt, so link_stats() after a FAILED open reports the link
+     * that was tried (its error counters, the value it read back) and not the last one. */
+    s_kind = c->kind;
     switch (c->kind) {
     case LINK_QSPI: rc = link_qspi_open(c, err); break;
     case LINK_SDIO: rc = link_sdio_open(c, err); break;
     default:        memset(&s_none, 0, sizeof s_none); break;
     }
-    if (rc == 0) { s_kind = c->kind; s_open = 1; }
+    if (rc == 0) s_open = 1;
     return rc;
 }
 
