@@ -184,11 +184,31 @@ class HardwareDriver:
         """How this Mac reaches a board: the second hop of the rig (rfmeta.host_path)."""
         return rfmeta.host_path(self.ips.get(chip), self.ap)
 
-    def rediscover(self) -> dict:
+    FULL_SCAN_MIN_INTERVAL_S = 5.0   # a blind /24 scan is ~240 ARP broadcasts; ration them
+
+    def rediscover(self, want: str | None = None) -> dict:
         """Find the managed boards on the host's /24 and update their addresses in
-        place, so clients already handed out (the keepalive's) follow a new lease."""
+        place, so clients already handed out (the keepalive's) follow a new lease.
+
+        Addresses known to exist are asked first: the boards' last addresses and
+        everything already in this host's neighbour table. Only if a board is still
+        missing (`want`, or any managed board when `want` is None) is the rest of the /24
+        probed, and that blind scan is rationed — on a home network most of those
+        addresses do not exist and each probe costs an ARP broadcast."""
         base = self.host_ip().rsplit(".", 1)[0]
-        found = discover([f"{base}.{i}" for i in range(1, 255)])
+        first = [ip for ip in self.ips.values() if ip]
+        first += [ip for ip in rfmeta.lan_neighbours(base) if ip not in first]
+        found = discover(first, timeout=0.6) if first else {}
+        if want:
+            missing = want not in found
+        else:
+            missing = not self.ips or any(c not in found for c in self.ips)
+        now = time.monotonic()
+        if missing and now - getattr(self, "_last_full_scan", -1e9) >= self.FULL_SCAN_MIN_INTERVAL_S:
+            self._last_full_scan = now
+            seen = set(first)
+            rest = [f"{base}.{i}" for i in range(1, 255) if f"{base}.{i}" not in seen]
+            found = {**discover(rest), **found}
         for chip, reply in found.items():
             if chip in self.ips:
                 self.ips[chip] = reply["ip"]
@@ -246,7 +266,7 @@ class HardwareDriver:
                 print(f">> power cycle of {chip} failed: {e}")
         deadline = time.monotonic() + self.REJOIN_TIMEOUT_S
         while time.monotonic() < deadline:
-            if chip in self.rediscover():
+            if chip in self.rediscover(chip):
                 print(f">> {chip} found again at {self.ips[chip]}")
                 return True
             time.sleep(5.0)
@@ -339,7 +359,7 @@ class HardwareDriver:
                 h = self.control(chip).hello()
             except (ControlError, OSError) as e:
                 last = e
-                self.rediscover()       # a reboot can come back on a new DHCP lease
+                self.rediscover(chip)   # a reboot can come back on a new DHCP lease
                 time.sleep(2.0)
                 continue
             if h.get("rung") != rung or h.get("ingress") != source:
@@ -359,7 +379,7 @@ class HardwareDriver:
         reaches everything holding it — notably the keepalive."""
         if chip not in self._clients:
             if not self.ips.get(chip):
-                self.rediscover()
+                self.rediscover(chip)
             if not self.ips.get(chip):
                 raise ControlError(f"{chip} not found on {self.host_ip()}/24 — is it "
                                    f"powered and joined to the access point?")

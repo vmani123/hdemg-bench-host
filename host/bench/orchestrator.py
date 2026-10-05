@@ -341,7 +341,7 @@ class Orchestrator:
             rx.start()
             c.cfg(rate_bps=r.offered_bps, transport=r.transport,
                   dst=f"{self.driver.host_ip()}:{self.recv_port}",
-                  dur_s=int(hold) + 2, frame_bytes=self.m.frame_bytes,
+                  dur_s=int(hold) + 5, frame_bytes=self.m.frame_bytes,
                   payload="rand", label=f"{r.cell_id}-r{r.repeat}")
             c.start()
             if wired:
@@ -349,7 +349,7 @@ class Orchestrator:
                 # master offers load (guide §8). The commanded rate goes to the H7.
                 mark_a = mark_b = None
                 try:
-                    h7.cfg(rate_bps=r.offered_bps, link=r.source, dur_s=int(hold) + 2,
+                    h7.cfg(rate_bps=r.offered_bps, link=r.source, dur_s=int(hold) + 5,
                            frame_bytes=self.m.frame_bytes, clk_ppm=clk_applied,
                            **self.link_opts)
                     mark_a = clock_mark(h7)
@@ -357,7 +357,18 @@ class Orchestrator:
                 except H7Error as e:
                     h7_error = str(e)
             metrics = rx.join()
-            if wired:                                         # stop the source first
+            # Sample the device WHILE IT IS STILL STREAMING, then stop it. The achieved
+            # source rate and the CPU-idle figure describe the stream only while it runs:
+            # the firmware zeroes its achieved rate the moment the run ends, and after
+            # that the CPU is merely idle. Read from the `stop` summary — as this used
+            # to — every run came back "achieved 0", was labelled source-limited, and
+            # carried an idle figure for a board doing nothing. (dur_s leaves a few
+            # seconds of margin so the board has not stopped on its own by now.)
+            try:
+                live = c.stat()
+            except Exception:                                 # noqa: BLE001
+                live = {}
+            if wired:                                         # then stop the source first
                 try:
                     mark_b = clock_mark(h7)
                     h7_sum = h7.stop()
@@ -373,13 +384,16 @@ class Orchestrator:
                 stat1 = c.stop().get("summary", {}) or c.stat()
             except Exception:                                 # noqa: BLE001
                 stat1 = {}
+            for k in ("achieved_bps", "idle_pct"):
+                if live.get(k) is not None:
+                    stat1[k] = live[k]
             if wired:
                 try:
                     esp_ing = self.driver.ingress_stat(r.chip)
                 except (OSError, ValueError):
                     esp_ing = {}
                 # The H7 is the source: its achieved rate is the offered load. The
-                # ESP's own figure is what came in over the wire, kept separately.
+                # ESP's own (live) figure is what came in over the wire, kept separately.
                 stat1 = {**stat1, "esp_ingress_bps": stat1.get("achieved_bps"),
                          "achieved_bps": h7_sum.get("achieved_bps")}
             metrics_d = metrics.as_dict()
