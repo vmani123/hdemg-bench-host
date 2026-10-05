@@ -44,6 +44,21 @@ def iphone_usb_ip() -> str | None:
     return _run(["/usr/sbin/ipconfig", "getifaddr", dev]).strip() or None
 
 
+def lan_neighbours(prefix: str) -> list[str]:
+    """Addresses under `prefix` ("192.168.1") that this host has actually resolved a MAC
+    for — hosts known to exist. Discovery asks these first: a datagram to a resolved
+    neighbour needs no ARP lookup, so it can neither stall nor add broadcast traffic."""
+    out: list[str] = []
+    for line in _run(["/usr/sbin/arp", "-an"]).splitlines():
+        # "? (192.168.1.165) at aa:bb:cc:dd:ee:ff on en0 ifscope [ethernet]"
+        if "(incomplete)" in line or " at " not in line:
+            continue
+        ip = line.partition("(")[2].partition(")")[0]
+        if ip.startswith(prefix + ".") and not ip.endswith(".255") and ip not in out:
+            out.append(ip)
+    return out
+
+
 def route_interface(dest_ip: str) -> str | None:
     """The interface this Mac uses to reach dest_ip (the one the stream arrives on)."""
     if platform.system() != "Darwin":

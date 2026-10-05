@@ -5,7 +5,9 @@ shared with idf.py monitor and stops working the moment a board is not on the de
 """
 from __future__ import annotations
 import json
+import select
 import socket
+import time
 
 CONTROL_PORT = 3334
 PROTOCOL_VERSION = 1
@@ -65,35 +67,57 @@ class ControlClient:
         return self._rpc("reset")
 
 
-def discover(addresses, port: int = CONTROL_PORT, timeout: float = 1.5) -> dict:
+def discover(addresses, port: int = CONTROL_PORT, timeout: float = 1.5,
+             batch: int = 32, gap_s: float = 0.04) -> dict:
     """Find bench devices by asking every address for `hello`. Returns {chip: reply}
     with the replying address under reply["ip"].
 
-    The hotspot hands out addresses by DHCP (172.20.10.0/28 on an iPhone), so a device's
-    IP is not known in advance and can change after a re-association. One socket, one
-    datagram per address, then collect replies until the timeout — a /24 takes ~2 s.
+    The access point hands out addresses by DHCP, so a device's IP is not known in
+    advance and can change after a re-association.
+
+    The sends are NON-BLOCKING and paced, and the whole call is bounded (roughly
+    len(addresses)/batch * gap_s + timeout seconds). Both matter on a home /24: most of
+    the 254 addresses do not exist, the kernel queues a packet behind each unanswered ARP
+    lookup, and a BLOCKING send then waits behind that queue indefinitely — which hung
+    the first real sweep on its first board. A send the kernel will not take right now
+    is simply skipped; callers retry, and should put addresses known to exist first.
     """
     found: dict = {}
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        for a in addresses:
-            try:
-                s.sendto(b"hello", (str(a), port))
-            except OSError:
-                continue
-        s.settimeout(timeout)
+    s.setblocking(False)
+
+    def collect(wait_s: float) -> None:
+        deadline = time.monotonic() + wait_s
         while True:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                return
+            readable, _, _ = select.select([s], [], [], left)
+            if not readable:
+                return
             try:
                 data, (ip, _) = s.recvfrom(65535)
-            except socket.timeout:
-                break
+            except OSError:
+                continue
             try:
                 reply = json.loads(data.decode())
             except ValueError:
                 continue
-            chip = reply.get("chip")
+            chip = reply.get("chip") if isinstance(reply, dict) else None
             if chip and reply.get("ok", True):
                 found[chip] = {**reply, "ip": ip}
+
+    try:
+        todo = [str(a) for a in addresses]
+        for i in range(0, len(todo), max(1, batch)):
+            for a in todo[i:i + max(1, batch)]:
+                try:
+                    s.sendto(b"hello", (a, port))
+                except OSError:
+                    continue            # no buffer / host down / would block: skip it
+            if i + batch < len(todo):
+                collect(gap_s)
+        collect(timeout)
     finally:
         s.close()
     return found
