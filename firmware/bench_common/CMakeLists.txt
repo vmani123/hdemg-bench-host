@@ -28,13 +28,22 @@ set(SRCS
 # control arm), so it ships here and is selected by the target's BENCH_INGRESS.
 if(BENCH_INGRESS STREQUAL "synth")
     list(APPEND SRCS "source_synth.c")
+# The wired sources (Stage 2) sit beside the core without changing it: same pipe, same
+# sink, same counting point. The target's main/ supplies the pins and the entry point.
+elseif(BENCH_INGRESS STREQUAL "qspi")
+    list(APPEND SRCS "ingress_common.c" "ingress_qspi.c")
+elseif(BENCH_INGRESS STREQUAL "sdio")
+    list(APPEND SRCS "ingress_common.c" "ingress_sdio.c")
 endif()
 
+# The esp_driver_* requirements are unconditional on purpose: IDF expands requirements
+# in a script context that does not see BENCH_INGRESS (see bench_options.cmake), so a
+# requirement made conditional on it would silently be dropped.
 idf_component_register(
     SRCS ${SRCS}
     INCLUDE_DIRS "include"
     REQUIRES esp_wifi esp_timer esp_netif lwip nvs_flash esp_event esp_app_format
-             esp_hw_support driver
+             esp_hw_support driver esp_driver_spi esp_driver_gpio esp_driver_sdio
 )
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE

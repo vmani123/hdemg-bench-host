@@ -6,6 +6,7 @@
 #include "board.h"
 #include "console.h"
 #include "ctl.h"
+#include "gen.h"
 
 int main(void)
 {
@@ -23,6 +24,7 @@ int main(void)
     board_leds_init();
     board_us_timer_init();
     console_init();
+    gen_init();
     ctl_init(cm4_synced);
 
     uint32_t beat = HAL_GetTick();

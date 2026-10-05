@@ -15,6 +15,13 @@ endif()
 idf_component_register(SRCS ${SRCS} INCLUDE_DIRS "."
                        REQUIRES bench_common protocol_examples_common esp_wifi)
 
+# A wired source's entry points are referenced only from bench_common, which is linked
+# AFTER this component, so the linker would never pull source_*.c out of this archive.
+# Name one of its symbols as undefined up front to force it in.
+if(NOT BENCH_INGRESS STREQUAL "synth")
+    target_link_libraries(${COMPONENT_LIB} INTERFACE "-u source_start")
+endif()
+
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
     INGRESS_NAME="${BENCH_INGRESS}"
     RUNG_NAME="${BENCH_RUNG}"
