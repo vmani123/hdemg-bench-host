@@ -15,6 +15,23 @@ if(NOT DEFINED BENCH_RUNG OR BENCH_RUNG STREQUAL "")
     set(BENCH_RUNG "r0-baseline")
 endif()
 
+# BENCH_BAND: which Wi-Fi band the build is pinned to — 2.4, 5, or auto (no pin).
+# A cell is defined by its band, and a dual-band access point offers both under one
+# SSID, so the band has to be fixed in the board rather than at the access point.
+# Only a dual-band chip acts on it (the C5); the S3 has one band and ignores it.
+if(NOT DEFINED BENCH_BAND OR BENCH_BAND STREQUAL "")
+    set(BENCH_BAND "auto")
+endif()
+if(BENCH_BAND STREQUAL "2.4")
+    set(BENCH_BAND_PIN 2)
+elseif(BENCH_BAND STREQUAL "5")
+    set(BENCH_BAND_PIN 5)
+elseif(BENCH_BAND STREQUAL "auto")
+    set(BENCH_BAND_PIN 0)
+else()
+    message(FATAL_ERROR "BENCH_BAND='${BENCH_BAND}' must be 2.4, 5 or auto")
+endif()
+
 # Validate only a supplied value. BENCH_TARGET_INGRESS is set by each target to the
 # list it actually supports (the S3 has no SDIO slave).
 if(DEFINED BENCH_VALID_INGRESS)

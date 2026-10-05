@@ -1,7 +1,11 @@
 # Copy to firmware/<target>/sdkconfig.local and fill in. GITIGNORED — never committed.
+# Do not put a real password in THIS file: it is tracked.
 #
 # These are ENVIRONMENT, not tuning: both chips must join the same network for the
 # comparison to mean anything, so set the same values in both targets' files.
+#
+# The network may be dual-band under one SSID (a home router): the band each build uses
+# is pinned by the harness (BENCH_BAND), not chosen here.
 CONFIG_EXAMPLE_CONNECT_WIFI=y
-CONFIG_EXAMPLE_WIFI_SSID="VikPhone"
-CONFIG_EXAMPLE_WIFI_PASSWORD="G7jHF7@%>^"
+CONFIG_EXAMPLE_WIFI_SSID="your-network-name"
+CONFIG_EXAMPLE_WIFI_PASSWORD="your-network-password"
