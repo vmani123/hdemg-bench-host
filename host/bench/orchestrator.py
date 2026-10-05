@@ -74,8 +74,10 @@ class Matrix:
         step = (e - s) / (n - 1)
         return [int((s + i * step) * 1e6) for i in range(n)]
 
-    def expand(self, bands: list[str] | None = None) -> list[Run]:
-        """bands: restrict to these bands.
+    def expand(self, bands: list[str] | None = None,
+               transports: list[str] | None = None) -> list[Run]:
+        """bands: restrict to these bands. transports: restrict to these transports
+        (the points left out stay pending for a later sweep).
 
         The hotspot serves one band at a time and the switch is a manual toggle, so a
         sweep restricted to one band is the unit that can run unattended end to end.
@@ -91,6 +93,8 @@ class Matrix:
                     continue
                 source = cell.get("source", "synth")
                 for transport in _aslist(cell.get("transport", ["udp"])):
+                    if transports and transport not in transports:
+                        continue
                     for tune in _aslist(cell.get("tune", ["tuned"])):
                         cid = f"s{self.stage}-{chip}-{band}-{source}-{transport}-{tune}"
                         for off in steps:
@@ -126,7 +130,8 @@ class Orchestrator:
                  parity_ok: bool = True, recv_port: int = 3333,
                  bands: list[str] | None = None, keepalive: bool = False,
                  recover: bool = True, on_event=None,
-                 allow_shared_band: bool = False):
+                 allow_shared_band: bool = False,
+                 transports: list[str] | None = None):
         self.m = matrix
         self.driver = driver
         self.ledger = ledger
@@ -137,6 +142,7 @@ class Orchestrator:
         self.allow_shared_band = allow_shared_band
         self.recv_port = recv_port
         self.bands = [str(b) for b in bands] if bands else None
+        self.transports = [str(t) for t in transports] if transports else None
         self.want_keepalive = keepalive
         self.want_recover = recover
         self.on_event = on_event or (lambda *_a, **_k: None)
@@ -146,7 +152,7 @@ class Orchestrator:
 
     def pending(self) -> list[Run]:
         done = self.ledger.completed_keys()
-        return [r for r in self.m.expand(self.bands) if r.key not in done]
+        return [r for r in self.m.expand(self.bands, self.transports) if r.key not in done]
 
     def _keepalive_for(self, chip: str):
         """One keepalive per chip, created lazily once the device is reachable."""
@@ -268,13 +274,20 @@ class Orchestrator:
         ceiling = self.rig_ceilings.get(str(r.band))
         host_path = self._host_path(r.chip)
 
-        first_rssi = self._first_rssi.setdefault(r.cell_id, stat0.get("rssi"))
+        # The RSSI every later run of this cell is compared against is taken at the END
+        # of the cell's first run, not before it. A reading taken moments after a board
+        # boots and associates is not settled: on the first real sweep the S3 reported
+        # -55 dBm right after its flash and -42 dBm from then on, and every later run of
+        # the cell was refused as a 13 dB "drift". Until that reference exists there is
+        # nothing to compare with, so the first run is not drift-checked.
+        first_rssi = self._first_rssi.get(r.cell_id)
         pre_ctx = {
             "associated": True, "band": self.driver.band_of(r.chip),
             "host_link": host_path.get("link"), "host_band": host_path.get("band"),
             "allow_shared_band": self.allow_shared_band,
             "expected_band": r.band, "rig_ceiling_mbps": ceiling,
-            "offered_bps": r.offered_bps, "rssi_dbm": stat0.get("rssi"),
+            "offered_bps": r.offered_bps,
+            "rssi_dbm": stat0.get("rssi") if first_rssi is not None else None,
             "first_rssi_dbm": first_rssi, "ambient_ok": True,
             "esp_reset_since_last": False, "idf_version": hello.get("idf"),
             "expected_idf": self.m.expected_idf, "proto_ok": True,
@@ -330,6 +343,10 @@ class Orchestrator:
             for k in ("achieved_bps", "idle_pct"):
                 if live.get(k) is not None:
                     stat1[k] = live[k]
+            if r.cell_id not in self._first_rssi:
+                settled = live.get("rssi") or stat1.get("rssi")
+                if settled:                       # 0 means "not associated", not 0 dBm
+                    self._first_rssi[r.cell_id] = settled
             metrics_d = metrics.as_dict()
             post = gates.post_run({
                 "commanded_bps": r.offered_bps,

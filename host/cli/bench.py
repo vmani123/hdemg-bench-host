@@ -108,7 +108,8 @@ def cmd_run(a) -> int:
                        parity_ok=par["ok"],
                        bands=[a.band] if a.band else None,
                        keepalive=True, recover=True, on_event=_progress,
-                       allow_shared_band=a.allow_shared_band)
+                       allow_shared_band=a.allow_shared_band,
+                       transports=[a.transport] if a.transport else None)
     # Several passes: every point skipped or invalidated in one pass is retried in the
     # next (the ledger is the state). Stop early once nothing is left, or once a pass
     # makes no valid progress — repeating it would only repeat the failure.
@@ -276,6 +277,10 @@ def main(argv=None) -> int:
                    help="never block on a prompt. The pre-run gate verifies the band from "
                         "the device, so a wrong band fails loudly instead of quietly "
                         "measuring the other one.")
+    r.add_argument("--transport", default=None, choices=["udp", "tcp"],
+                   help="restrict the sweep to one transport; the other's points stay "
+                        "pending. Use tcp while this host cannot measure UDP (for "
+                        "instance while a socket content filter is dropping datagrams).")
     r.add_argument("--allow-shared-band", action="store_true",
                    help="record a warning instead of refusing a cell when this Mac's own "
                         "Wi-Fi is on the band being measured (both hops then share one "

@@ -32,6 +32,7 @@
 #   S3_PORT       default cu.usbmodem101      C5_PORT  default cu.usbserial-110
 #   S3_HUB_PORT / C5_HUB_PORT   uhubctl ports, if a switchable hub is attached
 #   MATRIX        default matrices/stage1.yaml    PASSES  default 3
+#   TRANSPORT     tcp or udp: run only that transport; the other's points stay pending
 # ============================================================================
 set -u
 BAND="${1:-}"
@@ -59,6 +60,7 @@ fi
 args=(--matrix "$MATRIX" --band "$BAND" --unattended --passes "$PASSES"
       --ceilings "$CEILINGS" --s3-port "$S3_PORT" --c5-port "$C5_PORT")
 [ -n "${EXPECTED_IDF:-}" ] && args+=(--expected-idf "$EXPECTED_IDF")
+[ -n "${TRANSPORT:-}" ] && args+=(--transport "$TRANSPORT")
 [ -n "${S3_HUB_PORT:-}" ] && args+=(--s3-hub-port "$S3_HUB_PORT")
 [ -n "${C5_HUB_PORT:-}" ] && args+=(--c5-hub-port "$C5_HUB_PORT")
 
