@@ -74,6 +74,8 @@ def cmd_sim(a) -> int:
 
 
 def cmd_run(a) -> int:
+    # The time budget covers everything this command does, from its first line.
+    deadline = time.monotonic() + a.max_seconds if a.max_seconds else None
     m = Matrix.load(a.matrix)
     par = parity.check(a.firmware)
     if not par["ok"]:
@@ -129,7 +131,8 @@ def cmd_run(a) -> int:
                        keepalive=True, recover=True, on_event=_progress,
                        allow_shared_band=a.allow_shared_band,
                        transports=[a.transport] if a.transport else None,
-                       rssi_drift_warn_only=a.rssi_drift_warn)
+                       rssi_drift_warn_only=a.rssi_drift_warn,
+                       deadline=deadline)
     # Several passes: every point skipped or invalidated in one pass is retried in the
     # next (the ledger is the state). Stop early once nothing is left, or once a pass
     # makes no valid progress — repeating it would only repeat the failure.
@@ -138,7 +141,14 @@ def cmd_run(a) -> int:
         print(f"\n=== pass {p}/{a.passes}  pending {len(orc.pending())} ===", flush=True)
         res = orc.run_all(limit=a.limit)
         print(json.dumps(res, indent=2), flush=True)
+        if res.get("stopped_for_time"):
+            print(f"time budget of {a.max_seconds} s reached: no further run would finish "
+                  f"inside it; {res['remaining']} point(s) left for the next invocation",
+                  flush=True)
+            return 0 if res["remaining"] == 0 else 4
         if res["remaining"] == 0 or res["valid"] == 0 or a.limit:
+            break
+        if deadline is not None and time.monotonic() + 30.0 >= deadline:
             break
         time.sleep(30.0)
     return 0 if res.get("remaining") == 0 else 3
@@ -312,6 +322,10 @@ def main(argv=None) -> int:
     r.add_argument("--limit", type=int, default=None)
     r.add_argument("--passes", type=int, default=1,
                    help="re-run skipped/invalid points up to this many passes")
+    r.add_argument("--max-seconds", type=int, default=None,
+                   help="wall-clock budget for the whole command. No run (or the flash it "
+                        "needs) is started unless it can finish inside it; exit code 4 "
+                        "means the budget ended with points still pending")
     r.add_argument("--force", action="store_true")
     r.add_argument("--band", default=None, choices=["2.4", "5"],
                    help="restrict the sweep to one band: the unit that runs unattended. "

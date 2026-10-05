@@ -17,15 +17,20 @@
 # roughly half of what a rig with a wired second hop would show. `allow_shared_band`
 # accepts that knowingly; every run carries the warning.
 #
-# 6 loads x 2 repeats x (2 TCP builds + 1 UDP) x 2 chips = 72 runs of 30 s: ~1 hour.
+# Sized to finish inside 30 minutes, which hotspot_probe.sh also enforces as a hard
+# limit: 5 loads x (2 TCP builds + 1 UDP) x 2 chips = 30 runs of 20 s (about 14 min)
+# plus 4 build-and-flash cycles (about 6 min) — about 20 min as expected, 27.5 min if
+# every step takes its worst case. ONE repeat and short holds are what that costs: each
+# point is a single 17 s measurement (after the 3 s discard), so treat small differences
+# as noise and read the large ones.
 stage: 1
-repeats: 2
+repeats: 1
 ap: iphone-hotspot-wifi
 ssid: VikPhone
 allow_shared_band: true
 expected_idf: v6.0-dev-2980-gab149384e1-dirty
 frame_bytes: 270
-sweep: {start_mbps: 4, stop_mbps: 44, steps: 6, hold_s: 30, discard_s: 3}
+sweep: {start_mbps: 4, stop_mbps: 44, steps: 5, hold_s: 20, discard_s: 3}   # 4 14 24 34 44
 cells:
   - {chip: esp32c5, band: "2.4", source: synth, transport: [tcp], tune: [baseline, p1-tcp-sndbuf]}
   - {chip: esp32c5, band: "2.4", source: synth, transport: [udp], tune: [baseline]}

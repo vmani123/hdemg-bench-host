@@ -263,6 +263,10 @@ class HardwareDriver:
         except Exception:                                    # noqa: BLE001
             return "unknown"
 
+    def needs_flash(self, chip: str, source: str, tune: str) -> bool:
+        """Would the next ensure_flashed() for this build have to build and flash?"""
+        return self._flashed.get(chip) != (source, self.rung_for(chip, tune), self._band)
+
     def ensure_flashed(self, chip: str, source: str, tune: str) -> dict:
         rung = self.rung_for(chip, tune)
         # The band is part of the build: the firmware pins the radio to it, because a

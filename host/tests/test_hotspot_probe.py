@@ -26,8 +26,12 @@ def test_the_probe_matrix_names_its_network_and_its_runs():
     assert m.ssid == "VikPhone" and m.ap == rfmeta.HOTSPOT_WIFI_AP
     assert m.allow_shared_band is True
     runs = m.expand(["2.4"])
-    assert len(runs) == 72                          # 2 chips x 3 cells x 6 loads x 2 repeats
-    assert sorted({r.offered_bps // 1_000_000 for r in runs}) == [4, 12, 20, 28, 36, 44]
+    assert len(runs) == 30                          # 2 chips x 3 cells x 5 loads x 1 repeat
+    # Sized to fit 30 minutes with room to spare: worst-case cost of every run plus the
+    # four build-and-flash cycles, by the same arithmetic the time budget uses.
+    worst = len(runs) * (m.sweep["hold_s"] + Orchestrator.RUN_OVERHEAD_S) + 4 * Orchestrator.FLASH_COST_S
+    assert worst <= 29 * 60, f"worst case {worst / 60:.1f} min"
+    assert sorted({r.offered_bps // 1_000_000 for r in runs}) == [4, 14, 24, 34, 44]
     cells = {r.cell_id for r in runs}
     for chip in ("esp32c5", "esp32s3"):
         assert f"s1-{chip}-2.4-synth-tcp-baseline" in cells

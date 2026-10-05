@@ -5,7 +5,12 @@
 #   bash hotspot_probe.sh            # 2.4 GHz: Maximize Compatibility ON
 #
 # What it measures, on both chips: TCP with the stock build against TCP with only the
-# send buffer enlarged, and UDP on the stock build at a handful of loads. About an hour.
+# send buffer enlarged, and UDP on the stock build at a handful of loads.
+#
+# AT MOST 30 MINUTES, start to finish (MAX_MINUTES). The matrix is sized to take about
+# 20 (27.5 if every step takes its worst case), and the limit is hard: no run, and no flash, is started unless it can finish
+# inside the budget. If the budget ends first, the points not reached stay pending and
+# the same command picks them up.
 #
 # The rig is the phone's hotspot with THIS MAC ON THE HOTSPOT'S WI-FI, and it is
 # enforced: the run is refused — before anything is built or flashed — unless this Mac
@@ -21,7 +26,8 @@
 # Environment (defaults are this bench's):
 #   S3_PORT / C5_PORT   serial ports (S3 auto-detected between its two USB connectors)
 #   CEILINGS            rig ceiling per band, Mbit/s (default 2.4=60,5=95: placeholders)
-#   PASSES              default 2
+#   MAX_MINUTES         hard wall-clock limit for the whole script (default 30)
+#   PASSES              default 2 (a second pass only runs if time is left)
 #   RSSI_DRIFT_WARN     default 1: keep runs whose RSSI drifted >3 dB, with a warning.
 #                       The S3's reported RSSI wanders on its own; set 0 to refuse them.
 # ============================================================================
@@ -36,6 +42,11 @@ LEDGER="results/hotspot-probe.jsonl"
 OUT="results/hotspot-probe-report"
 CEILINGS="${CEILINGS:-2.4=60,5=95}"
 PASSES="${PASSES:-2}"
+MAX_MINUTES="${MAX_MINUTES:-30}"
+case "$MAX_MINUTES" in ''|*[!0-9]*) echo "MAX_MINUTES must be a whole number"; exit 64 ;; esac
+# Everything is measured against this one instant, including restarts after a crash.
+# 45 s are held back for the report at the end.
+T_END=$(( $(date +%s) + MAX_MINUTES * 60 - 45 ))
 C5_PORT="${C5_PORT:-cu.usbserial-110}"
 if [ -z "${S3_PORT:-}" ]; then
   S3_PORT="cu.usbmodem101"
@@ -64,20 +75,26 @@ args=(--matrix "$MATRIX" --ledger "$LEDGER" --band "$BAND" --unattended --passes
 
 caffeinate -ims -w $$ &
 
-echo "hotspot probe: band $BAND, log $LOG"
+echo "hotspot probe: band $BAND, at most $MAX_MINUTES min, log $LOG"
 { echo "=== hotspot_probe.sh band=$BAND start $(date)"; echo "=== args: ${args[*]}"; } >> "$LOG"
 ( cd "$ROOT/host" && "$PY" -m cli.bench discover --matrix "$MATRIX" ) 2>&1 | tee -a "$LOG"
 
 rc=1
 for attempt in 1 2; do
-  ( cd "$ROOT/host" && "$PY" -u -m cli.bench run "${args[@]}" ) 2>&1 | tee -a "$LOG"
+  left=$(( T_END - $(date +%s) ))
+  if [ "$left" -lt 60 ]; then
+    echo "=== time budget of $MAX_MINUTES min used up before attempt $attempt" | tee -a "$LOG"
+    rc=4; break
+  fi
+  ( cd "$ROOT/host" && "$PY" -u -m cli.bench run "${args[@]}" --max-seconds "$left" ) 2>&1 | tee -a "$LOG"
   rc=${PIPESTATUS[0]}
   case "$rc" in
     0) echo "=== all points done" | tee -a "$LOG"; break ;;
     2) echo "=== refused to run (wrong network, parity or config) — see above" | tee -a "$LOG"; break ;;
     3) echo "=== passes exhausted with points remaining — run the same command again" | tee -a "$LOG"; break ;;
-    *) echo "=== harness exited rc=$rc (crash), restart $attempt/2 in 30 s" | tee -a "$LOG"
-       sleep 30 ;;
+    4) echo "=== $MAX_MINUTES-minute budget reached with points remaining — run the same command again to continue" | tee -a "$LOG"; break ;;
+    *) echo "=== harness exited rc=$rc (crash), restart $attempt/2 in 15 s" | tee -a "$LOG"
+       sleep 15 ;;
   esac
 done
 

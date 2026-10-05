@@ -142,7 +142,8 @@ class Orchestrator:
                  recover: bool = True, on_event=None,
                  allow_shared_band: bool = False,
                  transports: list[str] | None = None,
-                 rssi_drift_warn_only: bool = False):
+                 rssi_drift_warn_only: bool = False,
+                 deadline: float | None = None):
         self.m = matrix
         self.driver = driver
         self.ledger = ledger
@@ -156,6 +157,8 @@ class Orchestrator:
         self.transports = [str(t) for t in transports] if transports else None
         # Record an RSSI drift as a warning instead of refusing the run (see gates.py).
         self.rssi_drift_warn_only = rssi_drift_warn_only
+        # time.monotonic() value after which no further run may be started (None = none).
+        self.deadline = deadline
         self.want_keepalive = keepalive
         self.want_recover = recover
         self.on_event = on_event or (lambda *_a, **_k: None)
@@ -199,11 +202,25 @@ class Orchestrator:
             except (ControlError, OSError):
                 return None, True
 
+    # What a run costs in wall-clock time beyond its hold, and what a build + flash +
+    # boot costs, for the time budget. Deliberately generous: the budget is a promise.
+    RUN_OVERHEAD_S = 15.0
+    FLASH_COST_S = 150.0
+
+    def run_cost_s(self, r: Run) -> float:
+        """Worst-case wall-clock seconds the next run needs, flash included."""
+        cost = float(self.m.sweep["hold_s"]) + self.RUN_OVERHEAD_S
+        needs_flash = getattr(self.driver, "needs_flash", None)
+        if needs_flash is not None and needs_flash(r.chip, r.source, r.tune):
+            cost += self.FLASH_COST_S
+        return cost
+
     def run_all(self, limit: int | None = None) -> dict:
         todo = self.pending()
         if limit:
             todo = todo[:limit]
         ok = invalid = errors = 0
+        stopped_for_time = False
         broken: dict[str, str] = {}     # cell_id -> why it was abandoned this pass
         try:
             for r in todo:
@@ -213,6 +230,12 @@ class Orchestrator:
                     self.driver.request_band(str(r.band))
                     self._current_band = str(r.band)
                     self.on_event("band", band=r.band)
+                # A time budget is kept by not STARTING what cannot finish inside it: a
+                # run (and the flash it may need) is never cut short part-way.
+                if self.deadline is not None and \
+                        time.monotonic() + self.run_cost_s(r) > self.deadline:
+                    stopped_for_time = True
+                    break
                 try:
                     rec = self.run_one(r)
                 except Exception as e:                       # noqa: BLE001
@@ -233,7 +256,8 @@ class Orchestrator:
             self._keepalives.clear()    # a stopped keepalive never polls again
         return {"attempted": len(todo), "valid": ok, "invalid": invalid,
                 "errors": errors, "abandoned_cells": broken,
-                "remaining": len(self.pending())}
+                "remaining": len(self.pending()),
+                "stopped_for_time": stopped_for_time}
 
     def _dead_record(self, r: Run, recovered: bool) -> dict:
         """The device did not answer even after a recovery attempt. Recorded as an
