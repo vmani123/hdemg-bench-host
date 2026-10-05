@@ -229,6 +229,10 @@ do_stm_build() {   # project config core tree
   dir="$tdir/firmware/stm32h745/$proj"
   [ -d "$dir/CM7" ] || { echo "REFUSED: no project at $dir"; return 64; }
   [ -x "$CUBEIDE" ] || { echo "REFUSED: no STM32CubeIDE at $CUBEIDE"; return 64; }
+  # The physical path, always. Eclipse records where a project was imported from; if
+  # the same project is later named through a symlink it reports "already exists in
+  # the workspace" and exits 1 without building anything.
+  dir="$(cd "$dir" && pwd -P)" || { echo "REFUSED: cannot resolve $dir"; return 64; }
   pri="$(tree_nice "${4:-}")"
   ws="$AGENT/cubeide-ws/${4:-_root}"
   mkdir -p "$ws"
