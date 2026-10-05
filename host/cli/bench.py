@@ -211,7 +211,7 @@ def cmd_discover(a) -> int:
 
 
 def cmd_report(a) -> int:
-    res = report.render(a.ledger, a.out)
+    res = report.render(a.ledger, a.out, extra_ledgers=a.with_ledger)
     print(json.dumps(res, indent=2))
     return 0
 
@@ -333,6 +333,10 @@ def main(argv=None) -> int:
     q = sub.add_parser("report", help="render figures and tables from the ledger")
     q.add_argument("--ledger", default="results/runs.jsonl")
     q.add_argument("--out", default="results/report")
+    q.add_argument("--with-ledger", action="append", default=[], metavar="PATH",
+                   help="also read this ledger (repeatable). Stage 2 keeps its own "
+                        "ledger; add Stage 1's to see each wired cell beside its "
+                        "synthetic number")
     q.set_defaults(fn=cmd_report)
 
     c = sub.add_parser("parity", help="check shared-core integrity (bench/parity.py)")

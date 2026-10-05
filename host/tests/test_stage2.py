@@ -235,3 +235,27 @@ def test_link_test_runs_every_load_and_stops_at_the_first_failure(tmp_path):
         assert any("payload_errors=4" in f for f in bad["steps"][0]["failures"])
     finally:
         drv.shutdown()
+
+
+# -- report -------------------------------------------------------------------------
+def _rec(source, load_mbps, good_mbps, loss, drops=0, chip="esp32s3"):
+    return {"target": chip, "variant": "tuned", "transport": "udp", "source": source,
+            "offered_bps": int(load_mbps * 1e6), "valid": True, "rf": {"band": "2.4"},
+            "metrics": {"goodput_bps": good_mbps * 1e6, "loss_pct": loss},
+            "ingress": ({"h7": {"ring_drops": drops, "frames": 1000}} if source != "synth"
+                        else None)}
+
+
+def test_report_keeps_wired_and_synthetic_cells_apart_and_shows_the_ingress_cost():
+    from bench import report
+    recs = ([_rec("synth", 20, 19.9, 0.0), _rec("synth", 28, 27.8, 0.0),
+             _rec("synth", 36, 30.0, 12.0)]
+            + [_rec("qspi", 20, 19.9, 0.0), _rec("qspi", 28, 25.0, 9.0, drops=90),
+               _rec("qspi", 36, 25.1, 30.0, drops=300)])
+    table = report.matrix_table(recs)
+    assert "S3 · 2.4 GHz · qspi" in table and table.count("S3 · 2.4 GHz") == 2
+    ing = report.ingress_table(recs)
+    row = [line for line in ing.splitlines() if "| qspi |" in line][0]
+    # synthetic knee 28 -> 27.80 Mbit/s; wired knee 20 -> 19.90; cost +7.90
+    assert "| 20.0 | 19.90 | 27.80 | +7.90 | 28, 36 |" in row
+    assert report.ingress_table([r for r in recs if r["source"] == "synth"]) is None
