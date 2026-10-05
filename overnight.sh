@@ -15,7 +15,9 @@
 #   * several passes: points skipped or invalidated are retried until none remain or a
 #     pass makes no progress (the ledger is the state, so this is just resume);
 #   * restarts the harness if the Python process itself dies;
-#   * writes everything to host/results/overnight-<stamp>-band<B>.log.
+#   * writes everything to host/results/overnight-<stamp>-band<B>.log;
+#   * afterwards, runs the Stage 2 (STM32 ingress) chain if — and only if — a handoff
+#     file _agent/stage2.ready exists (see the end of this script). STAGE2=off disables it.
 #
 # Environment (defaults are this bench's):
 #   CEILINGS      required. Rig ceiling per band in Mbit/s. Measure it (plan §7.4).
@@ -72,5 +74,38 @@ for attempt in 1 2 3; do
 done
 
 ( cd "$ROOT/host" && "$PY" -m cli.bench report ) 2>&1 | tee -a "$LOG"
+
+# ---- optional Stage 2 chain ---------------------------------------------------
+# Stage 2 (STM32H745 wired ingress) is attempted after this band's Stage 1 block ONLY
+# if a handoff file exists. Whoever finished and bench-verified the H7 work writes it;
+# its first line names the checkout to run from ("." = this one, otherwise a worktree
+# under .claude/worktrees/). This script knows nothing about Stage 2 itself: it runs
+# that checkout's stage2_chain.sh, which must gate itself on a link-only test before
+# it takes any Wi-Fi number, and must leave the Stage 1 ledger alone.
+# No handoff, STAGE2=off, or a Stage 1 that refused to run -> nothing happens.
+# The exit code of this script stays Stage 1's.
+hand="$ROOT/_agent/stage2.ready"
+if [ "${STAGE2:-auto}" != "off" ] && [ -f "$hand" ] && { [ "$rc" = 0 ] || [ "$rc" = 3 ]; }; then
+  tree="$(head -n 1 "$hand" | tr -d '[:space:]')"
+  chain=""
+  if [ "$tree" = "." ]; then
+    chain="$ROOT/stage2_chain.sh"
+  elif [[ "$tree" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]]; then
+    chain="$ROOT/.claude/worktrees/$tree/stage2_chain.sh"
+  fi
+  if [ -n "$chain" ] && [ -f "$chain" ]; then
+    echo "=== stage 2 chain: $chain (stage 1 rc=$rc) $(date)" | tee -a "$LOG"
+    BENCH_ROOT="$ROOT" BENCH_TREE="$tree" BENCH_PY="$PY" BENCH_BAND="$BAND" \
+    CEILINGS="$CEILINGS" EXPECTED_IDF="${EXPECTED_IDF:-}" \
+    S3_PORT="$S3_PORT" C5_PORT="$C5_PORT" \
+      bash "$chain" "$BAND" 2>&1 | tee -a "$LOG"
+    echo "=== stage 2 chain exit ${PIPESTATUS[0]} $(date)" | tee -a "$LOG"
+  else
+    echo "=== stage 2 handoff names '$tree' but there is no stage2_chain.sh there — skipped" | tee -a "$LOG"
+  fi
+else
+  echo "=== stage 2 chain not run (handoff: $([ -f "$hand" ] && echo present || echo absent), STAGE2=${STAGE2:-auto}, stage 1 rc=$rc)" | tee -a "$LOG"
+fi
+
 echo "=== overnight.sh end $(date) rc=$rc" | tee -a "$LOG"
 exit "$rc"

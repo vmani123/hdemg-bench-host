@@ -26,3 +26,11 @@ _agent/audit.log
 
 # overnight.sh logs
 host/results/*.log
+
+# STM32CubeIDE build products and per-user state (firmware/stm32h745)
+firmware/stm32h745/*/CM*/Debug/
+firmware/stm32h745/*/CM*/Release/
+firmware/stm32h745/*/CM*/Core/Inc/fw_version.h
+firmware/stm32h745/**/.settings/
+_agent/cubeide-ws/
+_agent/stage2.ready
