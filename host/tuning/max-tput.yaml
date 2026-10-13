@@ -34,7 +34,10 @@ unsaturated_ratio: 0.9                     # goodput >= 90 % of offered => load-
 load_step: 1.5                             # ... by this factor ...
 max_load_mbps: 150                         # ... never above this, nor the rig ceiling
 gain_pct: 2.0
-stop_after_misses: 3                       # plan §5.4's stop rule
+# Was 3 (plan §5.4's stop rule), which ended the S3 climb on 13 Oct with five levers
+# untried. Raised that morning at the user's request to finish both lists; every miss is
+# still recorded, so the §5.4 reading can be taken from state.json afterwards.
+stop_after_misses: 12
 block_after_unmeasured: 2                  # in a row: the rig is failing, not the levers
 max_attempts: 2                            # an unmeasured candidate is retried once
 

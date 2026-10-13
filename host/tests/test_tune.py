@@ -51,9 +51,10 @@ class FakeRunner:
     of the offered load if that is less. Repeats differ by +-`jitter`. `phy` maps a rung
     to the phy_rate it reports."""
 
-    def __init__(self, model, jitter=0.1, invalid=(), phy=None):
+    def __init__(self, model, jitter=0.1, invalid=(), phy=None, heap=None):
         self.model, self.jitter, self.invalid = model, jitter, set(invalid)
         self.phy = phy or {}
+        self.heap = heap or {}                      # rung -> heap low-water, bytes
         self.calls = []
 
     def __call__(self, matrix_path, ledger_path, log_path):
@@ -77,7 +78,7 @@ class FakeRunner:
                 "transport": r.transport, "offered_bps": r.offered_bps,
                 "repeat": r.repeat, "rung": r.tune, "valid": True, "parity": {"ok": True},
                 "metrics": {"goodput_bps": good * 1e6, "loss_pct": 0.0, "frames": 1000,
-                            "idle_pct": [50.0]},
+                            "idle_pct": [50.0], "heap_min": self.heap.get(r.tune, 150000)},
                 "rf": {"band": r.band, "channel": 6, "rssi_dbm": -44, "idf_version": "t",
                        "tx_power": "max", "power_save": "off",
                        "phy_rate": self.phy.get(r.tune, "HT ch6 bw20 sta20"),
@@ -400,6 +401,42 @@ def test_a_decided_step_can_be_reopened_with_a_recorded_reason(tmp_path):
     assert res["climbs"]["esp32c5/2.4"]["incumbent"] == "t24-02-a"
 
 
+def test_a_lever_that_nearly_exhausts_memory_is_rejected_whatever_its_gain(tmp_path):
+    """The C5 with a 64 KB TCP buffer reached a 4.4 KB heap low-water and went offline
+    when a stream stalled. Throughput bought that way is not a result to build on."""
+    _rungs(tmp_path)
+    plan = _plan(tmp_path, [{"chip": "esp32c5", "band": "2.4", "start": "r0-baseline",
+                             "candidates": [_cand("greedy")]}])
+    run = FakeRunner({("esp32c5", "r0-baseline"): {"tcp": 10, "udp": 30},
+                      ("esp32c5", "t24-01-greedy"): {"tcp": 20, "udp": 30}},
+                     heap={"t24-01-greedy": 4440})
+    res = _engine(tmp_path, plan, run).run()
+    step = res["climbs"]["esp32c5/2.4"]["steps"][1]
+    assert step["decision"] == "rejected"
+    assert "heap" in step["reason"] and "4440" in step["reason"]
+    assert step["tcp"]["heap_min"] == 4440
+
+
+def test_the_incumbent_can_be_remeasured_when_conditions_changed(tmp_path):
+    """The S3's signal moved from -55 to -66 dBm between nights. New levers must be compared
+    with the incumbent measured now, not last night; the old numbers stay in its history."""
+    _rungs(tmp_path)
+    climb = {"chip": "esp32s3", "band": "2.4", "start": "r0-baseline",
+             "candidates": [_cand("a")]}
+    plan = _plan(tmp_path, [climb])
+    _engine(tmp_path, plan, FakeRunner({("esp32s3", "r0-baseline"): {"tcp": 20, "udp": 30},
+                                        ("esp32s3", "t24-01-a"): {"tcp": 20, "udp": 30}})).run()
+    climb["candidates"].append(_cand("b"))
+    plan = _plan(tmp_path, [climb])
+    today = FakeRunner({("esp32s3", "r0-baseline"): {"tcp": 15, "udp": 25},   # worse air
+                        ("esp32s3", "t24-02-b"): {"tcp": 15.5, "udp": 25}})
+    res = _engine(tmp_path, plan, today, remeasure=True).run()
+    steps = res["climbs"]["esp32s3/2.4"]["steps"]
+    assert steps[0]["tcp"]["mbps"] == pytest.approx(15.0)
+    assert steps[0]["history"][0]["tcp"]["mbps"] == pytest.approx(20.0)
+    assert steps[2]["decision"] == "kept"              # +3.3% against today's 15, not -22%
+
+
 def test_a_study_can_be_limited_to_one_chip(tmp_path):
     """The S3 is shared with other work (different firmware on it). Climbing only the
     C5 must never build, flash or measure the S3."""
@@ -577,6 +614,7 @@ def test_summary_reports_the_best_number_per_transport(tmp_path):
     assert state["climbs"]["esp32s3/2.4"]["incumbent"] == "t24-02-udpwin"
     md = (tmp_path / "state/summary.md").read_text()
     assert "t24-02-udpwin" in md and "45.0" in md
+    assert "heap low KB" in md and "| 146 |" in md          # 150000 B low-water per step
 
 
 def test_an_existing_rung_file_with_different_content_is_never_overwritten(tmp_path):
@@ -715,3 +753,8 @@ def test_one_step_through_the_simulator(tmp_path):
     step = res["climbs"]["esp32s3/2.4"]["steps"][0]
     assert step["decision"] == "start"
     assert step["tcp"]["mbps"] > 0 and step["udp"]["mbps"] > 0
+    # The device's heap low-water reaches the ledger and the step (the old harness read
+    # the free heap after the run instead, so a near-exhaustion was never seen).
+    recs = Ledger(tmp_path / "tune.jsonl").read()
+    assert all(r["metrics"]["heap_min"] == 61000 for r in recs)
+    assert step["udp"]["heap_min"] == 61000

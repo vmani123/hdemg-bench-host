@@ -30,6 +30,7 @@ from .receiver import Receiver
 DEFAULT_SWEEP = {"start_mbps": 1, "stop_mbps": 60, "steps": 8,
                  "hold_s": 60, "discard_s": 3}
 LOSS_THRESHOLD_PCT = 0.1
+HEAP_FLOOR_BYTES = 20000      # free internal heap a configuration must never go below
 
 
 @dataclass
@@ -65,11 +66,15 @@ class Matrix:
     # single-band hotspot with the Mac on its Wi-Fi): the shared-band refusal becomes a
     # warning carried by every run.
     allow_shared_band: bool = False
+    # Repeat numbers start here. A re-measurement of points already in the ledger takes
+    # fresh numbers, or resume would treat it as done and return the old runs.
+    first_repeat: int = 1
 
     @classmethod
     def load(cls, path: str | Path) -> "Matrix":
         raw = yaml.safe_load(Path(path).read_text()) or {}
         return cls(stage=raw.get("stage", 0), repeats=raw.get("repeats", 3),
+                   first_repeat=int(raw.get("first_repeat", 1)),
                    sweep={**DEFAULT_SWEEP, **(raw.get("sweep") or {})},
                    cells=raw.get("cells") or [], ap=raw.get("ap", "iphone-hotspot"),
                    frame_bytes=raw.get("frame_bytes", 270),
@@ -96,7 +101,7 @@ class Matrix:
         """
         runs: list[Run] = []
         sweep = self.offered_steps()
-        for rep in range(1, self.repeats + 1):        # repeat is the OUTER loop
+        for rep in range(self.first_repeat, self.first_repeat + self.repeats):  # OUTER loop
             for cell in self.cells:
                 chip, band = cell["chip"], str(cell["band"])
                 if bands and band not in bands:
@@ -347,6 +352,7 @@ class Orchestrator:
                            "duration_s": 0.0, "not_run": True}
         post = gates.GateResult(True, [], [])
         stat1: dict = {}
+        heap_min: int | None = None
 
         host_drops: int | None = None      # datagrams THIS HOST discarded during the window
 
@@ -391,11 +397,16 @@ class Orchestrator:
                 if settled:                       # 0 means "not associated", not 0 dBm
                     self._first_rssi[r.cell_id] = settled
             metrics_d = metrics.as_dict()
+            # The device's low-water mark since boot (not the free heap after the run,
+            # which had recovered by then and hid a 4 KB near-exhaustion).
+            lows = [s.get("heap_min") for s in (stat0, live, stat1)
+                    if s.get("heap_min") is not None]
+            heap_min = min(lows) if lows else None
             post = gates.post_run({
                 "commanded_bps": r.offered_bps,
                 "achieved_bps": stat1.get("achieved_bps"),
                 "esp_reset_during": False,
-                "heap_min": stat1.get("heap"), "heap_floor": 20000,
+                "heap_min": heap_min, "heap_floor": HEAP_FLOOR_BYTES,
                 "metrics": metrics_d, "rig_ceiling_mbps": ceiling,
                 "host_udp_drops": host_drops,
             })
@@ -413,6 +424,7 @@ class Orchestrator:
             "rung": hello.get("rung"), "fw_sha": hello.get("fw_sha"),
             "parity": {"ok": self.parity_ok},
             "metrics": {**metrics_d,
+                        "heap_min": heap_min, "heap_free": stat1.get("heap"),
                         "idle_pct": stat1.get("idle_pct", stat0.get("idle_pct")),
                         "retries": stat1.get("retries"),
                         "achieved_bps": stat1.get("achieved_bps"),

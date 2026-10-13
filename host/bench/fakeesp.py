@@ -135,7 +135,7 @@ class FakeESP:
                 "dropped": self.dropped, "idle_pct": cores,
                 "retries": int(self.sent_frames * 0.01),
                 "rssi": -42, "phy_rate": "HE20 MCS9" if self.band == "5" else "HT20 MCS7",
-                "heap": 180000, "achieved_bps": self._achieved_bps()}
+                "heap": 180000, "heap_min": 61000, "achieved_bps": self._achieved_bps()}
 
     def _achieved_bps(self) -> float:
         if not self._running:

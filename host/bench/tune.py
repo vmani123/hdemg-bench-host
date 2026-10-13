@@ -140,6 +140,9 @@ class Plan:
     block_after_unmeasured: int = 2
     max_attempts: int = 2
     unsaturated_ratio: float = 0.9
+    # A lever whose runs drive free internal heap below this is never kept, whatever it
+    # gains: the C5 went offline at a 4.4 KB low-water when a TCP stream stalled.
+    heap_floor_bytes: int = 20000
     ledger: str = "results/tuning/tuning.jsonl"
     state_dir: str = "results/tuning/state"
 
@@ -170,7 +173,7 @@ class Engine:
     def __init__(self, plan: Plan, *, band: str, rungs_root: str | Path,
                  state_dir: str | Path, ledger: str | Path, runner,
                  plan_path: str | Path | None = None, max_load_mbps: float | None = None,
-                 chips: list[str] | None = None, log=print):
+                 chips: list[str] | None = None, remeasure: bool = False, log=print):
         self.plan = plan
         self.band = str(band)
         self.rungs_root = Path(rungs_root)
@@ -182,6 +185,9 @@ class Engine:
         # Only these chips' climbs. A board shared with other work (other firmware on
         # it) is left entirely alone: never built, flashed or measured.
         self.chips = list(chips) if chips else None
+        # Conditions changed since the incumbent was measured (another night, another
+        # signal level): measure it again before any candidate is compared with it.
+        self.remeasure = remeasure
         self.log = log
 
     def _cap(self) -> float:
@@ -282,6 +288,26 @@ class Engine:
             self._save_state(state)
             self.log(f"[{key}] start {start}: {_describe(step)}")
 
+        elif self.remeasure:
+            if not self._spend(budget):
+                return
+            inc = self._incumbent_step(cs)
+            self.log(f"[{key}] re-measuring the incumbent {inc['rung']}: conditions changed")
+            again = self._saturating(climb, inc["rung"], None, inc.get("parent"),
+                                     inc["offered_mbps"], fresh=True)
+            if not self._complete(again) or again.get("load_limited"):
+                cs["blocked"] = (f"the incumbent {inc['rung']} could not be re-measured — "
+                                 f"see {again['log']}")
+                self._save_state(state)
+                return
+            inc.setdefault("history", []).append(
+                {k: inc[k] for k in ("offered_mbps", *self.plan.transports)})
+            inc.update({k: again[k] for k in ("offered_mbps", "max_load_mbps",
+                                               *self.plan.transports)})
+            self._refresh(cs)
+            self._save_state(state)
+            self.log(f"[{key}] incumbent now: {_describe(inc)}")
+
         attempted_now: set[str] = set()
         unmeasured_run = 0
         while True:
@@ -361,12 +387,12 @@ class Engine:
 
     # ---- measurement ---------------------------------------------------------------
     def _saturating(self, climb: Climb, rung: str, cand: Candidate | None,
-                    parent: str | None, load: float) -> dict:
+                    parent: str | None, load: float, fresh: bool = False) -> dict:
         """Measure, raising the offered load while any transport is load-limited."""
         cap = self._cap()
         load = min(float(load), cap)
         while True:
-            step = self._measure_at(climb, rung, cand, parent, load)
+            step = self._measure_at(climb, rung, cand, parent, load, fresh=fresh)
             if not self._complete(step) or not any(
                     step[t]["unsaturated"] for t in self.plan.transports):
                 return step
@@ -378,14 +404,25 @@ class Engine:
             load = nxt
 
     def _measure_at(self, climb: Climb, rung: str, cand: Candidate | None,
-                    parent: str | None, load: float) -> dict:
+                    parent: str | None, load: float, fresh: bool = False) -> dict:
         tag = f"{_short(climb.chip)}-{_band_tag(climb.band)}-{rung}"
         mdir, ldir = self.state_dir / "matrices", self.state_dir / "logs"
         mdir.mkdir(parents=True, exist_ok=True)
         ldir.mkdir(parents=True, exist_ok=True)
         mpath, lpath = mdir / f"{tag}.yaml", ldir / f"{tag}.log"
+        first = 1
+        if fresh:
+            # Points already in the ledger at this load: take repeat numbers after them,
+            # so the runs are new (resume would otherwise hand back the old ones).
+            stage_cells = {f"s1-{climb.chip}-{climb.band}-synth-{t}-{rung}"
+                           for t in self.plan.transports}
+            done = [int(r["repeat"]) for r in Ledger(self.ledger).read()
+                    if r.get("cell_id") in stage_cells
+                    and int(r.get("offered_bps", -1)) == int(load * 1e6)]
+            first = max(done) + 1 if done else 1
         mpath.write_text(yaml.safe_dump({
-            "stage": 1, "repeats": self.plan.repeats, "ap": self.plan.ap,
+            "stage": 1, "repeats": self.plan.repeats, "first_repeat": first,
+            "ap": self.plan.ap,
             "ssid": self.plan.ssid, "expected_idf": self.plan.expected_idf,
             "frame_bytes": self.plan.frame_bytes,
             "sweep": {"start_mbps": load, "stop_mbps": load, "steps": 1,
@@ -399,9 +436,10 @@ class Engine:
         if rc == 2:
             raise TuneError(f"`bench run` refused to start for {rung} (wrong network, "
                             f"parity, or firmware not configured) — see {lpath}")
-        runs = {(r.cell_id, r.offered_bps): r.transport for r in Matrix.load(mpath).expand()}
+        runs = {r.key: r.transport for r in Matrix.load(mpath).expand()}
         recs = [r for r in Ledger(self.ledger).read()
-                if (r.get("cell_id"), int(r.get("offered_bps", -1))) in runs
+                if (r.get("cell_id"), int(r.get("offered_bps", -1)),
+                    int(r.get("repeat", -1))) in runs
                 and r.get("valid", True)]
         step = {"rung": rung, "candidate": cand.id if cand else None,
                 "lever": cand.lever if cand else None, "parent": parent,
@@ -444,7 +482,7 @@ class Engine:
             self.log(f"    re-measuring the incumbent {inc['rung']} at "
                      f"{step['offered_mbps']:g} Mbit/s to compare at the same load")
             again = self._measure_at(climb, inc["rung"], None, inc.get("parent"),
-                                     step["offered_mbps"])
+                                     step["offered_mbps"], fresh=True)
             if not self._complete(again):
                 return unmeasured(f"the incumbent {inc['rung']} could not be re-measured "
                                   f"at {step['offered_mbps']:g} Mbit/s — see {again['log']}")
@@ -455,6 +493,13 @@ class Engine:
         if any(inc[t]["mbps"] <= 0 for t in self.plan.transports):
             return unmeasured(f"the incumbent {inc['rung']} measured 0 Mbit/s")
         self._decide(step, inc)
+        lows = [step[t].get("heap_min") for t in self.plan.transports
+                if step[t].get("heap_min") is not None]
+        if lows and min(lows) < self.plan.heap_floor_bytes:
+            step.update(decision="rejected",
+                        reason=f"unsafe: heap low-water {min(lows)} B is below the "
+                               f"{self.plan.heap_floor_bytes} B floor (would have been: "
+                               f"{step['reason']})")
 
     def _channels(self, step: dict) -> set[str]:
         out = set()
@@ -566,9 +611,11 @@ def _score(recs: list[dict], offered_mbps: float, unsat_ratio: float) -> dict | 
     loss = statistics.median([r["metrics"].get("loss_pct", 0.0) for r in recs])
     rssi = [r["rf"].get("rssi_dbm") for r in recs if r.get("rf", {}).get("rssi_dbm")]
     phy = Counter(r.get("rf", {}).get("phy_rate") for r in recs).most_common(1)[0][0]
+    heaps = [r["metrics"]["heap_min"] for r in recs if r["metrics"].get("heap_min") is not None]
     return {"mbps": round(med, 3), "spread": round((max(goods) - min(goods)) / 2, 3),
             "loss_pct": round(loss, 3), "n": len(recs), "phy_rate": phy,
             "rssi_dbm": statistics.median(rssi) if rssi else None,
+            "heap_min": min(heaps) if heaps else None,
             "unsaturated": med >= unsat_ratio * offered_mbps}
 
 
@@ -599,8 +646,8 @@ def render_summary(state: dict) -> str:
             loss = f", loss {b['loss_pct']:.2f}%" if t == "udp" else ""
             out.append(f"- {t.upper()}: **{b['mbps']:.1f} Mbit/s**{loss}")
         out += ["", "| step | rung | lever | parent | offered | TCP Mbit/s | "
-                "UDP Mbit/s (loss) | gain % | decision | link | reason |",
-                "|---|---|---|---|---|---|---|---|---|---|---|"]
+                "UDP Mbit/s (loss) | gain % | decision | link | heap low KB | reason |",
+                "|---|---|---|---|---|---|---|---|---|---|---|---|"]
         for i, s in enumerate(cs.get("steps", [])):
             tcp, udp = s.get("tcp"), s.get("udp")
             tcp_s = f"{tcp['mbps']:.1f} ±{tcp['spread']:.1f}" if tcp else "—"
@@ -613,10 +660,12 @@ def render_summary(state: dict) -> str:
             gains = ", ".join(f"{t} {g:+.1f}" for t, g in (s.get("gain_pct") or {}).items())
             link = (tcp or udp or {}).get("phy_rate") or "—"
             redo = " (re-measured)" if s.get("history") else ""
+            lows = [x["heap_min"] for x in (tcp, udp) if x and x.get("heap_min") is not None]
+            heap = f"{min(lows) // 1024}" if lows else "—"
             out.append(f"| {i} | {s['rung']} | {s.get('lever') or '—'} | "
                        f"{s.get('parent') or '—'} | {s.get('offered_mbps', 0):g}{redo} | "
                        f"{tcp_s} | {udp_s} | {gains or '—'} | {s['decision']} | {link} | "
-                       f"{s.get('reason', '')} |")
+                       f"{heap} | {s.get('reason', '')} |")
         out.append("")
     return "\n".join(out) + "\n"
 

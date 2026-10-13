@@ -392,7 +392,7 @@ def cmd_tune(a) -> int:
     chips = a.chips.split(",") if a.chips else None
     eng = tune.Engine(plan, band=a.band, rungs_root=rungs_root, state_dir=state_dir,
                       ledger=ledger, runner=runner, plan_path=plan_path,
-                      max_load_mbps=max_load, chips=chips)
+                      max_load_mbps=max_load, chips=chips, remeasure=a.remeasure)
     # A stop (kill, closed terminal) must unwind like Ctrl-C, so board locks are released
     # and the bench-run child is stopped rather than left to flash a released board.
     import signal
@@ -546,6 +546,8 @@ def main(argv=None) -> int:
                    help="only these chips' climbs, e.g. esp32c5 (others are not touched)")
     t.add_argument("--lock-dir", default=str(Path.home()),
                    help="where shared-board locks live (~/.<chip>-<port>.lock)")
+    t.add_argument("--remeasure", action="store_true",
+                   help="measure each climb's current best again first (conditions changed)")
     t.add_argument("--reopen", default=None, metavar="RUNG",
                    help="withdraw a rejected/unmeasured step's decision (needs --reason)")
     t.add_argument("--reason", default=None)
