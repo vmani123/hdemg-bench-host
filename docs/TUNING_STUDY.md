@@ -29,11 +29,12 @@ Engine: `host/bench/tune.py` · command: `bench tune` / `tune.sh` · plan:
    └─ 2 × TCP + 2 × UDP runs of 20 s  ──► results/tuning/max-tput.jsonl (the ledger)
         │
         ▼
- decide: kept if a transport gains ≥ 2 % beyond the repeat spread, none regresses, and
-         the heap low-water stays ≥ heap_floor_bytes (20 KB; below it: "unsafe", and a
-         safe step may replace an unsafe best) → becomes the parent of the next
-         candidate; otherwise the best stays. stop a chip after `stop_after_misses`
-         misses in a row (plan) or when the list runs out.
+ decide: kept if a transport gains ≥ 2 % AND more than the two configs' combined
+         repeat spread, none drops ≥ 2 % beyond that spread, and the heap low-water
+         stays ≥ heap_floor_bytes (20 KB; below it: "unsafe", and a safe step may
+         replace an unsafe best) → becomes the parent of the next candidate; otherwise
+         the best stays. stop a chip after `stop_after_misses` misses in a row (plan)
+         or when the list runs out; `block_after_unmeasured` unmeasured in a row block it.
 
  Claude /loop supervisor (optional, on top): reads summary/state each tick, flags what a
  number really means (unsaturated, 40 MHz not offered, drift, refused UDP), edits the plan.
