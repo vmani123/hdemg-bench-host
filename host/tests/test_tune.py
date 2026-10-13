@@ -361,6 +361,89 @@ def test_5ghz_waits_for_the_24_climb_to_finish(tmp_path):
     assert "not finished" in res["climbs"]["esp32c5/5"]["blocked"]
 
 
+def test_a_study_can_be_limited_to_one_chip(tmp_path):
+    """The S3 is shared with other work (different firmware on it). Climbing only the
+    C5 must never build, flash or measure the S3."""
+    _rungs(tmp_path)
+    plan = _plan(tmp_path, [
+        {"chip": "esp32s3", "band": "2.4", "start": "r0-baseline", "candidates": []},
+        {"chip": "esp32c5", "band": "2.4", "start": "r0-baseline", "candidates": []},
+    ])
+    run = FakeRunner({("esp32s3", "r0-baseline"): {"tcp": 10, "udp": 30},
+                      ("esp32c5", "r0-baseline"): {"tcp": 10, "udp": 30}})
+    res = _engine(tmp_path, plan, run, chips=["esp32c5"]).run()
+    assert list(res["climbs"]) == ["esp32c5/2.4"]
+    assert run.calls and all(c.startswith("c5-") for c in run.calls)
+
+
+def test_a_board_lock_is_taken_with_an_owner_file_and_released(tmp_path):
+    """The shared-board protocol: mkdir is the lock, `owner` says who and until when."""
+    with tune.board_lock("esp32s3", "cu.usbmodem5B8F0676581", owner="tune-loop S3 climb",
+                         expected_s=3600, root=tmp_path) as d:
+        assert d == tmp_path / ".esp32s3-usbmodem5B8F0676581.lock"
+        text = (d / "owner").read_text()
+        assert "owner tune-loop S3 climb" in text and "acquired" in text
+        assert "expected_release" in text
+    assert not d.exists()
+
+
+def test_a_held_board_lock_is_never_broken(tmp_path):
+    held = tmp_path / ".esp32s3-usbmodem5B8F0676581.lock"
+    held.mkdir()
+    (held / "owner").write_text("owner intan-chain wiring test\n")
+    with pytest.raises(tune.TuneError, match="intan-chain wiring test"):
+        with tune.board_lock("esp32s3", "cu.usbmodem5B8F0676581", owner="x",
+                             expected_s=60, root=tmp_path):
+            pass
+    assert (held / "owner").exists()
+
+
+def test_tune_refuses_to_start_while_a_board_it_needs_is_locked(tmp_path):
+    plan = _plan(tmp_path, [{"chip": "esp32s3", "band": "2.4", "start": "r0-baseline",
+                             "candidates": []}],
+                 ledger=str(tmp_path / "l.jsonl"), state_dir=str(tmp_path / "st"))
+    agent = tmp_path / "agent"
+    agent.mkdir()
+    (agent / "heartbeat").write_text("now\n")
+    locks = tmp_path / "locks"
+    (locks / ".esp32s3-usbmodem5B8F0676581.lock").mkdir(parents=True)
+    (locks / ".esp32s3-usbmodem5B8F0676581.lock" / "owner").write_text("owner chain test\n")
+    out = _cli("--plan", str(plan), "--band", "2.4", "--ceilings", "2.4=72",
+               "--agent-dir", str(agent), "--lock-dir", str(locks),
+               "--s3-port", "cu.usbmodem5B8F0676581")
+    assert out.returncode == 2
+    assert "chain test" in out.stderr
+    assert not (tmp_path / "l.jsonl").exists()
+
+
+def test_an_interrupted_runner_stops_its_bench_run_child(tmp_path, monkeypatch):
+    """Otherwise a stopped study could leave a child that flashes a board after its lock
+    was released."""
+    (tmp_path / "heartbeat").write_text("now\n")
+
+    class Child:
+        terminated = False
+
+        def __init__(self, *a, **k):
+            self.stdout = self
+
+        def __iter__(self):
+            raise KeyboardInterrupt
+
+        def terminate(self):
+            Child.terminated = True
+
+        def wait(self, timeout=None):
+            return -15
+
+    monkeypatch.setattr(tune.subprocess, "Popen", Child)
+    r = tune.HardwareRunner(band="2.4", ceilings="2.4=72", s3_port="a", c5_port="b",
+                            agent_dir=tmp_path)
+    with pytest.raises(KeyboardInterrupt):
+        r(tmp_path / "m.yaml", tmp_path / "l.jsonl", tmp_path / "log")
+    assert Child.terminated
+
+
 def test_another_engine_on_the_same_study_is_refused(tmp_path):
     import fcntl
     _rungs(tmp_path)

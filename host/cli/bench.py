@@ -366,14 +366,39 @@ def cmd_tune(a) -> int:
             s3_hub_port=a.s3_hub_port, c5_hub_port=a.c5_hub_port,
             allow_shared_band=a.allow_shared_band)
         print(f"rig ceiling {max_load:g} Mbit/s on {a.band} GHz: no load above it is offered")
+    chips = a.chips.split(",") if a.chips else None
     eng = tune.Engine(plan, band=a.band, rungs_root=rungs_root, state_dir=state_dir,
                       ledger=ledger, runner=runner, plan_path=plan_path,
-                      max_load_mbps=max_load)
+                      max_load_mbps=max_load, chips=chips)
+    # A stop (kill, closed terminal) must unwind like Ctrl-C, so board locks are released
+    # and the bench-run child is stopped rather than left to flash a released board.
+    import signal
+    from contextlib import ExitStack
+
+    def _stop(signum, frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, _stop)
+    signal.signal(signal.SIGHUP, _stop)
     try:
-        eng.run(max_steps=a.max_steps)
+        with ExitStack() as held:
+            if not a.sim:
+                ports = {"esp32s3": runner.args[runner.args.index("--s3-port") + 1],
+                         "esp32c5": runner.args[runner.args.index("--c5-port") + 1]}
+                need = sorted({c.chip for c in plan.climbs if c.band == a.band
+                               and (not chips or c.chip in chips)})
+                for chip in need:
+                    d = held.enter_context(tune.board_lock(
+                        chip, ports[chip], owner=f"bench tune {plan.study} {a.band} GHz "
+                        f"(throughput sweep, {host.parent})", expected_s=4500,
+                        root=a.lock_dir))
+                    print(f"holding {d} for this run")
+            eng.run(max_steps=a.max_steps)
     except tune.TuneError as e:
         print(f"tune stopped: {e}", file=sys.stderr)
         return 2
+    except KeyboardInterrupt:
+        print("tune stopped by a signal; locks released. Re-run to resume.", file=sys.stderr)
+        return 130
     print((state_dir / "summary.md").read_text())
     return 0
 
@@ -494,6 +519,10 @@ def main(argv=None) -> int:
                    help="the Mac shares the cell's band (numbers are rig-limited)")
     t.add_argument("--agent-dir", default=str(REPO / "_agent"),
                    help="hostrun.sh's directory; must be this checkout's")
+    t.add_argument("--chips", default=None,
+                   help="only these chips' climbs, e.g. esp32c5 (others are not touched)")
+    t.add_argument("--lock-dir", default=str(Path.home()),
+                   help="where shared-board locks live (~/.<chip>-<port>.lock)")
     t.set_defaults(fn=cmd_tune)
 
     a = p.parse_args(argv)

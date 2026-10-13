@@ -39,11 +39,14 @@ Study rungs carry `study:` so the formal ladder and Stage 1's `tuned` never see 
 from __future__ import annotations
 import fcntl
 import json
+import os
+import shutil
 import statistics
 import subprocess
 import sys
 import time
 from collections import Counter
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -58,6 +61,37 @@ HOST = Path(__file__).resolve().parents[1]
 
 class TuneError(RuntimeError):
     pass
+
+
+@contextmanager
+def board_lock(chip: str, port: str, *, owner: str, expected_s: float,
+               root: str | Path | None = None):
+    """Hold a board shared with other work (other firmware, other sessions).
+
+    The protocol agreed between the sessions that use these boards: the lock is the
+    directory ~/.<chip>-<port>.lock, taken with mkdir (atomic) and released by removing
+    it; an `owner` file inside says who holds it and until when. A held lock is never
+    broken here — whoever holds it is asked first. Whoever takes it reflashes their own
+    firmware before using the board, which every study step does anyway."""
+    d = Path(root or Path.home()) / f".{chip}-{port.removeprefix('cu.')}.lock"
+    try:
+        d.mkdir()
+    except FileExistsError:
+        try:
+            who = (d / "owner").read_text().strip()
+        except OSError:
+            who = "(no owner file)"
+        raise TuneError(f"{chip} on {port} is locked by another session ({d}) — not "
+                        f"touching it. Ask the holder to release it:\n{who}") from None
+    now = time.time()
+    stamp = lambda t: time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(t))  # noqa: E731
+    (d / "owner").write_text(f"owner {owner}\nacquired {stamp(now)}\n"
+                             f"expected_release {stamp(now + expected_s)}\n"
+                             f"pid {os.getpid()}\n")
+    try:
+        yield d
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
 
 
 @dataclass
@@ -135,7 +169,7 @@ class Engine:
     def __init__(self, plan: Plan, *, band: str, rungs_root: str | Path,
                  state_dir: str | Path, ledger: str | Path, runner,
                  plan_path: str | Path | None = None, max_load_mbps: float | None = None,
-                 log=print):
+                 chips: list[str] | None = None, log=print):
         self.plan = plan
         self.band = str(band)
         self.rungs_root = Path(rungs_root)
@@ -144,6 +178,9 @@ class Engine:
         self.runner = runner
         self.plan_path = Path(plan_path) if plan_path else None
         self.max_load_mbps = max_load_mbps      # the rig ceiling for this band, if known
+        # Only these chips' climbs. A board shared with other work (other firmware on
+        # it) is left entirely alone: never built, flashed or measured.
+        self.chips = list(chips) if chips else None
         self.log = log
 
     def _cap(self) -> float:
@@ -179,12 +216,16 @@ class Engine:
                                 f"({self.state_dir})") from None
             state = self._load_state()
             budget = [max_steps]
-            for key in [c.key for c in self.plan.climbs if c.band == self.band]:
+            for key in [c.key for c in self.plan.climbs if self._mine(c)]:
                 self._climb(key, state, budget)
             self._save_state(state)
         return {"study": state["study"],
                 "climbs": {k: v for k, v in state["climbs"].items()
-                           if v["band"] == self.band}}
+                           if v["band"] == self.band
+                           and (not self.chips or v["chip"] in self.chips)}}
+
+    def _mine(self, c: Climb) -> bool:
+        return c.band == self.band and (not self.chips or c.chip in self.chips)
 
     def _climb_def(self, key: str) -> Climb | None:
         if self.plan_path is not None:              # the supervisor may have edited it
@@ -592,8 +633,18 @@ class HardwareRunner:
             log.flush()
             p = subprocess.Popen(cmd, cwd=HOST, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, text=True)
-            for line in p.stdout:
-                log.write(line)
-                log.flush()
-                print("    " + line, end="", flush=True)
-            return p.wait()
+            try:
+                for line in p.stdout:
+                    log.write(line)
+                    log.flush()
+                    print("    " + line, end="", flush=True)
+                return p.wait()
+            except BaseException:
+                # A stopped study must not leave a child that goes on to build or flash
+                # a board after the study's board locks are released.
+                p.terminate()
+                try:
+                    p.wait(timeout=10)
+                except Exception:                              # noqa: BLE001
+                    p.kill()
+                raise
