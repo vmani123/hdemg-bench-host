@@ -5,6 +5,7 @@
  * between chips. */
 #include "pipe.h"
 #include "control.h"
+#include "hdemg_frame.h"
 #include "sdkconfig.h"
 #include <errno.h>
 #include "lwip/sockets.h"
@@ -22,6 +23,9 @@ static int udp_open(void)
 static size_t datagram_bytes(size_t len, uint32_t frame_bytes)
 {
     size_t cap = CONFIG_BENCH_UDP_DGRAM_MAX;
+    /* The frame size the source actually used: it replaces a value too small to hold a
+     * header with the 128-channel frame, and a datagram must never split a frame. */
+    if (frame_bytes < HDEMG_HDR_BYTES + 2) frame_bytes = HDEMG_RAW16_128CH;
     if (cap == 0 || frame_bytes == 0 || len <= cap) return len;
     size_t frames = cap / frame_bytes;
     return (frames ? frames : 1) * frame_bytes;

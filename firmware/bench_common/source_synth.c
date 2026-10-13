@@ -16,6 +16,10 @@
 #include "esp_random.h"
 #include "esp_timer.h"
 
+/* The source sleeps one tick when nothing is due and sends what accumulated as a batch.
+ * At 1 kHz that is 1 ms of frames; a slower tick would make bursts bigger than the pool. */
+_Static_assert(CONFIG_FREERTOS_HZ >= 1000, "source_synth.c assumes a 1 ms FreeRTOS tick");
+
 static pacer_t          s_pacer;
 static volatile uint64_t s_achieved;
 static uint32_t          s_seq;

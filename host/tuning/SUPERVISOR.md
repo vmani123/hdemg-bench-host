@@ -17,9 +17,13 @@ Paths below are relative to `host/`. The study is named in `tuning/max-tput.yaml
 1. **Is the engine alive?** `pgrep -fl "cli.bench tune"`. Read the newest
    `results/tuning/tune-<band>-*.log` tail and `results/tuning/max-tput/summary.md`.
    - Engine not running and climbs not done → find why (last log lines), fix what is
-     yours to fix (see Steering), and relaunch in the background:
-     `nohup bash ../tune.sh <band> > /dev/null 2>&1 &`. If it stopped on something only
-     the user can fix (below), say so and stop the loop.
+     yours to fix (see Steering), and relaunch in the background with the SAME ceilings
+     the study was started with (each tune log begins "rig ceiling N Mbit/s"):
+     `CEILINGS=<same> nohup bash ../tune.sh <band> > /dev/null 2>&1 &`. If it stopped on
+     something only the user can fix (below), say so and stop the loop.
+   - A climb `BLOCKED` → its reason says why. "candidates in a row produced no usable
+     measurement" is a rig failure: read the two steps' logs, and do not relaunch until
+     the cause is fixed — the engine would only block again.
    - Engine exited with every climb `done` → write the findings (last section) and stop.
 2. **Read the newest step(s)** in `results/tuning/max-tput/state.json` and check:
    - `unmeasured` → open the step's `log`. Usual causes:
@@ -30,10 +34,10 @@ Paths below are relative to `host/`. The study is named in `tuning/max-tput.yaml
      - gate failures in the ledger record (`gate_failures`): offered load above the rig
        ceiling (a 40 MHz candidate needs `CEILINGS` >= 120), shared band, IDF mismatch,
        `host discarded N datagrams` (Cisco Secure Client's filter is on — user action).
-   - `unsaturated: true` on the incumbent → the load, not the chip, set the number; add a
-     candidate with a higher `saturate_mbps` (and tell the user the ceiling must allow it).
-   - A 40 MHz candidate: its `phy_rate` must read `bw40 sta40`. `bw20 sta40` means the
-     router offered 20 MHz — the lever was not tested; report it, do not count it.
+   - "still unsaturated at the N Mbit/s rig ceiling" → the chip outran the rig; the
+     number is a lower bound. Only a higher, measured ceiling fixes it — tell the user.
+   - "lever not in effect: the link reads 'HT ch6 bw20 sta40'" → the router offered
+     20 MHz; the 40 MHz lever was not tested. Tell the user it needs the router setting.
    - RSSI on the newest steps more than ~6 dB from the start step → conditions drifted;
      consider a drift check: a candidate that changes nothing measurable, e.g.
      `{id: remeasure-N, lever: none, config: {CONFIG_BENCH_PIPE_BUF_BYTES: 8192}}`

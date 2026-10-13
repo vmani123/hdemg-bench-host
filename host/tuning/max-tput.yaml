@@ -29,10 +29,14 @@ repeats: 2
 hold_s: 20                                 # 17 s measured after a 3 s discard
 discard_s: 3
 transports: [tcp, udp]
-saturate_mbps: 60                          # above anything 20 MHz can carry
+saturate_mbps: 60                          # first load offered; raised while unsaturated
+unsaturated_ratio: 0.9                     # goodput >= 90 % of offered => load-limited
+load_step: 1.5                             # ... by this factor ...
+max_load_mbps: 150                         # ... never above this, nor the rig ceiling
 gain_pct: 2.0
 stop_after_misses: 3                       # plan §5.4's stop rule
-unsaturated_ratio: 0.9                     # goodput >= 90 % of offered => load-limited
+block_after_unmeasured: 2                  # in a row: the rig is failing, not the levers
+max_attempts: 2                            # an unmeasured candidate is retried once
 
 climbs:
   # ---------------------------------------------------------------- ESP32-S3, 2.4 GHz
@@ -47,16 +51,10 @@ climbs:
         config:
           CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 65535
           CONFIG_LWIP_TCP_WND_DEFAULT: 65535
-      - id: phy-40mhz
-        lever: bandwidth
-        why: "40 MHz doubles the PHY ceiling (72.2 -> 150 Mbit/s); Espressif's 98/83
-          Mbit/s S3 figures need it. Only takes effect if the router's 2.4 GHz radio
-          offers 40 MHz (phy_rate must read 'bw40 sta40'). Offered 120 Mbit/s, so the
-          2.4 GHz rig ceiling passed to `bench tune` must be >= 120 or the runs are
-          refused (recorded unmeasured, not a miss)."
-        saturate_mbps: 120
-        config:
-          CONFIG_BENCH_WIFI_BW_40: y
+      # No 40 MHz candidate on the S3: its station already asks for HT40 by default
+      # (ESP-IDF Wi-Fi guide), so a firmware lever would change nothing. 40 MHz on the S3
+      # is the ROUTER's 2.4 GHz channel width — its phy_rate reads "sta40" already and
+      # "bw40" once the router offers it. Espressif's 98/83 Mbit/s S3 figures need it.
       - id: tx-ba-window
         lever: ampdu_ba_win
         why: "TX block-ack window 6 -> 32: more MPDUs per A-MPDU, the main per-frame
@@ -197,9 +195,11 @@ climbs:
         lever: he_tuning
         why: "802.11n at 40 MHz (150 Mbit/s PHY) instead of 802.11ax at 20 MHz — the C5
           cannot do both. On this router's 2.4 GHz radio the C5 already associates as
-          HT (no HE offered), so this costs nothing there. Needs the router at 40 MHz
-          and a rig ceiling >= 120."
+          HT (no HE offered), so this costs nothing there. Counted only if the link
+          reads 'bw40 sta40' (the router must offer 40 MHz); offered 120, capped at the
+          rig ceiling."
         saturate_mbps: 120
+        expect_phy: "bw40 sta40"
         config:
           CONFIG_BENCH_WIFI_BW_40: y
       - id: tx-ba-64
@@ -218,9 +218,10 @@ climbs:
     candidates:
       - id: phy-40mhz
         lever: he_tuning
-        why: "HT40 (11a/n, 150 Mbit/s PHY) against HE20 (11ax, 114.7). Needs the router's
-          5 GHz radio to offer 40 MHz and a 5 GHz rig ceiling >= 120."
+        why: "HT40 (11a/n, 150 Mbit/s PHY) against HE20 (11ax, 114.7). Counted only if the
+          link reads 'bw40 sta40'; offered 120, capped at the 5 GHz rig ceiling."
         saturate_mbps: 120
+        expect_phy: "bw40 sta40"
         config:
           CONFIG_BENCH_WIFI_BW_40: y
       - id: he20

@@ -4,6 +4,7 @@ The decisions are tested against a fake runner that writes ledger records from a
 performance model, so every keep/reject below is checkable by hand. The plumbing through
 the real orchestrator and fake ESPs is covered by the last test."""
 import json
+import time
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import pytest
@@ -45,11 +46,14 @@ def _cand(cid, **config):
 
 
 class FakeRunner:
-    """Writes one valid ledger record per expanded run. Goodput comes from `model`:
-    {(chip, rung): {"tcp": Mbit/s, "udp": Mbit/s}}; repeats differ by +-`jitter`."""
+    """Writes one valid ledger record per expanded run, like a radio: goodput is the
+    rung's capacity from `model` {(chip, rung): {"tcp": Mbit/s, "udp": Mbit/s}}, or 97 %
+    of the offered load if that is less. Repeats differ by +-`jitter`. `phy` maps a rung
+    to the phy_rate it reports."""
 
-    def __init__(self, model, jitter=0.1, invalid=()):
+    def __init__(self, model, jitter=0.1, invalid=(), phy=None):
         self.model, self.jitter, self.invalid = model, jitter, set(invalid)
+        self.phy = phy or {}
         self.calls = []
 
     def __call__(self, matrix_path, ledger_path, log_path):
@@ -63,7 +67,8 @@ class FakeRunner:
             perf = self.model.get((r.chip, r.tune))
             if perf is None or r.tune in self.invalid:
                 continue              # a failed build: nothing reaches the ledger
-            good = perf[r.transport] + (self.jitter if r.repeat % 2 else -self.jitter)
+            good = min(perf[r.transport], 0.97 * r.offered_bps / 1e6) + \
+                (self.jitter if r.repeat % 2 else -self.jitter)
             led.append({
                 "run_id": f"{r.cell_id}__{r.offered_bps}__r{r.repeat}",
                 "timestamp": "2026-10-12T00:00:00Z", "git_sha": "test", "fw_sha": "test",
@@ -75,7 +80,8 @@ class FakeRunner:
                             "idle_pct": [50.0]},
                 "rf": {"band": r.band, "channel": 6, "rssi_dbm": -44, "idf_version": "t",
                        "tx_power": "max", "power_save": "off",
-                       "phy_rate": "HT ch6 bw20 sta20", "ap": "verizon-router",
+                       "phy_rate": self.phy.get(r.tune, "HT ch6 bw20 sta20"),
+                       "ap": "verizon-router",
                        "mac_link": "wifi-5-ch104", "shielded": False,
                        "rig_ceiling_mbps": 60.0},
                 "gate_failures": [], "gate_warnings": [],
@@ -83,10 +89,10 @@ class FakeRunner:
         return 0
 
 
-def _engine(tmp_path, plan, runner, band="2.4"):
+def _engine(tmp_path, plan, runner, band="2.4", **kw):
     return tune.Engine(tune.Plan.load(plan), band=band, rungs_root=tmp_path / "rungs",
                        state_dir=tmp_path / "state", ledger=tmp_path / "tune.jsonl",
-                       runner=runner)
+                       runner=runner, **kw)
 
 
 # ---- matrix ------------------------------------------------------------------------
@@ -226,16 +232,61 @@ def test_a_start_that_cannot_be_measured_blocks_the_climb(tmp_path):
     assert len(climb["steps"]) == 1
 
 
-def test_an_unsaturated_measurement_is_flagged(tmp_path):
-    """Goodput near the offered load means the load, not the device, set the number."""
+def test_an_unsaturated_measurement_is_repeated_at_a_higher_load(tmp_path):
+    """Goodput near the offered load means the load set the number, not the chip: it is
+    not a result. The load goes up until the chip, not the load, is the limit."""
     _rungs(tmp_path)
     plan = _plan(tmp_path, [{"chip": "esp32s3", "band": "2.4", "start": "r0-baseline",
                              "candidates": []}])
     res = _engine(tmp_path, plan, FakeRunner({("esp32s3", "r0-baseline"):
                                               {"tcp": 59, "udp": 30}})).run()
     step = res["climbs"]["esp32s3/2.4"]["steps"][0]
-    assert step["tcp"]["unsaturated"] is True
-    assert step["udp"]["unsaturated"] is False
+    assert step["offered_mbps"] == 90
+    assert step["tcp"]["mbps"] == pytest.approx(59.0)
+    assert step["tcp"]["unsaturated"] is False
+
+
+def test_a_start_still_unsaturated_at_the_rig_ceiling_blocks_the_climb(tmp_path):
+    _rungs(tmp_path)
+    plan = _plan(tmp_path, [{"chip": "esp32s3", "band": "2.4", "start": "r0-baseline",
+                             "candidates": [_cand("x")]}])
+    res = _engine(tmp_path, plan, FakeRunner({("esp32s3", "r0-baseline"):
+                                              {"tcp": 70, "udp": 30}}),
+                  max_load_mbps=60).run()
+    climb = res["climbs"]["esp32s3/2.4"]
+    assert "ceiling" in climb["blocked"]
+    assert len(climb["steps"]) == 1
+
+
+def test_a_candidate_unsaturated_at_the_rig_ceiling_is_unmeasured_not_a_miss(tmp_path):
+    _rungs(tmp_path)
+    plan = _plan(tmp_path, [{"chip": "esp32s3", "band": "2.4", "start": "r0-baseline",
+                             "candidates": [_cand("fast"), _cand("next")]}],
+                 stop_after_misses=1)
+    run = FakeRunner({("esp32s3", "r0-baseline"): {"tcp": 40, "udp": 40},
+                      ("esp32s3", "t24-01-fast"): {"tcp": 70, "udp": 40},
+                      ("esp32s3", "t24-02-next"): {"tcp": 50, "udp": 40}})
+    res = _engine(tmp_path, plan, run, max_load_mbps=60).run()
+    steps = res["climbs"]["esp32s3/2.4"]["steps"]
+    assert steps[1]["decision"] == "unmeasured"
+    assert "ceiling" in steps[1]["reason"]
+    assert steps[2]["decision"] == "kept"
+
+
+def test_a_candidate_offered_more_is_compared_with_the_incumbent_at_the_same_load(tmp_path):
+    """A lever that does nothing must not win just because it was offered more: the
+    incumbent is re-measured at the candidate's load before they are compared."""
+    _rungs(tmp_path)
+    noop = {**_cand("noop"), "saturate_mbps": 120}
+    plan = _plan(tmp_path, [{"chip": "esp32s3", "band": "2.4", "start": "r0-baseline",
+                             "candidates": [noop]}])
+    run = FakeRunner({("esp32s3", "r0-baseline"): {"tcp": 40, "udp": 64},
+                      ("esp32s3", "t24-01-noop"): {"tcp": 40, "udp": 64}})
+    res = _engine(tmp_path, plan, run).run()
+    steps = res["climbs"]["esp32s3/2.4"]["steps"]
+    assert steps[1]["decision"] == "rejected"
+    assert steps[0]["offered_mbps"] == 120                 # the incumbent, re-measured
+    assert steps[0]["history"][0]["offered_mbps"] == 90    # 60 was unsaturated for udp 64
 
 
 def test_a_higher_saturating_load_carries_forward_once_it_wins(tmp_path):
@@ -250,7 +301,83 @@ def test_a_higher_saturating_load_carries_forward_once_it_wins(tmp_path):
                       ("esp32s3", "t24-02-after"): {"tcp": 60, "udp": 80}})
     res = _engine(tmp_path, plan, run).run()
     steps = res["climbs"]["esp32s3/2.4"]["steps"]
-    assert [s["offered_mbps"] for s in steps] == [60, 120, 120]
+    assert [s["offered_mbps"] for s in steps] == [120, 120, 120]
+    assert steps[1]["decision"] == "kept"
+
+
+def test_a_lever_not_in_effect_is_unmeasured_not_a_miss(tmp_path):
+    """A 40 MHz build on a 20 MHz access point measures fine and tests nothing."""
+    _rungs(tmp_path)
+    wide = {**_cand("wide"), "expect_phy": "bw40 sta40"}
+    plan = _plan(tmp_path, [{"chip": "esp32c5", "band": "2.4", "start": "r0-baseline",
+                             "candidates": [wide]}], stop_after_misses=1)
+    run = FakeRunner({("esp32c5", "r0-baseline"): {"tcp": 30, "udp": 40},
+                      ("esp32c5", "t24-01-wide"): {"tcp": 30, "udp": 40}},
+                     phy={"t24-01-wide": "HT ch6 bw20 sta40"})
+    res = _engine(tmp_path, plan, run).run()
+    step = res["climbs"]["esp32c5/2.4"]["steps"][1]
+    assert step["decision"] == "unmeasured"
+    assert "not in effect" in step["reason"] and "bw20 sta40" in step["reason"]
+    assert res["climbs"]["esp32c5/2.4"]["misses"] == 0
+
+
+def test_two_unmeasured_candidates_in_a_row_block_the_climb(tmp_path):
+    """A failure that hits every candidate (a content filter, a lapsed flash window) must
+    not quietly burn the whole list."""
+    _rungs(tmp_path)
+    plan = _plan(tmp_path, [{"chip": "esp32s3", "band": "2.4", "start": "r0-baseline",
+                             "candidates": [_cand("a"), _cand("b"), _cand("c")]}])
+    run = FakeRunner({("esp32s3", "r0-baseline"): {"tcp": 30, "udp": 40}})
+    res = _engine(tmp_path, plan, run).run()
+    climb = res["climbs"]["esp32s3/2.4"]
+    assert [s["decision"] for s in climb["steps"]] == ["start", "unmeasured", "unmeasured"]
+    assert "2 candidates in a row" in climb["blocked"]
+
+
+def test_unmeasured_candidates_are_retried_on_the_next_run(tmp_path):
+    _rungs(tmp_path)
+    plan = _plan(tmp_path, [{"chip": "esp32s3", "band": "2.4", "start": "r0-baseline",
+                             "candidates": [_cand("a")]}])
+    model = {("esp32s3", "r0-baseline"): {"tcp": 30, "udp": 40}}
+    _engine(tmp_path, plan, FakeRunner(model)).run()          # a: unmeasured
+    model[("esp32s3", "t24-02-a")] = {"tcp": 40, "udp": 40}   # the rig is fixed
+    res = _engine(tmp_path, plan, FakeRunner(model)).run()
+    climb = res["climbs"]["esp32s3/2.4"]
+    assert [s["decision"] for s in climb["steps"]] == ["start", "unmeasured", "kept"]
+    assert climb["incumbent"] == "t24-02-a"
+
+
+def test_5ghz_waits_for_the_24_climb_to_finish(tmp_path):
+    _rungs(tmp_path)
+    plan = _plan(tmp_path, [
+        {"chip": "esp32c5", "band": "2.4", "start": "r0-baseline",
+         "candidates": [_cand("a"), _cand("b")]},
+        {"chip": "esp32c5", "band": "5", "start": "best:2.4", "candidates": []},
+    ])
+    model = {("esp32c5", "r0-baseline"): {"tcp": 8, "udp": 30},
+             ("esp32c5", "t24-01-a"): {"tcp": 30, "udp": 30}}
+    _engine(tmp_path, plan, FakeRunner(model)).run(max_steps=2)   # 2.4 not finished
+    res = _engine(tmp_path, plan, FakeRunner(model), band="5").run()
+    assert "not finished" in res["climbs"]["esp32c5/5"]["blocked"]
+
+
+def test_another_engine_on_the_same_study_is_refused(tmp_path):
+    import fcntl
+    _rungs(tmp_path)
+    plan = _plan(tmp_path, [{"chip": "esp32s3", "band": "2.4", "start": "r0-baseline",
+                             "candidates": []}])
+    (tmp_path / "state").mkdir()
+    with open(tmp_path / "state" / ".lock", "w") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(tune.TuneError, match="already running"):
+            _engine(tmp_path, plan, FakeRunner({})).run()
+
+
+def test_a_plan_without_a_study_name_is_refused(tmp_path):
+    """Without `study:` its rungs would count as formal rungs and change Stage 1's tuned."""
+    p = _plan(tmp_path, [], study=None)
+    with pytest.raises(tune.TuneError, match="study"):
+        tune.Plan.load(p)
 
 
 def test_rerunning_resumes_without_remeasuring(tmp_path):
@@ -404,6 +531,38 @@ def test_tune_refuses_to_start_without_a_running_hostrun(tmp_path):
                "--agent-dir", str(tmp_path / "no-agent"))
     assert out.returncode == 2
     assert "hostrun" in out.stderr
+
+
+def test_tune_needs_the_ceiling_of_the_band_it_measures(tmp_path):
+    plan = _plan(tmp_path, [{"chip": "esp32s3", "band": "2.4", "start": "r0-baseline",
+                             "candidates": []}],
+                 ledger=str(tmp_path / "l.jsonl"), state_dir=str(tmp_path / "st"))
+    agent = tmp_path / "agent"
+    agent.mkdir()
+    (agent / "heartbeat").write_text("now\n")
+    out = _cli("--plan", str(plan), "--band", "2.4", "--ceilings", "5=95",
+               "--agent-dir", str(agent))
+    assert out.returncode == 2
+    assert "ceiling" in out.stderr
+
+
+def test_the_hardware_runner_uses_this_checkouts_hostrun(tmp_path):
+    r = tune.HardwareRunner(band="2.4", ceilings="2.4=60", s3_port="a", c5_port="b",
+                            agent_dir=tmp_path)
+    assert r.args[r.args.index("--agent-dir") + 1] == str(tmp_path)
+
+
+def test_a_silent_hostrun_stops_the_study_instead_of_timing_out_every_step(tmp_path):
+    """hostrun stops beating while it waits at its flash prompt; each build would then
+    wait out a 30-minute timeout."""
+    import os
+    (tmp_path / "heartbeat").write_text("then\n")
+    old = time.time() - 600
+    os.utime(tmp_path / "heartbeat", (old, old))
+    r = tune.HardwareRunner(band="2.4", ceilings="2.4=60", s3_port="a", c5_port="b",
+                            agent_dir=tmp_path)
+    with pytest.raises(tune.TuneError, match="hostrun"):
+        r(tmp_path / "m.yaml", tmp_path / "l.jsonl", tmp_path / "log")
 
 
 def test_tune_sim_runs_against_fake_esps_without_touching_the_real_rungs(tmp_path):

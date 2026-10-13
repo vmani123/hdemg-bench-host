@@ -23,8 +23,9 @@
 # Results: host/results/tuning/max-tput/summary.md (and state.json, logs/, the ledger).
 #
 # Environment:
-#   CEILINGS          rig ceiling per band, Mbit/s (default 2.4=60,5=95 — placeholders;
-#                     a 40 MHz candidate is offered 120 and is refused below that)
+#   CEILINGS          REQUIRED on hardware: rig ceiling per band, Mbit/s, e.g.
+#                     2.4=60,5=95. No load above it is offered; a chip still unsaturated
+#                     there is recorded as limited by the rig, not as a result.
 #   S3_PORT, C5_PORT  serial ports (default: first cu.usbmodem* / cu.usbserial-*)
 #   ALLOW_SHARED_BAND 1 = measure even though this Mac shares the band (rig-limited)
 #   MAX_STEPS         stop after this many measurements
@@ -44,7 +45,17 @@ if [ -z "${PY:-}" ]; then
 fi
 [ -n "${PY:-}" ] && [ -x "$PY" ] || { echo "no python with the host requirements (set PY=)"; exit 64; }
 
-ARGS=(--band "$BAND" --ceilings "${CEILINGS:-2.4=60,5=95}")
+case " $* " in
+  *" --sim "*) ARGS=(--band "$BAND") ;;
+  *)
+    if [ -z "${CEILINGS:-}" ]; then
+      echo "CEILINGS is required on hardware, e.g. CEILINGS=2.4=60,5=95 bash tune.sh $BAND"
+      echo "(the rig ceiling per band, Mbit/s: no run above it is accepted and the study"
+      echo " never offers more — measure it, see docs/TUNING_STUDY.md step 2)"
+      exit 64
+    fi
+    ARGS=(--band "$BAND" --ceilings "$CEILINGS") ;;
+esac
 [ -n "${S3_PORT:-}" ] && ARGS+=(--s3-port "$S3_PORT")
 [ -n "${C5_PORT:-}" ] && ARGS+=(--c5-port "$C5_PORT")
 [ "${ALLOW_SHARED_BAND:-0}" = "1" ] && ARGS+=(--allow-shared-band)

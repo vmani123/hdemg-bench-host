@@ -342,6 +342,7 @@ def cmd_tune(a) -> int:
         print(f"note: no ESP-IDF at {idf}; candidate symbols not pre-checked "
               f"(the post-build check still applies)")
 
+    max_load = None
     if a.sim:
         runner = tune.SimRunner()
     else:
@@ -352,17 +353,22 @@ def cmd_tune(a) -> int:
                   f"bash {host.parent / 'hostrun.sh'} — and approve the flash window.",
                   file=sys.stderr)
             return 2
-        if not a.ceilings:
-            print("--ceilings is required on hardware (e.g. 2.4=60,5=95)", file=sys.stderr)
+        max_load = _ceilings(a.ceilings).get(a.band)
+        if not max_load:
+            print(f"--ceilings must give this band's rig ceiling (e.g. {a.band}=60): no "
+                  f"run is accepted above it, and the study never offers more",
+                  file=sys.stderr)
             return 2
         runner = tune.HardwareRunner(
-            band=a.band, ceilings=a.ceilings,
+            band=a.band, ceilings=a.ceilings, agent_dir=a.agent_dir,
             s3_port=a.s3_port or _first_port("cu.usbmodem", "cu.usbmodem101"),
             c5_port=a.c5_port or _first_port("cu.usbserial-", "cu.usbserial-110"),
             s3_hub_port=a.s3_hub_port, c5_hub_port=a.c5_hub_port,
             allow_shared_band=a.allow_shared_band)
+        print(f"rig ceiling {max_load:g} Mbit/s on {a.band} GHz: no load above it is offered")
     eng = tune.Engine(plan, band=a.band, rungs_root=rungs_root, state_dir=state_dir,
-                      ledger=ledger, runner=runner, plan_path=plan_path)
+                      ledger=ledger, runner=runner, plan_path=plan_path,
+                      max_load_mbps=max_load)
     try:
         eng.run(max_steps=a.max_steps)
     except tune.TuneError as e:

@@ -52,7 +52,15 @@ static void reassociate_with_phy(void)
     esp_wifi_disconnect();
     vTaskDelay(pdMS_TO_TICKS(500));
     wifi_ap_record_t ap;
-    while (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) vTaskDelay(pdMS_TO_TICKS(250));
+    /* Waits as long as it takes, like connect_forever(): staying reachable is the
+     * board's one job. It says so, and nudges the join if the helper went quiet. */
+    for (int tick = 1; esp_wifi_sta_get_ap_info(&ap) != ESP_OK; tick++) {
+        if (tick % 40 == 0) {
+            ESP_LOGW(TAG, "still rejoining after the width change (%d s)", tick / 4);
+            esp_wifi_connect();
+        }
+        vTaskDelay(pdMS_TO_TICKS(250));
+    }
     ESP_LOGI(TAG, "station width %d MHz requested (AP secondary channel: %d)",
              BENCH_BW == WIFI_BW_HT40 ? 40 : 20, (int)ap.second);
 }

@@ -42,8 +42,21 @@ than the chip can carry makes the goodput read back *be* the maximum. That is va
 UDP too now: a full Wi-Fi TX queue makes the sender wait (it no longer drops), so
 the excess never gets a sequence number and never shows up as loss. What the ledger
 calls loss at saturation is real air/AP/host loss. Each run's `source_limited` warning is
-expected — it is how saturation looks. A result within 10 % of the offered load is
-flagged `unsaturated`: the load set it, not the chip.
+expected — it is how saturation looks.
+
+**What a number must be before it decides anything.**
+
+- *Saturated.* Goodput within 10 % of the offered load means the load set it, not the
+  chip. The step is repeated at 1.5× the load, up to the rig ceiling (`CEILINGS`); still
+  unsaturated there, it is recorded as rig-limited, not as a result.
+- *At the same load as what it is compared with.* A candidate offered more than the
+  current best (a 40 MHz lever, a raised load) makes the engine re-measure the current
+  best at that load first. Once the load has gone up it stays up.
+- *In effect.* The 40 MHz candidates must read `bw40 sta40` in `phy_rate`; on a router
+  offering 20 MHz they tested nothing.
+
+A step that fails any of these is `unmeasured`: not a miss, retried on the next run. Two
+in a row stop the climb as `blocked` (the rig, not the levers — e.g. a content filter).
 
 **Why the rungs don't disturb Stage 1.** Study rungs carry `study: max-tput`; the formal
 ladder (`tuned`, the stop rule, `bench effort`) ignores them. Winners are promoted into
@@ -61,9 +74,12 @@ the formal ladders by hand afterwards.
 
 | block | steps (worst case: no early stop) | time |
 |---|---|---|
-| S3 @ 2.4 GHz | start + 12 candidates | ~50 min |
+| S3 @ 2.4 GHz | start + 11 candidates | ~45 min |
 | C5 @ 2.4 GHz | start + 11 candidates | ~45 min |
-| **2.4 GHz block** (`bash tune.sh 2.4`) | | **~1.6 h**, less once a chip plateaus |
+| **2.4 GHz block** (`bash tune.sh 2.4`) | | **~1.5 h**, less once a chip plateaus |
+
+Add ~2 min whenever a step has to be repeated at a higher load (unsaturated), and ~4 min
+whenever the current best is re-measured at a candidate's higher load (a reflash).
 | C5 @ 5 GHz (`bash tune.sh 5`) | start + 2 | ~12 min |
 
 ## 3. Why the Mac can't sit on 5 GHz while the C5 is measured there
@@ -94,7 +110,7 @@ block, pick one:
 | UDP `ENOMEM`/`ENOBUFS` → wait 1 ms and resend; no socket close | a full TX queue is back-pressure, not a socket fault or network loss |
 | source sleeps 1 tick when nothing is due (was a `taskYIELD` spin) | the spin starved the control plane and idle hook on the single-core C5 |
 | pool geometry from Kconfig (`CONFIG_BENCH_PIPE_NUM_BUFS/_BUF_BYTES`, default 6 × 8 KB) | plan §5.3 lists it as a per-chip lever; rungs could not reach it |
-| channel width hook (`CONFIG_BENCH_WIFI_BW_20/_40`); on the C5, 40 MHz means 802.11n | 40 MHz doubles the PHY ceiling; IDF makes 11ax/11ac 20 MHz-only |
+| channel width hook (`CONFIG_BENCH_WIFI_BW_20/_40`); on the C5, 40 MHz means 802.11n | 40 MHz doubles the PHY ceiling; IDF makes 11ax/11ac 20 MHz-only. The S3 station already asks for HT40 by default, so on the S3 the 40 MHz lever is the router's setting, not a rung |
 | `phy_rate` now also reports the station's width: `HT ch6 bw20 sta40` | `bw` is what the AP offers; the link is the narrower — the only way to see a 40 MHz lever take effect |
 | host: a build that dropped or clamped a rung symbol is refused before flashing | Kconfig does that silently; the binary would measure the parent |
 | host: `r0-baseline` no longer sets the two `POWER_SAVE` symbols | they do not exist in IDF v6 (dropped silently); power save is off at runtime |
@@ -111,12 +127,15 @@ UDP run in the old ledger was voided, so no comparable data is lost.
    any label other than the hotspot ones behaves as a router rig. Then put
    `firmware/esp32s3/sdkconfig.local` and `firmware/esp32c5/sdkconfig.local` (gitignored;
    template `firmware/sdkconfig.local.example`) in this checkout, naming that network.
-2. **Rig ceiling.** Measure what a known-good 2.4 GHz client gets to this Mac (`iperf3 -s`
-   on the Mac; a phone or laptop on the router's 2.4 GHz band runs the client) and pass it
-   as `CEILINGS=2.4=<measured>,5=<measured>`. With the placeholder `2.4=60`, the 40 MHz
-   candidates (offered 120) are refused and recorded as unmeasured.
-3. **Optional, for the 40 MHz levers:** set the router's 2.4 GHz channel width to 20/40
-   (auto). Otherwise those steps show `bw20 sta40` and test nothing.
+2. **Rig ceiling (required).** Measure what a known-good client on the band gets to this
+   Mac (`iperf3 -s` on the Mac; a phone or laptop on the router's 2.4 GHz band runs the
+   client) and pass it as `CEILINGS=2.4=<measured>,5=<measured>`. The study never offers
+   more than the ceiling; a chip that outruns it is reported as rig-limited. `2.4=60` is
+   a usable stand-in for 20 MHz channels (the PHY tops out at 72.2), but it caps the
+   40 MHz levers.
+3. **Optional, for 40 MHz:** set the router's 2.4 GHz channel width to 20/40 (auto). That
+   is the S3's whole 40 MHz lever (its station already asks for 40 MHz); the C5's 40 MHz
+   candidate also needs it, or it is recorded as not in effect (`bw20 sta40`).
 4. **Cisco Secure Client content filter off** for the session (it voided every UDP run
    on Oct 5; the gate now refuses such runs).
 5. **Start hostrun from this checkout**, in its own Terminal:
@@ -130,6 +149,8 @@ UDP run in the old ledger was voided, so no comparable data is lost.
    band 2.4 per host/tuning/SUPERVISOR.md`.
 8. **Watch:** `host/results/tuning/max-tput/summary.md`, or
    `cd host && python -m cli.bench tune --band 2.4 --status`.
-9. **5 GHz block** (after choosing an option in §3): `bash tune.sh 5`.
+9. **5 GHz block** (after choosing an option in §3, and once the 2.4 GHz climbs are
+   finished — the C5's 5 GHz climb starts from its 2.4 GHz result):
+   `CEILINGS=2.4=60,5=<measured> bash tune.sh 5`.
 10. **Afterwards:** promote the winning levers into `host/rungs/<chip>/` and mark them in
     `common-levers.yaml`; the study's rung files (`t24-*`, `t5-*`) record every result.
