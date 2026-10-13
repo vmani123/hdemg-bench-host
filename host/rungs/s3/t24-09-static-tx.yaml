@@ -1,0 +1,22 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-09-static-tx
+applies_to: esp32s3
+parent: t24-08-extra-iram
+study: max-tput
+lever: static_tx_buffers
+rationale: 'Static instead of dynamic Wi-Fi TX buffers: no allocation per frame.'
+config:
+  CONFIG_ESP_WIFI_STATIC_TX_BUFFER: y
+  CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM: 32
+  CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM: null
+measured_gain_pct: -3.45
+measured:
+  decision: rejected
+  reason: "unsafe: heap low-water 14756 B is below the 20000 B floor (would have been:\
+    \ tcp -3.5% inside the repeat spread \xB114.3%; udp -3.5% inside the repeat spread\
+    \ \xB15.4%)"
+  offered_mbps: 60.0
+  tcp_mbps: 30.489
+  udp_mbps: 43.059
+  gain_tcp_pct: -3.52
+  gain_udp_pct: -3.45

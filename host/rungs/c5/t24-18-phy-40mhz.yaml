@@ -1,0 +1,22 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-18-phy-40mhz
+applies_to: esp32c5
+parent: t24-16-extra-iram
+study: max-tput
+lever: he_tuning
+rationale: "802.11n at 40 MHz (150 Mbit/s PHY) instead of 802.11ax at 20 MHz \u2014\
+  \ the C5 cannot do both. On this router's 2.4 GHz radio the C5 already associates\
+  \ as HT (no HE offered), so this costs nothing there. Counted only if the link reads\
+  \ 'bw40 sta40' (the router must offer 40 MHz); offered 120, capped at the rig ceiling."
+config:
+  CONFIG_BENCH_WIFI_BW_40: y
+measured_gain_pct: null
+measured:
+  decision: unmeasured
+  reason: 'lever not in effect: the link reads ''HT ch1 bw20 sta40 ap:b2c0fe'', expected
+    ''bw40 sta40'''
+  offered_mbps: 72.0
+  tcp_mbps: 29.327
+  udp_mbps: 44.983
+  gain_tcp_pct: null
+  gain_udp_pct: null

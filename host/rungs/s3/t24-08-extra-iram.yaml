@@ -1,0 +1,21 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-08-extra-iram
+applies_to: esp32s3
+parent: t24-03-wifi-tx-bufs
+study: max-tput
+lever: iram_wifi
+rationale: Hot lwIP/FreeRTOS paths in IRAM (the S3's r2 never enabled LWIP_IRAM_OPTIMIZATION).
+  Help text says it matters less on dual core.
+config:
+  CONFIG_LWIP_IRAM_OPTIMIZATION: y
+  CONFIG_LWIP_EXTRA_IRAM_OPTIMIZATION: y
+  CONFIG_FREERTOS_IN_IRAM: y
+measured_gain_pct: 42.7
+measured:
+  decision: kept
+  reason: 'gained: tcp +17.1%, udp +42.7%'
+  offered_mbps: 60.0
+  tcp_mbps: 31.601
+  udp_mbps: 44.598
+  gain_tcp_pct: 17.14
+  gain_udp_pct: 42.7

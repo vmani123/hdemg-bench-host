@@ -1,0 +1,21 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-17-static-tx
+applies_to: esp32c5
+parent: t24-16-extra-iram
+study: max-tput
+lever: static_tx_buffers
+rationale: Static instead of dynamic Wi-Fi TX buffers.
+config:
+  CONFIG_ESP_WIFI_STATIC_TX_BUFFER: y
+  CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM: 32
+  CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM: null
+measured_gain_pct: 0.02
+measured:
+  decision: rejected
+  reason: "unsafe: heap low-water 1944 B is below the 20000 B floor (would have been:\
+    \ udp -2.9% inside the repeat spread \xB13.4%)"
+  offered_mbps: 60.0
+  tcp_mbps: 31.35
+  udp_mbps: 52.377
+  gain_tcp_pct: 0.02
+  gain_udp_pct: -2.92

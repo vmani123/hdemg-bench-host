@@ -1,0 +1,24 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-12-core-lock-on-iram
+applies_to: esp32s3
+parent: t24-08-extra-iram
+study: max-tput
+lever: core_lock
+rationale: Added 13 Oct. Core locking gave UDP +72% (TCP -20%) when the S3 was CPU-bound
+  on the lwIP core; IRAM placement has since relieved that core. Does core locking
+  still add UDP on top? Expected to be rejected for TCP; it answers the UDP-only build
+  question.
+config:
+  CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+  CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
+measured_gain_pct: -3.07
+measured:
+  decision: rejected
+  reason: "unsafe: heap low-water 7652 B is below the 20000 B floor (would have been:\
+    \ tcp -4.6% inside the repeat spread \xB119.7%; udp -3.1% inside the repeat spread\
+    \ \xB15.2%)"
+  offered_mbps: 60.0
+  tcp_mbps: 30.158
+  udp_mbps: 43.23
+  gain_tcp_pct: -4.57
+  gain_udp_pct: -3.07

@@ -1,0 +1,20 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-16-extra-iram
+applies_to: esp32c5
+parent: t24-12-core-lock-on-safe
+study: max-tput
+lever: iram_wifi
+rationale: 'More hot paths in IRAM: lwIP extra (~17 KB) and FreeRTOS. The help text
+  expects >10 % on single-core parts.'
+config:
+  CONFIG_LWIP_EXTRA_IRAM_OPTIMIZATION: y
+  CONFIG_FREERTOS_IN_IRAM: y
+measured_gain_pct: 5.4
+measured:
+  decision: kept
+  reason: 'gained: tcp +5.4%'
+  offered_mbps: 60.0
+  tcp_mbps: 31.344
+  udp_mbps: 53.955
+  gain_tcp_pct: 5.4
+  gain_udp_pct: 2.32

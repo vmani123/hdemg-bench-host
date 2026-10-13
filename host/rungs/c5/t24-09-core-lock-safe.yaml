@@ -1,0 +1,22 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-09-core-lock-safe
+applies_to: esp32c5
+parent: t24-01-tcp-window
+study: max-tput
+lever: core_lock
+rationale: Added 13 Oct. Core locking on the 64 KB build gained TCP +2.9% and UDP
+  +5.5% (50.6 Mbit/s) but left 1.1 KB of heap. Retried on top of the smaller send
+  buffer.
+config:
+  CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+  CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
+measured_gain_pct: 4.09
+measured:
+  decision: rejected
+  reason: "unsafe: heap low-water 1932 B is below the 20000 B floor (would have been:\
+    \ udp +4.1% inside the repeat spread \xB16.1%)"
+  offered_mbps: 60.0
+  tcp_mbps: 33.396
+  udp_mbps: 49.949
+  gain_tcp_pct: 0.0
+  gain_udp_pct: 4.09

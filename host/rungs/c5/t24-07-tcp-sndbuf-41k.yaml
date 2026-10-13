@@ -1,0 +1,21 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-07-tcp-sndbuf-41k
+applies_to: esp32c5
+parent: t24-01-tcp-window
+study: max-tput
+lever: lwip_window
+rationale: Added 13 Oct. With a 64 KB send buffer the C5's heap low-water was 2.5
+  KB and the board went offline when a stream stalled. 41,760 B is Espressif's own
+  C5 value (a RAM trade-off); the window stays 65,535.
+config:
+  CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 41760
+measured_gain_pct: 3.9
+measured:
+  decision: rejected
+  reason: 'unsafe: heap low-water 14776 B is below the 20000 B floor (would have been:
+    regressed: tcp -11.8%)'
+  offered_mbps: 60.0
+  tcp_mbps: 29.461
+  udp_mbps: 49.857
+  gain_tcp_pct: -11.78
+  gain_udp_pct: 3.9

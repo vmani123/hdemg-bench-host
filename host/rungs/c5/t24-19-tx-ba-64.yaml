@@ -1,0 +1,19 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-19-tx-ba-64
+applies_to: esp32c5
+parent: t24-16-extra-iram
+study: max-tput
+lever: ampdu_ba_win
+rationale: The C5 accepts a TX BA window up to 64 (the S3 stops at 32).
+config:
+  CONFIG_ESP_WIFI_TX_BA_WIN: 64
+measured_gain_pct: 1.45
+measured:
+  decision: rejected
+  reason: "unsafe: heap low-water 15908 B is below the 20000 B floor (would have been:\
+    \ udp -2.1% inside the repeat spread \xB12.3%)"
+  offered_mbps: 60.0
+  tcp_mbps: 31.8
+  udp_mbps: 52.814
+  gain_tcp_pct: 1.45
+  gain_udp_pct: -2.11

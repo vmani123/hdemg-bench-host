@@ -166,6 +166,30 @@ climbs:
           heap floor."
         config:
           CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 32768
+      - id: safe-memory
+        lever: frame_size
+        why: "Added 13 Oct, deliberately TWO settings: neither alone clears the 20 KB heap
+          floor. 41,760 B and 32 KB send buffers both bottomed at ~14.8 KB, so below ~41 KB
+          the TCP buffer is not what drains the heap. The pool is 48 KB of static SRAM
+          (6 x 8 KB); 4 buffers give 16 KB back to the heap on the C5."
+        config:
+          CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 41760
+          CONFIG_BENCH_PIPE_NUM_BUFS: 4
+      - id: core-lock-on-safe
+        lever: core_lock
+        why: "Added 13 Oct. Core locking gained UDP +4-5% twice on the C5 but was rejected
+          both times only for heap (1.1 and 1.9 KB). Retried on the safe-memory base
+          (31 KB low-water)."
+        config:
+          CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+          CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
+      - id: core-lock-safe
+        lever: core_lock
+        why: "Added 13 Oct. Core locking on the 64 KB build gained TCP +2.9% and UDP +5.5%
+          (50.6 Mbit/s) but left 1.1 KB of heap. Retried on top of the smaller send buffer."
+        config:
+          CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+          CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
       - id: tx-ba-window
         lever: ampdu_ba_win
         why: "TX block-ack window 6 -> 32, as in Espressif's C5 iperf config."
@@ -219,10 +243,11 @@ climbs:
       - id: phy-40mhz
         lever: he_tuning
         why: "802.11n at 40 MHz (150 Mbit/s PHY) instead of 802.11ax at 20 MHz — the C5
-          cannot do both. On this router's 2.4 GHz radio the C5 already associates as
-          HT (no HE offered), so this costs nothing there. Counted only if the link
-          reads 'bw40 sta40' (the router must offer 40 MHz); offered 120, capped at the
-          rig ceiling."
+          cannot do both. Counted only if the link reads 'bw40 sta40' (the router must
+          offer 40 MHz); offered 120, capped at the rig ceiling. 13 Oct: not measurable
+          on House WiFi — its 2.4 GHz radio offers 20 MHz only, the link read 'HT ch1
+          bw20 sta40' and fell from HE20 to HT20 (TCP 29.3 / UDP 45.0). Needs an AP set to
+          40 MHz on 2.4 GHz."
         saturate_mbps: 120
         expect_phy: "bw40 sta40"
         config:
