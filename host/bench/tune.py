@@ -493,13 +493,20 @@ class Engine:
         if any(inc[t]["mbps"] <= 0 for t in self.plan.transports):
             return unmeasured(f"the incumbent {inc['rung']} measured 0 Mbit/s")
         self._decide(step, inc)
-        lows = [step[t].get("heap_min") for t in self.plan.transports
-                if step[t].get("heap_min") is not None]
-        if lows and min(lows) < self.plan.heap_floor_bytes:
+        floor = self.plan.heap_floor_bytes
+        low = _heap_low(step, self.plan.transports)
+        inc_low = _heap_low(inc, self.plan.transports)
+        if low is not None and low < floor:
             step.update(decision="rejected",
-                        reason=f"unsafe: heap low-water {min(lows)} B is below the "
-                               f"{self.plan.heap_floor_bytes} B floor (would have been: "
-                               f"{step['reason']})")
+                        reason=f"unsafe: heap low-water {low} B is below the {floor} B "
+                               f"floor (would have been: {step['reason']})")
+        elif inc_low is not None and inc_low < floor and low is not None \
+                and step["decision"] != "kept":
+            # An incumbent that nearly runs out of memory is not a baseline worth
+            # defending: a safe configuration takes over, even at some cost in speed.
+            step.update(decision="kept",
+                        reason=f"replaces an unsafe incumbent (heap low-water {inc_low} B "
+                               f"-> {low} B); throughput: {step['reason']}")
 
     def _channels(self, step: dict) -> set[str]:
         out = set()
@@ -601,6 +608,12 @@ class Engine:
         cs["best"] = {t: {"rung": inc["rung"], "mbps": inc[t]["mbps"],
                           "loss_pct": inc[t]["loss_pct"]}
                       for t in self.plan.transports if inc.get(t)}
+
+
+def _heap_low(step: dict, transports) -> int | None:
+    lows = [step[t].get("heap_min") for t in transports
+            if step.get(t) and step[t].get("heap_min") is not None]
+    return min(lows) if lows else None
 
 
 def _score(recs: list[dict], offered_mbps: float, unsat_ratio: float) -> dict | None:

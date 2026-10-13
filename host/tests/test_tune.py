@@ -437,6 +437,25 @@ def test_the_incumbent_can_be_remeasured_when_conditions_changed(tmp_path):
     assert steps[2]["decision"] == "kept"              # +3.3% against today's 15, not -22%
 
 
+def test_a_safe_candidate_replaces_an_unsafe_incumbent_even_if_slower(tmp_path):
+    """The C5's 64 KB TCP buffer reached a 2.5 KB heap low-water: its throughput is not a
+    baseline worth defending. A safe configuration takes over, and the climb goes on
+    from there, even at some cost in speed."""
+    _rungs(tmp_path)
+    plan = _plan(tmp_path, [{"chip": "esp32c5", "band": "2.4", "start": "r0-baseline",
+                             "candidates": [_cand("smaller-buffer"), _cand("next")]}])
+    run = FakeRunner({("esp32c5", "r0-baseline"): {"tcp": 33, "udp": 48},
+                      ("esp32c5", "t24-01-smaller-buffer"): {"tcp": 30, "udp": 48},
+                      ("esp32c5", "t24-02-next"): {"tcp": 30, "udp": 48}},
+                     heap={"r0-baseline": 2540, "t24-01-smaller-buffer": 40000,
+                           "t24-02-next": 40000})
+    res = _engine(tmp_path, plan, run).run()
+    steps = res["climbs"]["esp32c5/2.4"]["steps"]
+    assert steps[1]["decision"] == "kept"
+    assert "unsafe" in steps[1]["reason"] and "2540" in steps[1]["reason"]
+    assert steps[2]["parent"] == "t24-01-smaller-buffer"
+
+
 def test_a_study_can_be_limited_to_one_chip(tmp_path):
     """The S3 is shared with other work (different firmware on it). Climbing only the
     C5 must never build, flash or measure the S3."""

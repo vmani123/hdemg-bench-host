@@ -131,6 +131,15 @@ climbs:
           CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: y
           CONFIG_ESP_WIFI_AMSDU_TX_ENABLED: y
           CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM: null
+      - id: core-lock-on-iram
+        lever: core_lock
+        why: "Added 13 Oct. Core locking gave UDP +72% (TCP -20%) when the S3 was CPU-bound
+          on the lwIP core; IRAM placement has since relieved that core. Does core locking
+          still add UDP on top? Expected to be rejected for TCP; it answers the UDP-only
+          build question."
+        config:
+          CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+          CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
 
   # ---------------------------------------------------------------- ESP32-C5, 2.4 GHz
   - chip: esp32c5
@@ -144,6 +153,19 @@ climbs:
         config:
           CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 65535
           CONFIG_LWIP_TCP_WND_DEFAULT: 65535
+      - id: tcp-sndbuf-41k
+        lever: lwip_window
+        why: "Added 13 Oct. With a 64 KB send buffer the C5's heap low-water was 2.5 KB and
+          the board went offline when a stream stalled. 41,760 B is Espressif's own C5
+          value (a RAM trade-off); the window stays 65,535."
+        config:
+          CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 41760
+      - id: tcp-sndbuf-32k
+        lever: lwip_window
+        why: "Added 13 Oct. A smaller send buffer again, in case 41,760 B is still under the
+          heap floor."
+        config:
+          CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 32768
       - id: tx-ba-window
         lever: ampdu_ba_win
         why: "TX block-ack window 6 -> 32, as in Espressif's C5 iperf config."
