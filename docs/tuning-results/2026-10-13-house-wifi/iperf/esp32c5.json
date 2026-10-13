@@ -1,0 +1,191 @@
+{
+  "chip": "esp32c5",
+  "port": "/dev/cu.usbserial-110",
+  "link": [
+    "connected with House WiFi, aid = 3, channel 1, BW20(NONE, 00), bssid = 8c:30:66:b2:c0:fe"
+  ],
+  "tests": [
+    {
+      "proto": "tcp",
+      "repeat": 1,
+      "mac": {
+        "proto": "tcp",
+        "bytes": 70246080,
+        "active_s": 20.01,
+        "mbps_overall": 28.08,
+        "mbps_steady_median": 27.81,
+        "per_s_mbps": [
+          26.5,
+          31.1,
+          27.5,
+          27.8,
+          25.7,
+          30.3,
+          27.3,
+          27.7,
+          28.9,
+          27.8,
+          27.8,
+          26.7,
+          28.6,
+          28.5,
+          29.6,
+          26.5,
+          28.6,
+          29.2,
+          26.7
+        ]
+      },
+      "esp_report": [
+        "0.0- 2.0 sec  26.55 Mbits/sec",
+        "2.0- 4.0 sec  27.97 Mbits/sec",
+        "4.0- 6.0 sec  25.52 Mbits/sec",
+        "6.0- 8.0 sec  27.44 Mbits/sec",
+        "8.0-10.0 sec  27.00 Mbits/sec",
+        "10.0-12.0 sec  26.51 Mbits/sec",
+        "12.0-14.0 sec  26.33 Mbits/sec",
+        "14.0-16.0 sec  27.74 Mbits/sec",
+        "16.0-18.0 sec  26.15 Mbits/sec",
+        "18.0-20.0 sec  26.73 Mbits/sec",
+        "0.0-20.0 sec  26.80 Mbits/sec"
+      ]
+    },
+    {
+      "proto": "tcp",
+      "repeat": 2,
+      "mac": {
+        "proto": "tcp",
+        "bytes": 73759680,
+        "active_s": 20.0,
+        "mbps_overall": 29.51,
+        "mbps_steady_median": 29.33,
+        "per_s_mbps": [
+          31.2,
+          30.4,
+          30.0,
+          27.5,
+          32.2,
+          27.1,
+          28.2,
+          28.8,
+          28.8,
+          30.4,
+          28.8,
+          29.7,
+          27.8,
+          31.1,
+          29.0,
+          29.3,
+          28.9,
+          30.4
+        ]
+      },
+      "esp_report": [
+        "0.0- 2.0 sec  29.05 Mbits/sec",
+        "2.0- 4.0 sec  28.77 Mbits/sec",
+        "4.0- 6.0 sec  28.50 Mbits/sec",
+        "6.0- 8.0 sec  26.40 Mbits/sec",
+        "8.0-10.0 sec  27.52 Mbits/sec",
+        "10.0-12.0 sec  28.21 Mbits/sec",
+        "12.0-14.0 sec  27.43 Mbits/sec",
+        "14.0-16.0 sec  28.64 Mbits/sec",
+        "16.0-18.0 sec  27.73 Mbits/sec",
+        "18.0-20.0 sec  29.10 Mbits/sec",
+        "0.0-20.0 sec  28.14 Mbits/sec"
+      ]
+    },
+    {
+      "proto": "udp",
+      "repeat": 1,
+      "mac": {
+        "proto": "udp",
+        "bytes": 120956010,
+        "active_s": 19.9,
+        "mbps_overall": 48.63,
+        "mbps_steady_median": 49.1,
+        "per_s_mbps": [
+          51.7,
+          50.5,
+          48.9,
+          51.5,
+          51.7,
+          51.6,
+          49.2,
+          49.1,
+          40.7,
+          42.6,
+          48.1,
+          49.1,
+          46.7,
+          45.2,
+          46.4,
+          50.1,
+          47.0,
+          50.9
+        ],
+        "datagrams": 82283,
+        "loss_pct": 68.524
+      },
+      "esp_report": [
+        "0.0- 2.0 sec  47.77 Mbits/sec",
+        "2.0- 4.0 sec  47.54 Mbits/sec",
+        "4.0- 6.0 sec  48.99 Mbits/sec",
+        "6.0- 8.0 sec  48.06 Mbits/sec",
+        "8.0-10.0 sec  43.76 Mbits/sec",
+        "10.0-12.0 sec  42.70 Mbits/sec",
+        "12.0-14.0 sec  45.48 Mbits/sec",
+        "14.0-16.0 sec  43.71 Mbits/sec",
+        "16.0-18.0 sec  46.30 Mbits/sec",
+        "18.0-20.0 sec  47.10 Mbits/sec",
+        "0.0-20.0 sec  46.14 Mbits/sec"
+      ]
+    },
+    {
+      "proto": "udp",
+      "repeat": 2,
+      "mac": {
+        "proto": "udp",
+        "bytes": 120550290,
+        "active_s": 19.99,
+        "mbps_overall": 48.26,
+        "mbps_steady_median": 48.46,
+        "per_s_mbps": [
+          47.0,
+          48.3,
+          50.3,
+          51.4,
+          50.4,
+          51.0,
+          46.8,
+          48.5,
+          44.6,
+          49.4,
+          50.2,
+          51.8,
+          48.1,
+          40.8,
+          44.5,
+          44.5,
+          46.3,
+          50.6
+        ],
+        "datagrams": 82007,
+        "loss_pct": 68.664
+      },
+      "esp_report": [
+        "0.0- 2.0 sec  47.29 Mbits/sec",
+        "2.0- 4.0 sec  47.29 Mbits/sec",
+        "4.0- 6.0 sec  48.16 Mbits/sec",
+        "6.0- 8.0 sec  46.99 Mbits/sec",
+        "8.0-10.0 sec  44.10 Mbits/sec",
+        "10.0-12.0 sec  47.80 Mbits/sec",
+        "12.0-14.0 sec  47.36 Mbits/sec",
+        "14.0-16.0 sec  40.78 Mbits/sec",
+        "16.0-18.0 sec  43.23 Mbits/sec",
+        "18.0-20.0 sec  46.84 Mbits/sec",
+        "0.0-20.0 sec  45.99 Mbits/sec"
+      ]
+    }
+  ],
+  "transcript_tail": "101, interval=2, time=20\r\nI (95107) iperf: Socket created, sending to 2130815168:5101\r\nW (95118) STATS: Clear tx statistics\r\n\r\nInterval       Bandwidth\r\n 0.0- 2.0 sec  47.29 Mbits/sec\r\n 2.0- 4.0 sec  47.29 Mbits/sec\r\n 4.0- 6.0 sec  48.16 Mbits/sec\r\n 6.0- 8.0 sec  46.99 Mbits/sec\r\n 8.0-10.0 sec  44.10 Mbits/sec\r\n10.0-12.0 sec  47.80 Mbits/sec\r\n12.0-14.0 sec  47.36 Mbits/sec\r\n14.0-16.0 sec  40.78 Mbits/sec\r\n16.0-18.0 sec  43.23 Mbits/sec\r\n18.0-20.0 sec  46.84 Mbits/sec\r\n 0.0-20.0 sec  45.99 Mbits/sec\r\nI (115118) iperf: UDP Socket client is closed\r\nW (115119) STATS: Get tx statistics\r\n\r\n(test)rx_trig:4, tx_bfrpt:0,vht_bfrpt:0, polled_vht_bfrpt:0,tb_times:4, tb_qos_null:4, tb_qos_data:0, tb_cca_cancel:0, tb_sifs_abort:0, tb_pwr_outof_range:0, min heap:21468\r\n(test)aci:2, tb(suc:0, ack:0, err:0), count(suc:0, ack:0, err:0, tot:0, max_sent:0)\r\n(test)aci:2, enable:4689, complete:4689, tb_times:0, tb_last:0, edca:4689, succ:4455, fail(0,0,0, cts:102/2.18%, ack:132/2.82%, tot:234, 4.99%), edca(ack:119, ba:4336), tb(hw-ba:0, sw-ba:0)\r\n(test)aci:2, txFrames:81460, s-mpdu:119(2.54%), bitmap(max:21, min:1, tot:81341, avg:18.76), retry(edca:7625, tb:0, 9.36%), collision:0, timeout:0\r\n(test)aci:2, seqno_rtt[107,32878], hw_rtt[107, 28913], muedca[enable:0, times:0, 0.00, 0.00, tot:0.00], avg:4.129 ms, tot:19.362 secs\r\n(test)[2][0][4](        Wait CTS +            MATCH +             0x41)  1/102(0.98%)\r\n(test)[2][2][0](        Wait CTS +         MISMATCH +             0x00)  4/102(3.92%)\r\n(test)[2][2][1](        Wait CTS +         MISMATCH +             0x53)  3/102(2.94%)\r\n(test)[2][2][4](        Wait CTS +         MISMATCH +             0x41)  1/102(0.98%)\r\n(test)[2][2][7](        Wait CTS +         MISMATCH +             0x80)  1/102(0.98%)\r\n(test)[2][2][9](        Wait CTS +         MISMATCH +           Others)  5/102(4.90%)\r\n(test)[2][3][0](        Wait CTS +          TIMEOUT +             0x00) 87/102(85.29%)\r\n(test)[5][0][4](     Wait ACK/BA +            MATCH +             0x41)  2/132(1.52%)\r\n(test)[5][0][7](     Wait ACK/BA +            MATCH +             0x80)  7/132(5.30%)\r\n(test)[5][0][9](     Wait ACK/BA +            MATCH +           Others)  1/132(0.76%)\r\n(test)[5][2][1](     Wait ACK/BA +         MISMATCH +             0x53) 20/132(15.15%)\r\n(test)[5][2][7](     Wait ACK/BA +         MISMATCH +             0x80)  2/132(1.52%)\r\n(test)[5][2][8](     Wait ACK/BA +         MISMATCH +             0x5A)  3/132(2.27%)\r\n(test)[5][2][9](     Wait ACK/BA +         MISMATCH +           Others) 20/132(15.15%)\r\n(test)[5][3][0](     Wait ACK/BA +          TIMEOUT +             0x00) 77/132(58.33%)\r\n\r\nWDEVRX_FCS_ERR          :40\r\nWDEVRX_ABORT            :908\r\nWDEVRX_ABORT_FCS_PASS   :878\r\nWDEVRX_LASTUNMATCH_ERR  :0\r\nWDEVRX_BUF_FULLCNT      :0\r\nWDEVRX_SAMEBM_ERRCNT    :0\r\nNRX_ERR_PWRDROP         :116\r\nNRX_HESIGB_ERR          :0\r\nWDEVRX_MPDU             :12995\r\nWDEVRX_END_CNT          :12986\r\nWDEVRX_DATASUC          :83\r\nRXHUNG_STATIS           :0\r\nTXHUNG_STATIS           :0\r\nRXTXHUNG                :0\r\nRXTXPANIC               :0\r\nBF_NDP_TIMEOUT          :0\r\nBF_REPORT_ERR           :0\r\nNRX_VHT_UNSUPPORT        :0\r\nNRX_VHTSIGA_CRC          :0\r\nWDEVRX_CFO              :-10160\r\nWDEVRX_SF               :3127\r\nWDEVRX_OTHER_UCAST      :95\r\nWDEVRX_FIFO_OVFCNT      :0\r\nWDEVRX_TKIP_ERRCNT      :0\r\nWDEVRX_BTBLOCK_ERR      :0\r\nWDEVRX_FREQHOP_ERR      :0\r\nWDEVRX_ACK_INT_CNT      :0\r\nWDEVRX_RTS_INT_CNT      :0\r\nBRX_ERR                 :1023\r\nBRX_ERR_AGC             :328\r\nNRX_ERR                 :338\r\nNRX_ERR_ABORT           :0\r\nNRX_ERR_AGCEXIT         :0\r\nNRX_ERR_BBOFF           :0\r\nNRX_ERR_FDM_WDG         :0\r\nNRX_ERR_RESTART         :9\r\nNRX_ERR_SERV            :0\r\nNRX_ERR_TXOVER          :0\r\nNRX_ERR_UNSUPPORT       :0\r\nNRX_HTSIG_ERR           :7\r\nNRX_HE_UNSUPPORT        :0\r\nNRX_HESIGA_CRC          :0\r\nW (115411) STATS: Clear tx statistics\r\nI (115412) iperf: iperf exit\r\niperf> \r\niperf> iperf --abort\r\nI (117646) iperf: DONE.IPERF_STOP,OK.\r\niperf> \r\niperf> "
+}

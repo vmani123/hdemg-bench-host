@@ -4,7 +4,7 @@
     "esp32s3/2.4": {
       "chip": "esp32s3",
       "band": "2.4",
-      "incumbent": "t24-03-wifi-tx-bufs",
+      "incumbent": "t24-08-extra-iram",
       "steps": [
         {
           "rung": "r2-core-split",
@@ -110,21 +110,23 @@
           "max_load_mbps": 72.0,
           "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-03-wifi-tx-bufs.log",
           "tcp": {
-            "mbps": 21.265,
-            "spread": 0.058,
+            "mbps": 26.976,
+            "spread": 0.266,
             "loss_pct": 0.0,
             "n": 2,
-            "phy_rate": "HT ch1 bw20 sta40",
-            "rssi_dbm": -55.0,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -59.0,
+            "heap_min": 60976,
             "unsaturated": false
           },
           "udp": {
-            "mbps": 26.242,
-            "spread": 0.348,
-            "loss_pct": 0.148,
+            "mbps": 31.252,
+            "spread": 0.125,
+            "loss_pct": 0.0,
             "n": 2,
-            "phy_rate": "HT ch1 bw20 sta40",
-            "rssi_dbm": -55.0,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -57.5,
+            "heap_min": 60976,
             "unsaturated": false
           },
           "gain_pct": {
@@ -132,7 +134,30 @@
             "udp": 12.26
           },
           "decision": "kept",
-          "reason": "gained: udp +12.3%"
+          "reason": "gained: udp +12.3%",
+          "history": [
+            {
+              "offered_mbps": 60.0,
+              "tcp": {
+                "mbps": 21.265,
+                "spread": 0.058,
+                "loss_pct": 0.0,
+                "n": 2,
+                "phy_rate": "HT ch1 bw20 sta40",
+                "rssi_dbm": -55.0,
+                "unsaturated": false
+              },
+              "udp": {
+                "mbps": 26.242,
+                "spread": 0.348,
+                "loss_pct": 0.148,
+                "n": 2,
+                "phy_rate": "HT ch1 bw20 sta40",
+                "rssi_dbm": -55.0,
+                "unsaturated": false
+              }
+            }
+          ]
         },
         {
           "rung": "t24-04-wifi-rx-bufs",
@@ -232,29 +257,239 @@
           },
           "decision": "rejected",
           "reason": "regressed: tcp -19.9%"
+        },
+        {
+          "rung": "t24-07-tcpip-prio",
+          "candidate": "tcpip-prio",
+          "lever": "core_lock",
+          "parent": "t24-03-wifi-tx-bufs",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-07-tcpip-prio.log",
+          "tcp": {
+            "mbps": 26.414,
+            "spread": 0.996,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -57.5,
+            "heap_min": 45224,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 30.777,
+            "spread": 0.271,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -58.0,
+            "heap_min": 45224,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -2.08,
+            "udp": -1.52
+          },
+          "decision": "rejected",
+          "reason": "tcp -2.1% inside the repeat spread \u00b14.7%"
+        },
+        {
+          "rung": "t24-08-extra-iram",
+          "candidate": "extra-iram",
+          "lever": "iram_wifi",
+          "parent": "t24-03-wifi-tx-bufs",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-08-extra-iram.log",
+          "tcp": {
+            "mbps": 31.601,
+            "spread": 3.473,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -58.0,
+            "heap_min": 20848,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 44.598,
+            "spread": 1.184,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -58.0,
+            "heap_min": 20848,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 17.14,
+            "udp": 42.7
+          },
+          "decision": "kept",
+          "reason": "gained: tcp +17.1%, udp +42.7%"
+        },
+        {
+          "rung": "t24-09-static-tx",
+          "candidate": "static-tx",
+          "lever": "static_tx_buffers",
+          "parent": "t24-08-extra-iram",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-09-static-tx.log",
+          "tcp": {
+            "mbps": 30.489,
+            "spread": 1.031,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -58.5,
+            "heap_min": 14756,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 43.059,
+            "spread": 1.244,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -58.0,
+            "heap_min": 14756,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -3.52,
+            "udp": -3.45
+          },
+          "decision": "rejected",
+          "reason": "unsafe: heap low-water 14756 B is below the 20000 B floor (would have been: tcp -3.5% inside the repeat spread \u00b114.3%; udp -3.5% inside the repeat spread \u00b15.4%)"
+        },
+        {
+          "rung": "t24-10-cache",
+          "candidate": "cache",
+          "lever": "cpu_max_clock",
+          "parent": "t24-08-extra-iram",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-10-cache.log",
+          "tcp": {
+            "mbps": 32.393,
+            "spread": 1.349,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -59.0,
+            "heap_min": 656,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 44.609,
+            "spread": 0.61,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -58.0,
+            "heap_min": 656,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 2.51,
+            "udp": 0.02
+          },
+          "decision": "rejected",
+          "reason": "unsafe: heap low-water 656 B is below the 20000 B floor (would have been: tcp +2.5% inside the repeat spread \u00b115.3%)"
+        },
+        {
+          "rung": "t24-11-psram",
+          "candidate": "psram",
+          "lever": "psram_bufs",
+          "parent": "t24-08-extra-iram",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-11-psram.log",
+          "tcp": {
+            "mbps": 26.763,
+            "spread": 0.56,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -59.0,
+            "heap_min": 157575,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 38.633,
+            "spread": 1.249,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -58.5,
+            "heap_min": 157575,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -15.31,
+            "udp": -13.38
+          },
+          "decision": "rejected",
+          "reason": "regressed: tcp -15.3%, udp -13.4%"
+        },
+        {
+          "rung": "t24-12-core-lock-on-iram",
+          "candidate": "core-lock-on-iram",
+          "lever": "core_lock",
+          "parent": "t24-08-extra-iram",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-12-core-lock-on-iram.log",
+          "tcp": {
+            "mbps": 30.158,
+            "spread": 2.753,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -58.0,
+            "heap_min": 7652,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 43.23,
+            "spread": 1.142,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -58.5,
+            "heap_min": 7652,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -4.57,
+            "udp": -3.07
+          },
+          "decision": "rejected",
+          "reason": "unsafe: heap low-water 7652 B is below the 20000 B floor (would have been: tcp -4.6% inside the repeat spread \u00b119.7%; udp -3.1% inside the repeat spread \u00b15.2%)"
         }
       ],
-      "misses": 3,
+      "misses": 4,
       "done": true,
-      "done_reason": "3 consecutive candidates gained under 2 % (stop rule)",
+      "done_reason": "candidate list exhausted",
       "blocked": null,
       "best": {
         "tcp": {
-          "rung": "t24-03-wifi-tx-bufs",
-          "mbps": 21.265,
+          "rung": "t24-08-extra-iram",
+          "mbps": 31.601,
           "loss_pct": 0.0
         },
         "udp": {
-          "rung": "t24-03-wifi-tx-bufs",
-          "mbps": 26.242,
-          "loss_pct": 0.148
+          "rung": "t24-08-extra-iram",
+          "mbps": 44.598,
+          "loss_pct": 0.0
         }
       }
     },
     "esp32c5/2.4": {
       "chip": "esp32c5",
       "band": "2.4",
-      "incumbent": "t24-01-tcp-window",
+      "incumbent": "t24-16-extra-iram",
       "steps": [
         {
           "rung": "r2-iram",
@@ -294,21 +529,23 @@
           "max_load_mbps": 72.0,
           "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-01-tcp-window.log",
           "tcp": {
-            "mbps": 19.031,
-            "spread": 1.437,
+            "mbps": 33.395,
+            "spread": 0.384,
             "loss_pct": 0.0,
             "n": 2,
-            "phy_rate": "HE ch1 bw20 sta20",
-            "rssi_dbm": -71.5,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -66.5,
+            "heap_min": 2540,
             "unsaturated": false
           },
           "udp": {
-            "mbps": 34.84,
-            "spread": 0.631,
-            "loss_pct": 1.665,
+            "mbps": 47.986,
+            "spread": 0.389,
+            "loss_pct": 0.0,
             "n": 2,
-            "phy_rate": "HE ch1 bw20 sta20",
-            "rssi_dbm": -72.0,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -66.0,
+            "heap_min": 2540,
             "unsaturated": false
           },
           "gain_pct": {
@@ -316,7 +553,30 @@
             "udp": 17.32
           },
           "decision": "kept",
-          "reason": "gained: tcp +322.1%, udp +17.3%"
+          "reason": "gained: tcp +322.1%, udp +17.3%",
+          "history": [
+            {
+              "offered_mbps": 60.0,
+              "tcp": {
+                "mbps": 19.031,
+                "spread": 1.437,
+                "loss_pct": 0.0,
+                "n": 2,
+                "phy_rate": "HE ch1 bw20 sta20",
+                "rssi_dbm": -71.5,
+                "unsaturated": false
+              },
+              "udp": {
+                "mbps": 34.84,
+                "spread": 0.631,
+                "loss_pct": 1.665,
+                "n": 2,
+                "phy_rate": "HE ch1 bw20 sta20",
+                "rssi_dbm": -72.0,
+                "unsaturated": false
+              }
+            }
+          ]
         },
         {
           "rung": "t24-02-tx-ba-window",
@@ -443,25 +703,547 @@
           "decision": "unmeasured",
           "gain_pct": {},
           "reason": "the board was on ch6, the current best on ch1: a different access point or channel, not comparable"
+        },
+        {
+          "rung": "t24-06-core-lock",
+          "candidate": "core-lock",
+          "lever": "core_lock",
+          "parent": "t24-01-tcp-window",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-06-core-lock.log",
+          "tcp": {
+            "mbps": 34.36,
+            "spread": 0.218,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -66.0,
+            "heap_min": 1108,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 50.63,
+            "spread": 1.242,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -66.0,
+            "heap_min": 1108,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 2.89,
+            "udp": 5.51
+          },
+          "decision": "rejected",
+          "reason": "unsafe: heap low-water 1108 B is below the 20000 B floor (would have been: gained: tcp +2.9%, udp +5.5%)"
+        },
+        {
+          "rung": "t24-07-tcp-sndbuf-41k",
+          "candidate": "tcp-sndbuf-41k",
+          "lever": "lwip_window",
+          "parent": "t24-01-tcp-window",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-07-tcp-sndbuf-41k.log",
+          "tcp": {
+            "mbps": 29.461,
+            "spread": 0.005,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -65.5,
+            "heap_min": 16288,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 49.857,
+            "spread": 1.072,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -65.5,
+            "heap_min": 14776,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -11.78,
+            "udp": 3.9
+          },
+          "decision": "rejected",
+          "reason": "unsafe: heap low-water 14776 B is below the 20000 B floor (would have been: regressed: tcp -11.8%)"
+        },
+        {
+          "rung": "t24-08-tcp-sndbuf-32k",
+          "candidate": "tcp-sndbuf-32k",
+          "lever": "lwip_window",
+          "parent": "t24-01-tcp-window",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-08-tcp-sndbuf-32k.log",
+          "tcp": {
+            "mbps": 24.584,
+            "spread": 0.928,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -67.0,
+            "heap_min": 14860,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 45.883,
+            "spread": 3.972,
+            "loss_pct": 0.3,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -66.0,
+            "heap_min": 14860,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -26.38,
+            "udp": -4.38
+          },
+          "decision": "rejected",
+          "reason": "unsafe: heap low-water 14860 B is below the 20000 B floor (would have been: regressed: tcp -26.4%)"
+        },
+        {
+          "rung": "t24-09-core-lock-safe",
+          "candidate": "core-lock-safe",
+          "lever": "core_lock",
+          "parent": "t24-01-tcp-window",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-09-core-lock-safe.log",
+          "tcp": {
+            "mbps": 33.396,
+            "spread": 0.826,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -65.0,
+            "heap_min": 1932,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 49.949,
+            "spread": 2.528,
+            "loss_pct": 0.006,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -65.5,
+            "heap_min": 1932,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 0.0,
+            "udp": 4.09
+          },
+          "decision": "rejected",
+          "reason": "unsafe: heap low-water 1932 B is below the 20000 B floor (would have been: udp +4.1% inside the repeat spread \u00b16.1%)"
+        },
+        {
+          "rung": "t24-10-safe-memory",
+          "candidate": "safe-memory",
+          "lever": "frame_size",
+          "parent": "t24-01-tcp-window",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-10-safe-memory.log",
+          "tcp": {
+            "mbps": 29.687,
+            "spread": 0.118,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -66.0,
+            "heap_min": 31424,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 48.454,
+            "spread": 0.969,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -65.0,
+            "heap_min": 31424,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -11.1,
+            "udp": 0.98
+          },
+          "decision": "kept",
+          "reason": "replaces an unsafe incumbent (heap low-water 2540 B -> 31424 B); throughput: regressed: tcp -11.1%"
+        },
+        {
+          "rung": "t24-11-wifi-tx-bufs",
+          "candidate": "wifi-tx-bufs",
+          "lever": "wifi_buffers",
+          "parent": "t24-10-safe-memory",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-11-wifi-tx-bufs.log",
+          "tcp": {
+            "mbps": 30.164,
+            "spread": 0.249,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -65.0,
+            "heap_min": 7304,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 51.985,
+            "spread": 1.559,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -65.0,
+            "heap_min": 5880,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 1.61,
+            "udp": 7.29
+          },
+          "decision": "rejected",
+          "reason": "unsafe: heap low-water 5880 B is below the 20000 B floor (would have been: gained: udp +7.3%)"
+        },
+        {
+          "rung": "t24-12-core-lock-on-safe",
+          "candidate": "core-lock-on-safe",
+          "lever": "core_lock",
+          "parent": "t24-10-safe-memory",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-12-core-lock-on-safe.log",
+          "tcp": {
+            "mbps": 29.737,
+            "spread": 0.574,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -64.5,
+            "heap_min": 56176,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 52.73,
+            "spread": 0.815,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -65.0,
+            "heap_min": 56176,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 0.17,
+            "udp": 8.82
+          },
+          "decision": "kept",
+          "reason": "gained: udp +8.8%"
+        },
+        {
+          "rung": "t24-13-wifi-rx-bufs",
+          "candidate": "wifi-rx-bufs",
+          "lever": "wifi_buffers",
+          "parent": "t24-12-core-lock-on-safe",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-13-wifi-rx-bufs.log",
+          "tcp": {
+            "mbps": 30.577,
+            "spread": 0.405,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -63.5,
+            "heap_min": 7956,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 51.718,
+            "spread": 0.207,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -64.0,
+            "heap_min": 6088,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 2.82,
+            "udp": -1.92
+          },
+          "decision": "rejected",
+          "reason": "unsafe: heap low-water 6088 B is below the 20000 B floor (would have been: tcp +2.8% inside the repeat spread \u00b13.3%)"
+        },
+        {
+          "rung": "t24-14-pipe-pool",
+          "candidate": "pipe-pool",
+          "lever": "frame_size",
+          "parent": "t24-12-core-lock-on-safe",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-14-pipe-pool.log",
+          "tcp": {
+            "mbps": 26.82,
+            "spread": 2.419,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -63.0,
+            "heap_min": 1808,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 51.438,
+            "spread": 0.658,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -63.0,
+            "heap_min": 1808,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -9.81,
+            "udp": -2.45
+          },
+          "decision": "rejected",
+          "reason": "unsafe: heap low-water 1808 B is below the 20000 B floor (would have been: tcp -9.8% inside the repeat spread \u00b110.1%; udp -2.5% inside the repeat spread \u00b12.8%)"
+        },
+        {
+          "rung": "t24-15-tcpip-prio",
+          "candidate": "tcpip-prio",
+          "lever": "core_lock",
+          "parent": "t24-12-core-lock-on-safe",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-15-tcpip-prio.log",
+          "tcp": {
+            "mbps": 30.642,
+            "spread": 0.61,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -63.5,
+            "heap_min": 55916,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 53.674,
+            "spread": 0.904,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -64.5,
+            "heap_min": 55916,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 3.04,
+            "udp": 1.79
+          },
+          "decision": "rejected",
+          "reason": "tcp +3.0% inside the repeat spread \u00b14.0%"
+        },
+        {
+          "rung": "t24-16-extra-iram",
+          "candidate": "extra-iram",
+          "lever": "iram_wifi",
+          "parent": "t24-12-core-lock-on-safe",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-16-extra-iram.log",
+          "tcp": {
+            "mbps": 31.344,
+            "spread": 0.377,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -65.0,
+            "heap_min": 30968,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 53.955,
+            "spread": 0.462,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -65.0,
+            "heap_min": 30968,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 5.4,
+            "udp": 2.32
+          },
+          "decision": "kept",
+          "reason": "gained: tcp +5.4%"
+        },
+        {
+          "rung": "t24-17-static-tx",
+          "candidate": "static-tx",
+          "lever": "static_tx_buffers",
+          "parent": "t24-16-extra-iram",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-17-static-tx.log",
+          "tcp": {
+            "mbps": 31.35,
+            "spread": 0.391,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -65.0,
+            "heap_min": 1944,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 52.377,
+            "spread": 1.377,
+            "loss_pct": 0.002,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -64.5,
+            "heap_min": 1944,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 0.02,
+            "udp": -2.92
+          },
+          "decision": "rejected",
+          "reason": "unsafe: heap low-water 1944 B is below the 20000 B floor (would have been: udp -2.9% inside the repeat spread \u00b13.4%)"
+        },
+        {
+          "rung": "t24-18-phy-40mhz",
+          "candidate": "phy-40mhz",
+          "lever": "he_tuning",
+          "parent": "t24-16-extra-iram",
+          "offered_mbps": 72.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-18-phy-40mhz.log",
+          "tcp": {
+            "mbps": 29.327,
+            "spread": 0.131,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -64.0,
+            "heap_min": 26124,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 44.983,
+            "spread": 0.071,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40 ap:b2c0fe",
+            "rssi_dbm": -63.0,
+            "heap_min": 26124,
+            "unsaturated": false
+          },
+          "decision": "unmeasured",
+          "gain_pct": {},
+          "reason": "lever not in effect: the link reads 'HT ch1 bw20 sta40 ap:b2c0fe', expected 'bw40 sta40'"
+        },
+        {
+          "rung": "t24-19-tx-ba-64",
+          "candidate": "tx-ba-64",
+          "lever": "ampdu_ba_win",
+          "parent": "t24-16-extra-iram",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-19-tx-ba-64.log",
+          "tcp": {
+            "mbps": 31.8,
+            "spread": 0.669,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -65.0,
+            "heap_min": 15908,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 52.814,
+            "spread": 0.759,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -64.5,
+            "heap_min": 15908,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 1.45,
+            "udp": -2.11
+          },
+          "decision": "rejected",
+          "reason": "unsafe: heap low-water 15908 B is below the 20000 B floor (would have been: udp -2.1% inside the repeat spread \u00b12.3%)"
+        },
+        {
+          "rung": "t24-20-he-mcs9",
+          "candidate": "he-mcs9",
+          "lever": "he_tuning",
+          "parent": "t24-16-extra-iram",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-20-he-mcs9.log",
+          "tcp": {
+            "mbps": 30.46,
+            "spread": 0.847,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -64.0,
+            "heap_min": 28960,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 52.438,
+            "spread": 0.642,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20 ap:b2c0fe",
+            "rssi_dbm": -64.0,
+            "heap_min": 19660,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -2.82,
+            "udp": -2.81
+          },
+          "decision": "rejected",
+          "reason": "unsafe: heap low-water 19660 B is below the 20000 B floor (would have been: regressed: udp -2.8%)"
         }
       ],
-      "misses": 1,
-      "done": false,
-      "done_reason": null,
-      "blocked": "2 candidates in a row produced no usable measurement \u2014 likely the rig, not the levers (see their logs). Fix it and re-run; they will be retried.",
+      "misses": 3,
+      "done": true,
+      "done_reason": "candidate list exhausted (unmeasured, retried on the next run: phy-40mhz)",
+      "blocked": null,
       "best": {
         "tcp": {
-          "rung": "t24-01-tcp-window",
-          "mbps": 19.031,
+          "rung": "t24-16-extra-iram",
+          "mbps": 31.344,
           "loss_pct": 0.0
         },
         "udp": {
-          "rung": "t24-01-tcp-window",
-          "mbps": 34.84,
-          "loss_pct": 1.665
+          "rung": "t24-16-extra-iram",
+          "mbps": 53.955,
+          "loss_pct": 0.0
         }
       }
     }
   },
-  "updated": "2026-10-13T10:39:54Z"
+  "updated": "2026-10-13T13:21:22Z"
 }
