@@ -21,8 +21,8 @@
 study: max-tput
 ledger: results/tuning/max-tput.jsonl
 state_dir: results/tuning/max-tput
-ap: verizon-router
-ssid: Verizon_SLD967                       # enforced, as in the staged matrices
+ap: house-wifi                             # a router rig; recorded in every run
+ssid: House WiFi                           # enforced: the Mac and both boards' firmware
 expected_idf: v6.0-dev-2980-gab149384e1-dirty
 frame_bytes: 270
 repeats: 2
