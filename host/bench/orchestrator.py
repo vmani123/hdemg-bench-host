@@ -95,12 +95,16 @@ class Matrix:
         scattered through the night.
         """
         runs: list[Run] = []
-        steps = self.offered_steps()
+        sweep = self.offered_steps()
         for rep in range(1, self.repeats + 1):        # repeat is the OUTER loop
             for cell in self.cells:
                 chip, band = cell["chip"], str(cell["band"])
                 if bands and band not in bands:
                     continue
+                # A cell may name its own loads (Mbit/s): a saturating TCP point needs
+                # one load, not the whole sweep.
+                steps = ([int(float(x) * 1e6) for x in cell["loads_mbps"]]
+                         if cell.get("loads_mbps") else sweep)
                 source = cell.get("source", "synth")
                 for transport in _aslist(cell.get("transport", ["udp"])):
                     if transports and transport not in transports:

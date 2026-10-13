@@ -14,7 +14,7 @@ from pathlib import Path
 from . import rfmeta
 from .control import ControlClient, ControlError, discover
 from .fakeesp import FakeESP
-from .rungs import Ladder
+from .rungs import Ladder, symbols_not_applied
 
 CHIP_SHORT = {"esp32s3": "s3", "esp32c5": "c5"}
 
@@ -289,10 +289,25 @@ class HardwareDriver:
         if band:
             build["band"] = band
         self._hostrun("esp_build", **build)
+        self._check_rung_applied(chip, rung)
         self._hostrun("esp_flash", target=chip, port=self.ports[chip])
         self._await_boot(chip, rung, source, band)
         self._flashed[chip] = want
         return {"flashed": True, "chip": chip, "rung": rung}
+
+    def _check_rung_applied(self, chip: str, rung: str) -> None:
+        """Refuse to flash a build that does not carry its rung. Kconfig drops an unknown
+        symbol and clamps an out-of-range value without an error, so the binary would
+        quietly be the parent rung under the new name (bench/rungs.py)."""
+        sdk = self.firmware_root / chip / "sdkconfig"
+        if not sdk.exists():
+            return
+        missing = symbols_not_applied(self._ladders[chip].resolve(rung), sdk.read_text())
+        if missing:
+            raise RuntimeError(
+                f"{chip} build of rung {rung!r} does not carry {missing}: Kconfig dropped "
+                f"or clamped them (unknown name, out-of-range value or unmet dependency) "
+                f"— not flashing a binary that would measure a different configuration")
 
     def _await_boot(self, chip: str, rung: str, source: str, band: str | None = None) -> dict:
         """Wait for a freshly flashed board to rejoin and answer, then check it is
