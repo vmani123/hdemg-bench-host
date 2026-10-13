@@ -176,7 +176,7 @@ void app_main(void)
 #if BENCH_BAND_PIN
     enforce_band();
 #endif
-    bench_wifi_pin_channel(BENCH_BAND_PIN);   /* rig setting; a no-op unless configured */
+    bench_wifi_station_setup(BENCH_BAND_PIN); /* AP pin, HE-MCS9; no-ops unless configured */
 #ifdef BENCH_PHY_HOOK
     reassociate_with_phy();
 #endif

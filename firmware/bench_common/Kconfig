@@ -45,6 +45,15 @@ menu "hdemg bench: tuning hooks"
             BSSID. A rig setting: put it in sdkconfig.local, not in a rung. A channel on
             the other band from the build's band pin is ignored.
 
+    config BENCH_WIFI_HE_MCS9
+        bool "Advertise HE-MCS8 and HE-MCS9 (802.11ax, 256-QAM)"
+        depends on SOC_WIFI_HE_SUPPORT
+        default n
+        help
+            ESP-IDF leaves he_mcs9_enabled off, which caps an HE20 link at MCS7
+            (86 Mbit/s instead of 114.7). A rung lever; only a strong signal uses the two
+            extra rates. Applied with one rejoin after the first association.
+
     choice BENCH_WIFI_BW
         prompt "Station channel width"
         default BENCH_WIFI_BW_DEFAULT

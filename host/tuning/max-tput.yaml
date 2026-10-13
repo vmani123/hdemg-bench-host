@@ -210,6 +210,13 @@ climbs:
         why: "The C5 accepts a TX BA window up to 64 (the S3 stops at 32)."
         config:
           CONFIG_ESP_WIFI_TX_BA_WIN: 64
+      - id: he-mcs9
+        lever: he_tuning
+        why: "ESP-IDF leaves he_mcs9_enabled at 0, capping the C5's HE20 link at MCS7
+          (86 Mbit/s PHY). Advertise HE-MCS8/9 (114.7). Added 13 Oct; only a strong
+          signal uses them, and the C5 sits at about -65 to -70 dBm."
+        config:
+          CONFIG_BENCH_WIFI_HE_MCS9: y
 
   # ---------------------------------------------------------------- ESP32-C5, 5 GHz
   # Starts from whatever the 2.4 GHz climb ended on (run that band first). The Mac must

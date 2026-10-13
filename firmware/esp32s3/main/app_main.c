@@ -107,7 +107,7 @@ void app_main(void)
                                                on_sta_start_phy, NULL));
 #endif
     connect_forever();
-    bench_wifi_pin_channel(2);                /* 2.4 GHz only; a no-op unless configured */
+    bench_wifi_station_setup(2);              /* 2.4 GHz only; a no-op unless configured */
 #ifdef BENCH_PHY_HOOK
     reassociate_with_phy();
 #endif
