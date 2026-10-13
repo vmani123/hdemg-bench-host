@@ -326,6 +326,29 @@ def cmd_tune(a) -> int:
         summary = state_dir / "summary.md"
         print(summary.read_text() if summary.exists() else "no results yet")
         return 0
+    if a.reopen:
+        if not a.reason:
+            print("--reopen needs --reason (it is recorded in the step)", file=sys.stderr)
+            return 2
+        st = state_dir / "state.json"
+        climbs = json.loads(st.read_text())["climbs"] if st.exists() else {}
+        want = a.chips.split(",") if a.chips else None
+        keys = [k for k, c in climbs.items() if c["band"] == a.band
+                and (not want or c["chip"] in want)
+                and any(s["rung"] == a.reopen for s in c["steps"])]
+        if len(keys) != 1:
+            print(f"{a.reopen!r} matches {keys or 'no'} {a.band} GHz climb(s); name the "
+                  f"chip with --chips", file=sys.stderr)
+            return 2
+        key = keys[0]
+        try:
+            tune.Engine(plan, band=a.band, rungs_root=rungs_root, state_dir=state_dir,
+                        ledger=ledger, runner=None).reopen(key, a.reopen, a.reason)
+        except tune.TuneError as e:
+            print(f"not reopened: {e}", file=sys.stderr)
+            return 2
+        print(f"{key}: {a.reopen} reopened — its candidate is retried on the next run")
+        return 0
 
     idf = Path(os.environ.get("IDF_PATH") or IDF_DEFAULT)
     if (idf / "components").is_dir():
@@ -523,6 +546,9 @@ def main(argv=None) -> int:
                    help="only these chips' climbs, e.g. esp32c5 (others are not touched)")
     t.add_argument("--lock-dir", default=str(Path.home()),
                    help="where shared-board locks live (~/.<chip>-<port>.lock)")
+    t.add_argument("--reopen", default=None, metavar="RUNG",
+                   help="withdraw a rejected/unmeasured step's decision (needs --reason)")
+    t.add_argument("--reason", default=None)
     t.set_defaults(fn=cmd_tune)
 
     a = p.parse_args(argv)

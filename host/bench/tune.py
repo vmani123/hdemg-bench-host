@@ -40,6 +40,7 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import re
 import shutil
 import statistics
 import subprocess
@@ -431,6 +432,13 @@ class Engine:
                 return unmeasured(f"lever not in effect: the link reads {off[0]!r}, "
                                   f"expected {cand.expect_phy!r}")
         inc = self._incumbent_step(cs)
+        # Same access point as the incumbent, or the numbers compare two APs, not two
+        # configurations (a network with several APs can hand a reflashed board the far one).
+        here, there = self._channels(step), self._channels(inc)
+        if here and there and here != there:
+            return unmeasured(f"the board was on {'/'.join(sorted(here))}, the current best "
+                              f"on {'/'.join(sorted(there))}: a different access point or "
+                              f"channel, not comparable")
         if step["offered_mbps"] > inc["offered_mbps"]:
             # Compare at one load: bring the incumbent up to the candidate's.
             self.log(f"    re-measuring the incumbent {inc['rung']} at "
@@ -447,6 +455,43 @@ class Engine:
         if any(inc[t]["mbps"] <= 0 for t in self.plan.transports):
             return unmeasured(f"the incumbent {inc['rung']} measured 0 Mbit/s")
         self._decide(step, inc)
+
+    def _channels(self, step: dict) -> set[str]:
+        out = set()
+        for t in self.plan.transports:
+            m = re.search(r"\bch(\d+)\b", str((step.get(t) or {}).get("phy_rate") or ""))
+            if m:
+                out.add(f"ch{m.group(1)}")
+        return out
+
+    def reopen(self, key: str, rung: str, reason: str) -> None:
+        """Withdraw a decision shown afterwards to be invalid (a step measured on the
+        wrong access point): the step becomes unmeasured with the reason recorded, its
+        candidate is tried again on the next run, and a false miss stops counting."""
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.state_dir / ".lock", "w") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                raise TuneError("a `bench tune` is running on this study; stop it "
+                                "first") from None
+            state = self._load_state()
+            cs = state["climbs"].get(key)
+            step = next((s for s in (cs or {}).get("steps", []) if s["rung"] == rung), None)
+            if step is None or step["decision"] not in ("rejected", "unmeasured"):
+                raise TuneError(f"{key}: no rejected or unmeasured step {rung!r} to reopen "
+                                f"(a kept step has later steps built on it)")
+            step["reason"] = (f"reopened: {reason} (was {step['decision']}: "
+                              f"{step.get('reason', '')})")
+            step["decision"] = "unmeasured"
+            last = max(i for i, s in enumerate(cs["steps"])
+                       if s["decision"] in ("start", "kept"))
+            cs["misses"] = sum(1 for s in cs["steps"][last + 1:]
+                               if s["decision"] == "rejected")
+            chip = cs["chip"]
+            if self._rung_path(chip, rung).exists():
+                self._record_in_rung(chip, rung, step)
+            self._save_state(state)
 
     def _decide(self, step: dict, inc: dict) -> None:
         gains, gained, regressed, unresolved = {}, [], [], []

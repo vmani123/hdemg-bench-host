@@ -361,6 +361,45 @@ def test_5ghz_waits_for_the_24_climb_to_finish(tmp_path):
     assert "not finished" in res["climbs"]["esp32c5/5"]["blocked"]
 
 
+def test_a_step_on_a_different_access_point_is_unmeasured_not_a_miss(tmp_path):
+    """House WiFi has a second, distant AP: a board that joined it (ch6, -88 dBm) after a
+    reflash measured the other AP, not the lever."""
+    _rungs(tmp_path)
+    plan = _plan(tmp_path, [{"chip": "esp32c5", "band": "2.4", "start": "r0-baseline",
+                             "candidates": [_cand("far")]}], stop_after_misses=1)
+    run = FakeRunner({("esp32c5", "r0-baseline"): {"tcp": 20, "udp": 35},
+                      ("esp32c5", "t24-01-far"): {"tcp": 2, "udp": 3}},
+                     phy={"r0-baseline": "HE ch1 bw20 sta20",
+                          "t24-01-far": "HE ch6 bw20 sta20"})
+    res = _engine(tmp_path, plan, run).run()
+    climb = res["climbs"]["esp32c5/2.4"]
+    step = climb["steps"][1]
+    assert step["decision"] == "unmeasured"
+    assert "ch6" in step["reason"] and "ch1" in step["reason"]
+    assert climb["misses"] == 0
+
+
+def test_a_decided_step_can_be_reopened_with_a_recorded_reason(tmp_path):
+    """How a decision later shown to be invalid (wrong AP) is withdrawn: never by editing
+    state.json, and the false miss no longer counts toward the stop rule."""
+    _rungs(tmp_path)
+    plan = _plan(tmp_path, [{"chip": "esp32c5", "band": "2.4", "start": "r0-baseline",
+                             "candidates": [_cand("a")]}])
+    model = {("esp32c5", "r0-baseline"): {"tcp": 20, "udp": 35},
+             ("esp32c5", "t24-01-a"): {"tcp": 2, "udp": 3}}
+    _engine(tmp_path, plan, FakeRunner(model)).run()            # a: rejected
+    eng = _engine(tmp_path, plan, FakeRunner(model))
+    eng.reopen("esp32c5/2.4", "t24-01-a", "joined the far AP (ch6)")
+    state = json.loads((tmp_path / "state" / "state.json").read_text())
+    step = state["climbs"]["esp32c5/2.4"]["steps"][1]
+    assert step["decision"] == "unmeasured"
+    assert "joined the far AP" in step["reason"]
+    assert state["climbs"]["esp32c5/2.4"]["misses"] == 0
+    model[("esp32c5", "t24-02-a")] = {"tcp": 25, "udp": 35}
+    res = _engine(tmp_path, plan, FakeRunner(model)).run()        # retried as t24-02-a
+    assert res["climbs"]["esp32c5/2.4"]["incumbent"] == "t24-02-a"
+
+
 def test_a_study_can_be_limited_to_one_chip(tmp_path):
     """The S3 is shared with other work (different firmware on it). Climbing only the
     C5 must never build, flash or measure the S3."""
