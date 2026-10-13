@@ -29,9 +29,11 @@ Engine: `host/bench/tune.py` · command: `bench tune` / `tune.sh` · plan:
    └─ 2 × TCP + 2 × UDP runs of 20 s  ──► results/tuning/max-tput.jsonl (the ledger)
         │
         ▼
- decide: kept if a transport gains ≥ 2 % beyond the repeat spread and none regresses
-         → becomes the parent of the next candidate; otherwise the best stays.
-         stop a chip after 3 misses in a row (plan §5.4) or when the list runs out.
+ decide: kept if a transport gains ≥ 2 % beyond the repeat spread, none regresses, and
+         the heap low-water stays ≥ heap_floor_bytes (20 KB; below it: "unsafe", and a
+         safe step may replace an unsafe best) → becomes the parent of the next
+         candidate; otherwise the best stays. stop a chip after `stop_after_misses`
+         misses in a row (plan) or when the list runs out.
 
  Claude /loop supervisor (optional, on top): reads summary/state each tick, flags what a
  number really means (unsaturated, 40 MHz not offered, drift, refused UDP), edits the plan.
@@ -54,9 +56,24 @@ expected — it is how saturation looks.
   best at that load first. Once the load has gone up it stays up.
 - *In effect.* The 40 MHz candidates must read `bw40 sta40` in `phy_rate`; on a router
   offering 20 MHz they tested nothing.
+- *On the same access point.* `phy_rate` ends in `ap:<last 3 BSSID bytes>`; a step taken
+  on a different access point or channel than the current best is not comparable. The
+  firmware pins the access point (`CONFIG_BENCH_WIFI_PIN_CHANNEL`, then a BSSID lock).
 
 A step that fails any of these is `unmeasured`: not a miss, retried on the next run. Two
 in a row stop the climb as `blocked` (the rig, not the levers — e.g. a content filter).
+
+**Memory.** Every run records the board's `heap_min` (lowest free internal heap since
+boot). A lever that takes it below the plan's `heap_floor_bytes` is rejected as unsafe,
+however fast: on 13 Oct both boards ran out of memory and dropped off the network. The
+floor is read over a step's four runs right after a flash — a necessary check, not a soak
+test (a later 4.32 Mbit/s run with a TCP stall took the C5 to 1.1 KB).
+
+**Resuming on another day.** Conditions drift: on 13 Oct the same build delivered up to
+27 % more at 05:00 than at 03:00. `tune.sh 2.4 --remeasure` re-measures the current best
+(with fresh repeat numbers) before the next candidate, so a resumed climb compares like
+with like. `bench tune --band 2.4 --chips X --reopen RUNG --reason TEXT` re-opens a step
+that was withdrawn for a rig problem.
 
 **Why the rungs don't disturb Stage 1.** Study rungs carry `study: max-tput`; the formal
 ladder (`tuned`, the stop rule, `bench effort`) ignores them. Winners are promoted into
@@ -112,6 +129,9 @@ block, pick one:
 | pool geometry from Kconfig (`CONFIG_BENCH_PIPE_NUM_BUFS/_BUF_BYTES`, default 6 × 8 KB) | plan §5.3 lists it as a per-chip lever; rungs could not reach it |
 | channel width hook (`CONFIG_BENCH_WIFI_BW_20/_40`); on the C5, 40 MHz means 802.11n | 40 MHz doubles the PHY ceiling; IDF makes 11ax/11ac 20 MHz-only. The S3 station already asks for HT40 by default, so on the S3 the 40 MHz lever is the router's setting, not a rung |
 | `phy_rate` now also reports the station's width: `HT ch6 bw20 sta40` | `bw` is what the AP offers; the link is the narrower — the only way to see a 40 MHz lever take effect |
+| access-point pin: fast scan from `CONFIG_BENCH_WIFI_PIN_CHANNEL`, then a BSSID lock; `phy_rate` ends in `ap:<BSSID tail>` | one SSID on two radios (ch1, ch6): after reflashes the C5 joined the far one and measured the access point, not the lever |
+| `heap_min` (lowest free internal heap since boot) in every stat reply, recorded per run | both boards ran out of memory on 13 Oct; the free heap read after a run had hidden it |
+| `CONFIG_BENCH_WIFI_HE_MCS9` turns on HE MCS 8–9 (C5) | ESP-IDF leaves it off, which caps HE20 at MCS7 (86 Mbit/s) |
 | host: a build that dropped or clamped a rung symbol is refused before flashing | Kconfig does that silently; the binary would measure the parent |
 | host: `r0-baseline` no longer sets the two `POWER_SAVE` symbols | they do not exist in IDF v6 (dropped silently); power save is off at runtime |
 
