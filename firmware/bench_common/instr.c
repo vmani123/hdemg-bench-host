@@ -101,8 +101,11 @@ static void phy_rate_str(char *out, size_t n)
 #endif
     if (ap.phy_11n) mode = "HT";
     else if (ap.phy_11g) mode = "11g";
-    snprintf(out, n, "%s ch%u bw%u sta%u", mode, (unsigned)ap.primary,
-             ap.second == WIFI_SECOND_CHAN_NONE ? 20u : 40u, sta_bw_mhz(&ap));
+    /* "ap:" = the last three bytes of the access point's BSSID: tells two radios that
+     * serve one network name apart in the ledger. */
+    snprintf(out, n, "%s ch%u bw%u sta%u ap:%02x%02x%02x", mode, (unsigned)ap.primary,
+             ap.second == WIFI_SECOND_CHAN_NONE ? 20u : 40u, sta_bw_mhz(&ap),
+             ap.bssid[3], ap.bssid[4], ap.bssid[5]);
 }
 
 void instr_stat_json(char *out, size_t out_sz, const char *wrap_key)
@@ -118,7 +121,7 @@ void instr_stat_json(char *out, size_t out_sz, const char *wrap_key)
     }
     strncat(idle, "]", sizeof(idle) - strlen(idle) - 1);
 
-    char phy[32]; phy_rate_str(phy, sizeof(phy));
+    char phy[48]; phy_rate_str(phy, sizeof(phy));
     char body[480];
     snprintf(body, sizeof(body),
              "\"bytes\":%llu,\"frames\":%llu,\"dropped\":%lu,\"idle_pct\":%s,"

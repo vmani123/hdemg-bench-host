@@ -14,6 +14,7 @@
 #include "pipe.h"
 #include "control.h"
 #include "instr.h"
+#include "wifi_pin.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -175,6 +176,7 @@ void app_main(void)
 #if BENCH_BAND_PIN
     enforce_band();
 #endif
+    bench_wifi_pin_channel(BENCH_BAND_PIN);   /* rig setting; a no-op unless configured */
 #ifdef BENCH_PHY_HOOK
     reassociate_with_phy();
 #endif
