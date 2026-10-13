@@ -9,10 +9,12 @@
 # difference while nothing in the data revealed it. One copy makes that impossible by
 # construction, which is stronger than any checker.
 #
-# What is NOT here, and must not be: anything that only changes HOW BIG the number is.
-# Every tuning lever lives in host/rungs/<chip>/, and target-specific ingress and pin
-# maps live in firmware/<target>/main/. Each chip is tuned independently — that
-# divergence is the experiment.
+# What is NOT here, and must not be: any tuning VALUE. Every lever's setting lives in
+# host/rungs/<chip>/, and target-specific ingress and pin maps live in
+# firmware/<target>/main/. Each chip is tuned independently — that divergence is the
+# experiment. The levers that live in code (UDP datagram size, pool geometry, channel
+# width) are declared in this component's Kconfig so both targets share their names;
+# a rung sets them like any ESP-IDF symbol.
 include("${CMAKE_CURRENT_LIST_DIR}/../bench_options.cmake")
 
 set(SRCS

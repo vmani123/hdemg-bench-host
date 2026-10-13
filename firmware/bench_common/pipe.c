@@ -126,8 +126,10 @@ static void sink_task(void *arg)
         }
         int n = t->send(fd, buf, len);
         if (n > 0) {
+            /* Frames from what was accepted, not from what was offered: a backend that
+             * sends a buffer as several datagrams can stop part-way. */
             uint32_t fb = control_cfg()->frame_bytes;
-            pipe_note_sent((size_t)n, fb ? (uint32_t)(len / fb) : 0);
+            pipe_note_sent((size_t)n, fb ? (uint32_t)((size_t)n / fb) : 0);
         } else {
             t->close(fd); fd = -1;             /* reopen on the next buffer */
         }

@@ -19,6 +19,45 @@
 
 static const char *TAG = "app";
 
+/* ---- station channel width (a rung lever) -----------------------------------------
+ * CONFIG_BENCH_WIFI_BW_20 / _40 come from bench_common/Kconfig and are set by a rung.
+ * The width is part of what the station offers when it associates, and the connect
+ * helper starts and connects in one call, so it is applied from STA_START and then made
+ * certain with one deliberate re-association after the first join. With neither set
+ * (the default) nothing here is compiled and the driver default stands. */
+#if defined(CONFIG_BENCH_WIFI_BW_20) || defined(CONFIG_BENCH_WIFI_BW_40)
+#define BENCH_PHY_HOOK 1
+#ifdef CONFIG_BENCH_WIFI_BW_40
+#define BENCH_BW WIFI_BW_HT40
+#else
+#define BENCH_BW WIFI_BW_HT20
+#endif
+
+static void apply_phy(void)
+{
+    esp_err_t err = esp_wifi_set_bandwidth(WIFI_IF_STA, BENCH_BW);
+    if (err != ESP_OK) ESP_LOGE(TAG, "esp_wifi_set_bandwidth: %s", esp_err_to_name(err));
+}
+
+static void on_sta_start_phy(void *arg, esp_event_base_t base, int32_t id, void *data)
+{
+    (void)arg; (void)base; (void)id; (void)data;
+    apply_phy();
+}
+
+static void reassociate_with_phy(void)
+{
+    apply_phy();
+    /* The connect helper's disconnect handler rejoins, now with the width in place. */
+    esp_wifi_disconnect();
+    vTaskDelay(pdMS_TO_TICKS(500));
+    wifi_ap_record_t ap;
+    while (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) vTaskDelay(pdMS_TO_TICKS(250));
+    ESP_LOGI(TAG, "station width %d MHz requested (AP secondary channel: %d)",
+             BENCH_BW == WIFI_BW_HT40 ? 40 : 20, (int)ap.second);
+}
+#endif
+
 static void connect_forever(void)
 {
     for (int attempt = 1; ; attempt++) {
@@ -54,7 +93,14 @@ void app_main(void)
      * exists, taking out the rest of the sweep. The device's one job is to stay
      * reachable. Re-associations are recorded host-side, so a retry is visible in the
      * ledger rather than silent. */
+#ifdef BENCH_PHY_HOOK
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_START,
+                                               on_sta_start_phy, NULL));
+#endif
     connect_forever();
+#ifdef BENCH_PHY_HOOK
+    reassociate_with_phy();
+#endif
 
     /* Held constant across every run and both chips: power save off, TX power at the
      * chip maximum. These are environment, not tuning. */

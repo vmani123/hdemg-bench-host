@@ -68,6 +68,23 @@ int instr_rssi(void)
     return ap.rssi;
 }
 
+/* The width this STATION is configured for. The "bw" field below is what the access
+ * point advertises; the link runs at the narrower of the two, so a 40 MHz rung is only
+ * in effect when both read 40. 0 = could not be read. */
+static unsigned sta_bw_mhz(const wifi_ap_record_t *ap)
+{
+    wifi_bandwidth_t bw = 0;
+#if SOC_WIFI_SUPPORT_5G
+    wifi_bandwidths_t bws = {0};
+    if (esp_wifi_get_bandwidths(WIFI_IF_STA, &bws) != ESP_OK) return 0;
+    bw = (ap->primary > 14) ? bws.ghz_5g : bws.ghz_2g;
+#else
+    (void)ap;
+    if (esp_wifi_get_bandwidth(WIFI_IF_STA, &bw) != ESP_OK) return 0;
+#endif
+    return bw == WIFI_BW_HT40 ? 40u : (bw == WIFI_BW_HT20 ? 20u : 0u);
+}
+
 static void phy_rate_str(char *out, size_t n)
 {
     wifi_ap_record_t ap;
@@ -84,8 +101,8 @@ static void phy_rate_str(char *out, size_t n)
 #endif
     if (ap.phy_11n) mode = "HT";
     else if (ap.phy_11g) mode = "11g";
-    snprintf(out, n, "%s ch%u bw%u", mode, (unsigned)ap.primary,
-             ap.second == WIFI_SECOND_CHAN_NONE ? 20u : 40u);
+    snprintf(out, n, "%s ch%u bw%u sta%u", mode, (unsigned)ap.primary,
+             ap.second == WIFI_SECOND_CHAN_NONE ? 20u : 40u, sta_bw_mhz(&ap));
 }
 
 void instr_stat_json(char *out, size_t out_sz, const char *wrap_key)

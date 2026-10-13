@@ -45,7 +45,13 @@ static void source_task(void *arg)
         int64_t end_us = esp_timer_get_time() + (int64_t)cfg->dur_s * 1000000;
 
         while (control_running() && esp_timer_get_time() < end_us) {
-            if (!pacer_due(&s_pacer)) { taskYIELD(); continue; }
+            /* Sleep, do not spin, while nothing is due. taskYIELD() only yields to
+             * tasks of equal or higher priority, so a spinning source starved every
+             * task below it — on the single-core C5 that is the control plane, the
+             * instrumentation task and the idle hook, which made the CPU-idle figure
+             * meaningless. One tick (1 ms) of frames then go out as one batch; the
+             * pacer schedules against the run start, so the average rate is unchanged. */
+            if (!pacer_due(&s_pacer)) { vTaskDelay(1); continue; }
 
             uint8_t *buf = pipe_acquire();
             if (!buf) { pipe_note_drop(); vTaskDelay(1); continue; }
@@ -69,7 +75,7 @@ static void source_task(void *arg)
                 n_frames++;
                 pacer_note(&s_pacer);
             }
-            if (used == 0) { pipe_release(buf); taskYIELD(); continue; }
+            if (used == 0) { pipe_release(buf); vTaskDelay(1); continue; }
             pipe_submit(buf, used);
             s_achieved = pacer_achieved_bps(&s_pacer);
         }
