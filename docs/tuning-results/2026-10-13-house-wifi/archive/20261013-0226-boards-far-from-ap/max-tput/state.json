@@ -1,0 +1,91 @@
+{
+  "study": "max-tput",
+  "climbs": {
+    "esp32s3/2.4": {
+      "chip": "esp32s3",
+      "band": "2.4",
+      "incumbent": "r2-core-split",
+      "steps": [
+        {
+          "rung": "r2-core-split",
+          "candidate": null,
+          "lever": null,
+          "parent": null,
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-r2-core-split.log",
+          "tcp": {
+            "mbps": 2.985,
+            "spread": 0.684,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -77.5,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 24.337,
+            "spread": 1.292,
+            "loss_pct": 0.063,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -66.5,
+            "unsaturated": false
+          },
+          "decision": "start",
+          "reason": "starting point"
+        },
+        {
+          "rung": "t24-01-tcp-window",
+          "candidate": "tcp-window",
+          "lever": "lwip_window",
+          "parent": "r2-core-split",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-01-tcp-window.log",
+          "tcp": {
+            "mbps": 1.754,
+            "spread": 0.271,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -63.0,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 25.215,
+            "spread": 0.893,
+            "loss_pct": 2.503,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -69.0,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -41.24,
+            "udp": 3.61
+          },
+          "decision": "rejected",
+          "reason": "regressed: tcp -41.2%"
+        }
+      ],
+      "misses": 1,
+      "done": false,
+      "done_reason": null,
+      "blocked": null,
+      "best": {
+        "tcp": {
+          "rung": "r2-core-split",
+          "mbps": 2.985,
+          "loss_pct": 0.0
+        },
+        "udp": {
+          "rung": "r2-core-split",
+          "mbps": 24.337,
+          "loss_pct": 0.063
+        }
+      }
+    }
+  },
+  "updated": "2026-10-13T09:32:32Z"
+}

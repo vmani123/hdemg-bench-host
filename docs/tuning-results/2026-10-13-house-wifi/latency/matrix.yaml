@@ -1,0 +1,12 @@
+# Latency at the HD-EMG operating point (128 ch x 2 kS/s: 270 B frames at 2 kHz = 4.32
+# Mbit/s) for each chip's final configuration from the max-tput study. Not a sweep.
+stage: 1
+repeats: 2
+ap: house-wifi
+ssid: House WiFi
+expected_idf: v6.0-dev-2980-gab149384e1-dirty
+frame_bytes: 270
+sweep: {start_mbps: 4.32, stop_mbps: 4.32, steps: 1, hold_s: 20, discard_s: 3}
+cells:
+  - {chip: esp32s3, band: "2.4", source: synth, transport: [tcp, udp], tune: [t24-03-wifi-tx-bufs]}
+  - {chip: esp32c5, band: "2.4", source: synth, transport: [tcp, udp], tune: [t24-01-tcp-window]}

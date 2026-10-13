@@ -1,0 +1,21 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-04-wifi-rx-bufs
+applies_to: esp32s3
+parent: t24-03-wifi-tx-bufs
+study: max-tput
+lever: wifi_buffers
+rationale: 'RX side for TCP ACKs: static 10 -> 16, dynamic 32 -> 64, RX BA window
+  -> 32 (IDF requires RX_BA_WIN <= 2 x STATIC_RX).'
+config:
+  CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM: 16
+  CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM: 64
+  CONFIG_ESP_WIFI_RX_BA_WIN: 32
+measured_gain_pct: 6.82
+measured:
+  decision: rejected
+  reason: 'regressed: tcp -5.4%'
+  offered_mbps: 60.0
+  tcp_mbps: 20.112
+  udp_mbps: 28.033
+  gain_tcp_pct: -5.42
+  gain_udp_pct: 6.82

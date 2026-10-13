@@ -1,0 +1,31 @@
+stage: 1
+repeats: 2
+ap: house-wifi
+ssid: House WiFi
+expected_idf: v6.0-dev-2980-gab149384e1-dirty
+frame_bytes: 270
+sweep:
+  start_mbps: 60.0
+  stop_mbps: 60.0
+  steps: 1
+  hold_s: 20
+  discard_s: 3
+cells:
+- chip: esp32s3
+  band: '2.4'
+  source: synth
+  transport:
+  - tcp
+  tune:
+  - t24-03-wifi-tx-bufs
+  loads_mbps:
+  - 60.0
+- chip: esp32s3
+  band: '2.4'
+  source: synth
+  transport:
+  - udp
+  tune:
+  - t24-03-wifi-tx-bufs
+  loads_mbps:
+  - 60.0

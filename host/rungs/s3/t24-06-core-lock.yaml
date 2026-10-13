@@ -1,0 +1,21 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-06-core-lock
+applies_to: esp32s3
+parent: t24-03-wifi-tx-bufs
+study: max-tput
+lever: core_lock
+rationale: "lwIP core locking: socket calls run in the caller's context instead of\
+  \ a message to the tcpip task. Works against r2's core split \u2014 which one wins\
+  \ on the S3 is a reportable result."
+config:
+  CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+  CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
+measured_gain_pct: 72.4
+measured:
+  decision: rejected
+  reason: 'regressed: tcp -19.9%'
+  offered_mbps: 60.0
+  tcp_mbps: 17.023
+  udp_mbps: 45.24
+  gain_tcp_pct: -19.95
+  gain_udp_pct: 72.4

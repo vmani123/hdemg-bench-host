@@ -1,0 +1,19 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-02-tx-ba-window
+applies_to: esp32s3
+parent: t24-01-tcp-window
+study: max-tput
+lever: ampdu_ba_win
+rationale: 'TX block-ack window 6 -> 32: more MPDUs per A-MPDU, the main per-frame
+  airtime saving for a transmitter.'
+config:
+  CONFIG_ESP_WIFI_TX_BA_WIN: 32
+measured_gain_pct: 3.41
+measured:
+  decision: kept
+  reason: 'gained: tcp +3.4%'
+  offered_mbps: 60.0
+  tcp_mbps: 20.957
+  udp_mbps: 23.377
+  gain_tcp_pct: 3.41
+  gain_udp_pct: -0.91

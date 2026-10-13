@@ -1,0 +1,19 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-05-wifi-tx-bufs
+applies_to: esp32c5
+parent: t24-01-tcp-window
+study: max-tput
+lever: wifi_buffers
+rationale: Dynamic TX buffers 32 -> 48 (Espressif's C5 value).
+config:
+  CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM: 48
+measured_gain_pct: null
+measured:
+  decision: unmeasured
+  reason: 'the board was on ch6, the current best on ch1: a different access point
+    or channel, not comparable'
+  offered_mbps: 60.0
+  tcp_mbps: 9.945
+  udp_mbps: 16.435
+  gain_tcp_pct: null
+  gain_udp_pct: null

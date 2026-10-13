@@ -1,0 +1,467 @@
+{
+  "study": "max-tput",
+  "climbs": {
+    "esp32s3/2.4": {
+      "chip": "esp32s3",
+      "band": "2.4",
+      "incumbent": "t24-03-wifi-tx-bufs",
+      "steps": [
+        {
+          "rung": "r2-core-split",
+          "candidate": null,
+          "lever": null,
+          "parent": null,
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-r2-core-split.log",
+          "tcp": {
+            "mbps": 3.927,
+            "spread": 0.246,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -57.5,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 23.002,
+            "spread": 0.328,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -57.5,
+            "unsaturated": false
+          },
+          "decision": "start",
+          "reason": "starting point"
+        },
+        {
+          "rung": "t24-01-tcp-window",
+          "candidate": "tcp-window",
+          "lever": "lwip_window",
+          "parent": "r2-core-split",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-01-tcp-window.log",
+          "tcp": {
+            "mbps": 20.266,
+            "spread": 0.26,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -57.0,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 23.591,
+            "spread": 0.023,
+            "loss_pct": 0.001,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -57.0,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 416.07,
+            "udp": 2.56
+          },
+          "decision": "kept",
+          "reason": "gained: tcp +416.1%, udp +2.6%"
+        },
+        {
+          "rung": "t24-02-tx-ba-window",
+          "candidate": "tx-ba-window",
+          "lever": "ampdu_ba_win",
+          "parent": "t24-01-tcp-window",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-02-tx-ba-window.log",
+          "tcp": {
+            "mbps": 20.957,
+            "spread": 0.279,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -55.5,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 23.377,
+            "spread": 0.131,
+            "loss_pct": 0.037,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -56.5,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 3.41,
+            "udp": -0.91
+          },
+          "decision": "kept",
+          "reason": "gained: tcp +3.4%"
+        },
+        {
+          "rung": "t24-03-wifi-tx-bufs",
+          "candidate": "wifi-tx-bufs",
+          "lever": "wifi_buffers",
+          "parent": "t24-02-tx-ba-window",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-03-wifi-tx-bufs.log",
+          "tcp": {
+            "mbps": 21.265,
+            "spread": 0.058,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -55.0,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 26.242,
+            "spread": 0.348,
+            "loss_pct": 0.148,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -55.0,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 1.47,
+            "udp": 12.26
+          },
+          "decision": "kept",
+          "reason": "gained: udp +12.3%"
+        },
+        {
+          "rung": "t24-04-wifi-rx-bufs",
+          "candidate": "wifi-rx-bufs",
+          "lever": "wifi_buffers",
+          "parent": "t24-03-wifi-tx-bufs",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-04-wifi-rx-bufs.log",
+          "tcp": {
+            "mbps": 20.112,
+            "spread": 0.226,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -56.5,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 28.033,
+            "spread": 0.05,
+            "loss_pct": 0.28,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -57.0,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -5.42,
+            "udp": 6.82
+          },
+          "decision": "rejected",
+          "reason": "regressed: tcp -5.4%"
+        },
+        {
+          "rung": "t24-05-pipe-pool",
+          "candidate": "pipe-pool",
+          "lever": "frame_size",
+          "parent": "t24-03-wifi-tx-bufs",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-05-pipe-pool.log",
+          "tcp": {
+            "mbps": 20.967,
+            "spread": 0.296,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -55.5,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 26.383,
+            "spread": 0.277,
+            "loss_pct": 0.227,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -56.0,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -1.4,
+            "udp": 0.54
+          },
+          "decision": "rejected",
+          "reason": "no transport gained 2 %"
+        },
+        {
+          "rung": "t24-06-core-lock",
+          "candidate": "core-lock",
+          "lever": "core_lock",
+          "parent": "t24-03-wifi-tx-bufs",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/s3-24-t24-06-core-lock.log",
+          "tcp": {
+            "mbps": 17.023,
+            "spread": 0.402,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -55.5,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 45.24,
+            "spread": 0.436,
+            "loss_pct": 4.066,
+            "n": 2,
+            "phy_rate": "HT ch1 bw20 sta40",
+            "rssi_dbm": -55.5,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -19.95,
+            "udp": 72.4
+          },
+          "decision": "rejected",
+          "reason": "regressed: tcp -19.9%"
+        }
+      ],
+      "misses": 3,
+      "done": true,
+      "done_reason": "3 consecutive candidates gained under 2 % (stop rule)",
+      "blocked": null,
+      "best": {
+        "tcp": {
+          "rung": "t24-03-wifi-tx-bufs",
+          "mbps": 21.265,
+          "loss_pct": 0.0
+        },
+        "udp": {
+          "rung": "t24-03-wifi-tx-bufs",
+          "mbps": 26.242,
+          "loss_pct": 0.148
+        }
+      }
+    },
+    "esp32c5/2.4": {
+      "chip": "esp32c5",
+      "band": "2.4",
+      "incumbent": "t24-01-tcp-window",
+      "steps": [
+        {
+          "rung": "r2-iram",
+          "candidate": null,
+          "lever": null,
+          "parent": null,
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-r2-iram.log",
+          "tcp": {
+            "mbps": 4.509,
+            "spread": 0.024,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20",
+            "rssi_dbm": -70.0,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 29.696,
+            "spread": 1.475,
+            "loss_pct": 0.444,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20",
+            "rssi_dbm": -67.0,
+            "unsaturated": false
+          },
+          "decision": "start",
+          "reason": "starting point"
+        },
+        {
+          "rung": "t24-01-tcp-window",
+          "candidate": "tcp-window",
+          "lever": "lwip_window",
+          "parent": "r2-iram",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-01-tcp-window.log",
+          "tcp": {
+            "mbps": 19.031,
+            "spread": 1.437,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20",
+            "rssi_dbm": -71.5,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 34.84,
+            "spread": 0.631,
+            "loss_pct": 1.665,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20",
+            "rssi_dbm": -72.0,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": 322.07,
+            "udp": 17.32
+          },
+          "decision": "kept",
+          "reason": "gained: tcp +322.1%, udp +17.3%"
+        },
+        {
+          "rung": "t24-02-tx-ba-window",
+          "candidate": "tx-ba-window",
+          "lever": "ampdu_ba_win",
+          "parent": "t24-01-tcp-window",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-02-tx-ba-window.log",
+          "tcp": {
+            "mbps": 2.126,
+            "spread": 1.974,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch6 bw20 sta20",
+            "rssi_dbm": -88.5,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 3.254,
+            "spread": 0.133,
+            "loss_pct": 1.389,
+            "n": 2,
+            "phy_rate": "HE ch6 bw20 sta20",
+            "rssi_dbm": -87.0,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -88.83,
+            "udp": -90.66
+          },
+          "decision": "unmeasured",
+          "reason": "reopened: C5 was on the distant House WiFi AP (HE ch6, -85..-91 dBm) instead of the ch1 AP (-66..-75) for all 4 runs; measured the AP, not the lever (was rejected: regressed: tcp -88.8%, udp -90.7%)"
+        },
+        {
+          "rung": "t24-03-tx-ba-window",
+          "candidate": "tx-ba-window",
+          "lever": "ampdu_ba_win",
+          "parent": "t24-01-tcp-window",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-03-tx-ba-window.log",
+          "tcp": {
+            "mbps": 16.871,
+            "spread": 0.148,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20",
+            "rssi_dbm": -75.0,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 25.679,
+            "spread": 0.64,
+            "loss_pct": 0.821,
+            "n": 2,
+            "phy_rate": "HE ch1 bw20 sta20",
+            "rssi_dbm": -69.0,
+            "unsaturated": false
+          },
+          "gain_pct": {
+            "tcp": -11.35,
+            "udp": -26.29
+          },
+          "decision": "rejected",
+          "reason": "regressed: tcp -11.3%, udp -26.3%"
+        },
+        {
+          "rung": "t24-04-core-lock",
+          "candidate": "core-lock",
+          "lever": "core_lock",
+          "parent": "t24-01-tcp-window",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-04-core-lock.log",
+          "tcp": {
+            "mbps": 9.747,
+            "spread": 0.04,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch6 bw20 sta20",
+            "rssi_dbm": -69.5,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 16.024,
+            "spread": 0.42,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch6 bw20 sta20",
+            "rssi_dbm": -70.0,
+            "unsaturated": false
+          },
+          "decision": "unmeasured",
+          "gain_pct": {},
+          "reason": "the board was on ch6, the current best on ch1: a different access point or channel, not comparable"
+        },
+        {
+          "rung": "t24-05-wifi-tx-bufs",
+          "candidate": "wifi-tx-bufs",
+          "lever": "wifi_buffers",
+          "parent": "t24-01-tcp-window",
+          "offered_mbps": 60.0,
+          "max_load_mbps": 72.0,
+          "log": "/Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/logs/c5-24-t24-05-wifi-tx-bufs.log",
+          "tcp": {
+            "mbps": 9.945,
+            "spread": 0.717,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch6 bw20 sta20",
+            "rssi_dbm": -69.5,
+            "unsaturated": false
+          },
+          "udp": {
+            "mbps": 16.435,
+            "spread": 0.153,
+            "loss_pct": 0.0,
+            "n": 2,
+            "phy_rate": "HE ch6 bw20 sta20",
+            "rssi_dbm": -72.0,
+            "unsaturated": false
+          },
+          "decision": "unmeasured",
+          "gain_pct": {},
+          "reason": "the board was on ch6, the current best on ch1: a different access point or channel, not comparable"
+        }
+      ],
+      "misses": 1,
+      "done": false,
+      "done_reason": null,
+      "blocked": "2 candidates in a row produced no usable measurement \u2014 likely the rig, not the levers (see their logs). Fix it and re-run; they will be retried.",
+      "best": {
+        "tcp": {
+          "rung": "t24-01-tcp-window",
+          "mbps": 19.031,
+          "loss_pct": 0.0
+        },
+        "udp": {
+          "rung": "t24-01-tcp-window",
+          "mbps": 34.84,
+          "loss_pct": 1.665
+        }
+      }
+    }
+  },
+  "updated": "2026-10-13T10:39:54Z"
+}
