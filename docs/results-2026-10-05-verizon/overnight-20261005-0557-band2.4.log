@@ -1,0 +1,239 @@
+access point       : verizon-router  (from matrices/stage1.yaml)
+host ip (stream to): 192.168.1.160
+host link          : Wi-Fi (en0) on 'Verizon_SLD967', band 5 GHz, channel 104, 80 MHz, 802.11ax
+  !! 1 socket content filter(s) active on this Mac (VPN / endpoint-security software). It inspects every datagram and at bench rates makes the kernel discard some: UDP loss would then be the Mac's, and such runs are refused. TCP is unaffected. Turn the filter off to measure UDP.
+  -> cells on band 5 GHz would share this Mac's channel and are refused by the pre-run gate; the other band is clean. Wire the Mac to the router to run both.
+esp32c5  192.168.1.165   band=2.4 rung=r2-iram ingress=synth idf=v6.0-dev-2980-gab149384e1-dirty rssi=-45 phy=HT ch6 bw20
+esp32s3  192.168.1.166   band=2.4 rung=r0-baseline ingress=synth idf=v6.0-dev-2980-gab149384e1-dirty rssi=-43 phy=HT ch6 bw20
+=== overnight.sh band=2.4 start Mon Oct  5 05:57:31 EDT 2026
+=== args: --matrix matrices/stage1.yaml --band 2.4 --unattended --passes 3 --ceilings 2.4=60,5=95 --s3-port cu.usbmodem5B8F0676581 --c5-port cu.usbserial-110 --expected-idf v6.0-dev-2980-gab149384e1-dirty --transport tcp
+access point 'verizon-router'  host ip 192.168.1.160  expected idf v6.0-dev-2980-gab149384e1-dirty
+host link: Wi-Fi (en0) on 'Verizon_SLD967', band 5 GHz, channel 104, 80 MHz, 802.11ax
+  found esp32c5 at 192.168.1.165  band=2.4 rung=r2-iram idf=v6.0-dev-2980-gab149384e1-dirty
+  found esp32s3 at 192.168.1.166  band=2.4 rung=r0-baseline idf=v6.0-dev-2980-gab149384e1-dirty
+
+=== pass 1/3  pending 79 ===
+>> band 2.4 GHz: pinned in the firmware build; access point 'verizon-router' serves both bands
+
+--- band 2.4 ---
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 12.0  good=  5.10  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 20.0  good=  5.20  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 28.0  good=  4.67  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 36.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 44.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 52.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 60.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  !! keepalive lost the device (no reply from ('192.168.1.166', 3334) after 3 tries: timed out) — will re-check
+  ** device re-associated (#1); the next run is flagged in the ledger
+  s1-esp32s3-2.4-synth-tcp-tuned     off=  4.0  good=  4.00  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 12.0  good=  5.45  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 20.0  good=  5.55  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 28.0  good=  5.42  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 36.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 44.0  good=  5.33  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 52.0  good=  5.52  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 60.0  good=  5.59  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-tcp-tuned     off=  4.0  good=  4.00  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 12.0  good=  8.03  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 20.0  good=  7.95  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 28.0  good=  8.29  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 36.0  good=  8.24  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 44.0  good=  8.50  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 52.0  good=  8.34  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 60.0  good=  7.91  loss= 0.00%  rep2
+  !! keepalive lost the device (no reply from ('192.168.1.165', 3334) after 3 tries: timed out) — will re-check
+  ** device re-associated (#1); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-baseline  off=  4.0  good=  4.00  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 12.0  good=  7.24  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 20.0  good=  7.28  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 28.0  good=  7.69  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 36.0  good=  8.07  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 44.0  good=  8.06  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 52.0  good=  8.03  loss= 0.00%  rep2
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 60.0  good=  8.00  loss= 0.00%  rep2
+  s1-esp32s3-2.4-synth-tcp-tuned     off=  4.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 12.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 20.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 28.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 36.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 44.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 52.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 60.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  !! keepalive lost the device (no reply from ('192.168.1.166', 3334) after 3 tries: timed out) — will re-check
+  s1-esp32s3-2.4-synth-tcp-baseline  off=  4.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 12.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 20.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 28.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 36.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 44.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 52.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 60.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-baseline  off=  4.0  good=  4.00  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 12.0  good=  8.24  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 20.0  good=  8.35  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 28.0  good=  7.65  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 36.0  good=  8.00  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 44.0  good=  7.87  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 52.0  good=  7.21  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 60.0  good=  8.17  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  !! keepalive lost the device (no reply from ('192.168.1.165', 3334) after 3 tries: timed out) — will re-check
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-tuned     off=  4.0  good=  4.00  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 12.0  good=  8.23  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 20.0  good=  8.35  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 28.0  good=  8.22  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 36.0  good=  7.65  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 44.0  good=  8.00  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 52.0  good=  7.79  loss= 0.00%  rep3
+  ** device re-associated (#2); the next run is flagged in the ledger
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 60.0  good=  8.20  loss= 0.00%  rep3
+  s1-esp32s3-2.4-synth-tcp-baseline  off=  4.0  good=  4.00  loss= 0.00%  rep3
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 12.0  good=  5.31  loss= 0.00%  rep3
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 20.0  good=  5.22  loss= 0.00%  rep3
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 28.0  good=  5.24  loss= 0.00%  rep3
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 36.0  good=  5.16  loss= 0.00%  rep3
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 44.0  good=  5.00  loss= 0.00%  rep3
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 52.0  good=  5.25  loss= 0.00%  rep3
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 60.0  good=  4.90  loss= 0.00%  rep3
+  !! keepalive lost the device (no reply from ('192.168.1.166', 3334) after 3 tries: timed out) — will re-check
+  s1-esp32s3-2.4-synth-tcp-tuned     off=  4.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 12.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 20.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 28.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 36.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 44.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 52.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 60.0  good=  0.00  loss= 0.00%  rep3  INVALID
+{
+  "attempted": 79,
+  "valid": 50,
+  "invalid": 29,
+  "errors": 0,
+  "abandoned_cells": {},
+  "remaining": 29
+}
+
+=== pass 2/3  pending 29 ===
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 36.0  good=  5.31  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 44.0  good=  5.28  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 52.0  good=  5.14  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 60.0  good=  5.27  loss= 0.00%  rep1
+  !! keepalive lost the device (no reply from ('192.168.1.166', 3334) after 3 tries: timed out) — will re-check
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 36.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off=  4.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 12.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 20.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 28.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 36.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 44.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 52.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 60.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  ** device re-associated (#1); the next run is flagged in the ledger
+  !! keepalive lost the device (no reply from ('192.168.1.166', 3334) after 3 tries: timed out) — will re-check
+  ** device re-associated (#2); the next run is flagged in the ledger
+  s1-esp32s3-2.4-synth-tcp-baseline  off=  4.0  good=  3.99  loss= 0.00%  rep2
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 12.0  good=  4.66  loss= 0.00%  rep2
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 20.0  good=  3.75  loss= 0.00%  rep2
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 28.0  good=  5.12  loss= 0.00%  rep2
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 36.0  good=  3.19  loss= 0.00%  rep2
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 44.0  good=  5.17  loss= 0.00%  rep2
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 52.0  good=  5.49  loss= 0.00%  rep2
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 60.0  good=  5.59  loss= 0.00%  rep2
+  !! keepalive lost the device (no reply from ('192.168.1.166', 3334) after 3 tries: timed out) — will re-check
+  s1-esp32s3-2.4-synth-tcp-tuned     off=  4.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 12.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 20.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 28.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 36.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 44.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 52.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 60.0  good=  0.00  loss= 0.00%  rep3  INVALID
+{
+  "attempted": 29,
+  "valid": 12,
+  "invalid": 17,
+  "errors": 0,
+  "abandoned_cells": {},
+  "remaining": 17
+}
+
+=== pass 3/3  pending 17 ===
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 36.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off=  4.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 12.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 20.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 28.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 36.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 44.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 52.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 60.0  good=  0.00  loss= 0.00%  rep2  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off=  4.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 12.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 20.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 28.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 36.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 44.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 52.0  good=  0.00  loss= 0.00%  rep3  INVALID
+  s1-esp32s3-2.4-synth-tcp-tuned     off= 60.0  good=  0.00  loss= 0.00%  rep3  INVALID
+{
+  "attempted": 17,
+  "valid": 0,
+  "invalid": 17,
+  "errors": 0,
+  "abandoned_cells": {},
+  "remaining": 17
+}
+=== passes exhausted with points remaining — needs a human
+{
+  "files": [
+    "results/report/loss_vs_load.light.png",
+    "results/report/loss_vs_load.dark.png",
+    "results/report/goodput_vs_load.light.png",
+    "results/report/goodput_vs_load.dark.png",
+    "results/report/rate_vs_ratio.light.png",
+    "results/report/rate_vs_ratio.dark.png",
+    "results/report/baseline_vs_tuned.light.png",
+    "results/report/baseline_vs_tuned.dark.png",
+    "results/report/report.md"
+  ],
+  "records": 170,
+  "decomposition": {
+    "cpu_idle_pct_at_knee": {}
+  }
+}
+=== stage 2 chain not run (handoff: absent, STAGE2=auto, stage 1 rc=3)
+=== overnight.sh end Mon Oct  5 07:15:59 EDT 2026 rc=3

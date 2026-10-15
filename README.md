@@ -3,8 +3,9 @@
 **ESP32-S3 vs ESP32-C5 wireless throughput comparison** for the 128-channel HD-EMG
 acquisition board — firmware for both radios, and the host harness that measures them.
 
-Design documents live in [`docs/`](docs/): the test plan says what is being measured and
-why; the harness spec says what this repo implements.
+Design documents, reports and experimental results live in [`docs/`](docs/); start with
+[`docs/README.md`](docs/README.md), which says what to read in what order. The test plan says
+what is being measured and why; the harness spec says what this repo implements.
 
 ---
 
@@ -36,7 +37,7 @@ host/
   matrices/         stage0 (iperf) · stage1 (synth, swept) · stage2 (real ingress)
   results/          runs.jsonl — the append-only ledger
 hostrun.sh          constrained runner: executes builds and flashes on the Mac
-docs/               test plan · harness spec
+docs/               test plan · harness spec · reports · experimental results (docs/README.md)
 ```
 
 ---
@@ -195,5 +196,10 @@ Stage 1 (paced synthetic source) is implemented and the host harness is fully te
 `source_qspi.c` and `source_sdio.c` fail the build on purpose — read their header comments
 before writing them; each names the specific thing that silently corrupts data if skipped.
 
-**The firmware has never been compiled** — no ESP-IDF in the environment it was written
-in. CI builds both targets on the first push; expect to fix a few includes.
+The firmware builds and has run on both boards (ESP-IDF v6.0-dev-2980). Two real sessions
+exist: 5 Oct (TCP only; UDP voided) and 13 Oct (the max-throughput study). Snapshots of both are
+in [`docs/`](docs/README.md). As of 13 Oct, in short tuning runs at 2.4 GHz and 20 MHz, both
+chips pass T2 (41.3 Mbit/s) over UDP: S3 44.6, C5 54.0 Mbit/s, 0 % loss. Those runs were
+2 x 20 s, not the plan's 60 s qualifying runs, so the pass is provisional. Not done: 60 s
+qualifying runs, a memory soak test, 40 MHz, 5 GHz, and Stage 2 (the STM32 generator is on
+branch `worktree-stm32-stage2`, unmerged).

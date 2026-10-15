@@ -1,0 +1,102 @@
+access point       : verizon-router  (from matrices/stage1.yaml)
+host ip (stream to): 192.168.1.160
+host link          : Wi-Fi (en0) on 'Verizon_SLD967', band 5 GHz, channel 104, 80 MHz, 802.11ax
+  -> cells on band 5 GHz would share this Mac's channel and are refused by the pre-run gate; the other band is clean. Wire the Mac to the router to run both.
+no bench devices answered on 192.168.1.0/24
+=== overnight.sh band=2.4 start Mon Oct  5 04:48:50 EDT 2026
+=== args: --matrix matrices/stage1.yaml --band 2.4 --unattended --passes 3 --ceilings 2.4=60,5=95 --s3-port cu.usbmodem5B8F0676581 --c5-port cu.usbserial-110 --expected-idf v6.0-dev-2980-gab149384e1-dirty
+access point 'verizon-router'  host ip 192.168.1.160  expected idf v6.0-dev-2980-gab149384e1-dirty
+host link: Wi-Fi (en0) on 'Verizon_SLD967', band 5 GHz, channel 104, 80 MHz, 802.11ax
+
+=== pass 1/3  pending 192 ===
+>> band 2.4 GHz: pinned in the firmware build; access point 'verizon-router' serves both bands
+
+--- band 2.4 ---
+overnight.sh: line 75: 68621 Terminated: 15          "$PY" -u -m cli.bench run "${args[@]}"
+=== harness exited rc=143 (crash), restart 1/3 in 60 s
+access point 'verizon-router'  host ip 192.168.1.160  expected idf v6.0-dev-2980-gab149384e1-dirty
+host link: Wi-Fi (en0) on 'Verizon_SLD967', band 5 GHz, channel 104, 80 MHz, 802.11ax
+  found esp32c5 at 192.168.1.165  band=2.4 rung=r0-baseline idf=v6.0-dev-2980-gab149384e1-dirty
+
+=== pass 1/3  pending 192 ===
+>> band 2.4 GHz: pinned in the firmware build; access point 'verizon-router' serves both bands
+
+--- band 2.4 ---
+  s1-esp32c5-2.4-synth-tcp-baseline  off=  4.0  good=  4.00  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 12.0  good=  7.17  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 20.0  good=  7.22  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 28.0  good=  7.01  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 36.0  good=  6.95  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 44.0  good=  7.29  loss= 0.00%  rep1
+overnight.sh: line 75: 77869 Terminated: 15          "$PY" -u -m cli.bench run "${args[@]}"
+=== harness exited rc=143 (crash), restart 2/3 in 60 s
+access point 'verizon-router'  host ip 192.168.1.160  expected idf v6.0-dev-2980-gab149384e1-dirty
+host link: Wi-Fi (en0) on 'Verizon_SLD967', band 5 GHz, channel 104, 80 MHz, 802.11ax
+  found esp32c5 at 192.168.1.165  band=2.4 rung=r0-baseline idf=v6.0-dev-2980-gab149384e1-dirty
+
+=== pass 1/3  pending 186 ===
+>> band 2.4 GHz: pinned in the firmware build; access point 'verizon-router' serves both bands
+
+--- band 2.4 ---
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 52.0  good=  7.13  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-tcp-baseline  off= 60.0  good=  7.53  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-udp-baseline  off=  4.0  good=  3.89  loss= 3.09%  rep1
+  s1-esp32c5-2.4-synth-udp-baseline  off= 12.0  good= 10.26  loss=14.35%  rep1
+  s1-esp32c5-2.4-synth-udp-baseline  off= 20.0  good= 16.36  loss=18.11%  rep1
+  s1-esp32c5-2.4-synth-udp-baseline  off= 28.0  good= 22.85  loss=18.54%  rep1
+  s1-esp32c5-2.4-synth-udp-baseline  off= 36.0  good= 23.02  loss=35.19%  rep1
+  s1-esp32c5-2.4-synth-udp-baseline  off= 44.0  good= 31.42  loss=28.66%  rep1
+  s1-esp32c5-2.4-synth-udp-baseline  off= 52.0  good= 32.78  loss=36.90%  rep1
+  s1-esp32c5-2.4-synth-udp-baseline  off= 60.0  good= 32.13  loss=46.24%  rep1
+  !! keepalive lost the device (no reply from ('192.168.1.165', 3334) after 3 tries: timed out) — will re-check
+  s1-esp32c5-2.4-synth-tcp-tuned     off=  4.0  good=  4.00  loss= 0.00%  rep1
+  ** device re-associated (#1); the next run is flagged in the ledger
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 12.0  good=  7.75  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 20.0  good=  7.86  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 28.0  good=  7.96  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 36.0  good=  8.02  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 44.0  good=  8.04  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 52.0  good=  7.95  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-tcp-tuned     off= 60.0  good=  6.98  loss= 0.00%  rep1
+  s1-esp32c5-2.4-synth-udp-tuned     off=  4.0  good=  3.85  loss= 4.14%  rep1
+  s1-esp32c5-2.4-synth-udp-tuned     off= 12.0  good= 10.01  loss=16.47%  rep1
+  s1-esp32c5-2.4-synth-udp-tuned     off= 20.0  good= 16.20  loss=19.02%  rep1
+  s1-esp32c5-2.4-synth-udp-tuned     off= 28.0  good= 22.68  loss=19.51%  rep1
+  s1-esp32c5-2.4-synth-udp-tuned     off= 36.0  good= 27.98  loss=22.25%  rep1
+  s1-esp32c5-2.4-synth-udp-tuned     off= 44.0  good= 31.45  loss=28.28%  rep1
+  s1-esp32c5-2.4-synth-udp-tuned     off= 52.0  good= 35.91  loss=30.87%  rep1
+  s1-esp32c5-2.4-synth-udp-tuned     off= 60.0  good= 37.27  loss=37.79%  rep1
+  s1-esp32s3-2.4-synth-tcp-baseline  off=  4.0  good=  4.01  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 12.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 20.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 28.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 36.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 44.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 52.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  s1-esp32s3-2.4-synth-tcp-baseline  off= 60.0  good=  0.00  loss= 0.00%  rep1  INVALID
+  s1-esp32s3-2.4-synth-udp-baseline  off=  4.0  good=  3.90  loss= 2.41%  rep1
+  s1-esp32s3-2.4-synth-udp-baseline  off= 12.0  good= 11.71  loss= 2.61%  rep1
+  s1-esp32s3-2.4-synth-udp-baseline  off= 20.0  good= 18.97  loss= 5.25%  rep1
+  s1-esp32s3-2.4-synth-udp-baseline  off= 28.0  good= 25.20  loss=10.20%  rep1
+  s1-esp32s3-2.4-synth-udp-baseline  off= 36.0  good= 27.53  loss=23.39%  rep1
+overnight.sh: line 75: 85116 Terminated: 15          "$PY" -u -m cli.bench run "${args[@]}"
+=== harness exited rc=143 (crash), restart 3/3 in 60 s
+{
+  "files": [
+    "results/report/loss_vs_load.light.png",
+    "results/report/loss_vs_load.dark.png",
+    "results/report/goodput_vs_load.light.png",
+    "results/report/goodput_vs_load.dark.png",
+    "results/report/rate_vs_ratio.light.png",
+    "results/report/rate_vs_ratio.dark.png",
+    "results/report/baseline_vs_tuned.light.png",
+    "results/report/baseline_vs_tuned.dark.png",
+    "results/report/report.md"
+  ],
+  "records": 45,
+  "decomposition": {
+    "cpu_idle_pct_at_knee": {}
+  }
+}
+=== stage 2 chain not run (handoff: absent, STAGE2=auto, stage 1 rc=143)
+=== overnight.sh end Mon Oct  5 05:56:58 EDT 2026 rc=143
