@@ -1,0 +1,19 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-15-tcpip-prio
+applies_to: esp32c5
+parent: t24-12-core-lock-on-safe
+study: max-tput
+lever: core_lock
+rationale: tcpip task priority 18 -> 23 and mailbox 32 -> 48 (Espressif's C5 values).
+config:
+  CONFIG_LWIP_TCPIP_TASK_PRIO: 23
+  CONFIG_LWIP_TCPIP_RECVMBOX_SIZE: 48
+measured_gain_pct: 3.04
+measured:
+  decision: rejected
+  reason: "tcp +3.0% inside the repeat spread \xB14.0%"
+  offered_mbps: 60.0
+  tcp_mbps: 30.642
+  udp_mbps: 53.674
+  gain_tcp_pct: 3.04
+  gain_udp_pct: 1.79

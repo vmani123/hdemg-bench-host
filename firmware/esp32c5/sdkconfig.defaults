@@ -4,7 +4,9 @@
 # HOST repo's per-chip rung ladders (hdemg-bench-host/rungs/c5/) and is applied at build
 # time as a second fragment.
 #
-# Not valid on C5 / IDF v6 — do not add: CONFIG_ESP_INTR_IN_IRAM, CONFIG_ESP_PHY_IRAM_OPT.
+# No effect on C5 / IDF v6 — do not add as levers: CONFIG_ESP_PHY_IRAM_OPT (exists, but
+# only affects the C2) and CONFIG_ESP_INTR_IN_IRAM (exists, default y, and can only be
+# changed with SPI_FLASH_AUTO_SUSPEND, so setting it here does nothing).
 CONFIG_IDF_TARGET="esp32c5"
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
 # NOT enabled on purpose. This option makes FreeRTOS's idle task call a user-supplied

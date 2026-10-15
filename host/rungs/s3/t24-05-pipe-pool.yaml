@@ -1,0 +1,19 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-05-pipe-pool
+applies_to: esp32s3
+parent: t24-03-wifi-tx-bufs
+study: max-tput
+lever: frame_size
+rationale: Source/sink pool 6 -> 12 x 8 KB (~20 ms of slack at 40 Mbit/s) so a Wi-Fi
+  stall does not starve the stream.
+config:
+  CONFIG_BENCH_PIPE_NUM_BUFS: 12
+measured_gain_pct: 0.54
+measured:
+  decision: rejected
+  reason: no transport gained 2 %
+  offered_mbps: 60.0
+  tcp_mbps: 20.967
+  udp_mbps: 26.383
+  gain_tcp_pct: -1.4
+  gain_udp_pct: 0.54

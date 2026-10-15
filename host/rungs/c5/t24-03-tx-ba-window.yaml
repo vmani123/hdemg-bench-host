@@ -1,0 +1,18 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-03-tx-ba-window
+applies_to: esp32c5
+parent: t24-01-tcp-window
+study: max-tput
+lever: ampdu_ba_win
+rationale: TX block-ack window 6 -> 32, as in Espressif's C5 iperf config.
+config:
+  CONFIG_ESP_WIFI_TX_BA_WIN: 32
+measured_gain_pct: -11.35
+measured:
+  decision: rejected
+  reason: 'regressed: tcp -11.3%, udp -26.3%'
+  offered_mbps: 60.0
+  tcp_mbps: 16.871
+  udp_mbps: 25.679
+  gain_tcp_pct: -11.35
+  gain_udp_pct: -26.29

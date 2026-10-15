@@ -1,0 +1,21 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-20-he-mcs9
+applies_to: esp32c5
+parent: t24-16-extra-iram
+study: max-tput
+lever: he_tuning
+rationale: ESP-IDF leaves he_mcs9_enabled at 0, capping the C5's HE20 link at MCS7
+  (86 Mbit/s PHY). Advertise HE-MCS8/9 (114.7). Added 13 Oct; only a strong signal
+  uses them, and the C5 sits at about -65 to -70 dBm.
+config:
+  CONFIG_BENCH_WIFI_HE_MCS9: y
+measured_gain_pct: -2.81
+measured:
+  decision: rejected
+  reason: 'unsafe: heap low-water 19660 B is below the 20000 B floor (would have been:
+    regressed: udp -2.8%)'
+  offered_mbps: 60.0
+  tcp_mbps: 30.46
+  udp_mbps: 52.438
+  gain_tcp_pct: -2.82
+  gain_udp_pct: -2.81

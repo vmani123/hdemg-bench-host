@@ -14,6 +14,7 @@
 #include "pipe.h"
 #include "control.h"
 #include "instr.h"
+#include "wifi_pin.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -68,6 +69,64 @@ static void enforce_band(void)
 }
 #endif
 
+/* ---- station channel width (a rung lever) -----------------------------------------
+ * CONFIG_BENCH_WIFI_BW_20 / _40 come from bench_common/Kconfig and are set by a rung.
+ * On this chip 802.11ax and 802.11ac are 20 MHz-only, so 40 MHz means 802.11n: the
+ * 40 MHz build also restricts the station to b/g/n (2.4 GHz) and a/n (5 GHz). That
+ * trade, HE20 against HT40, is the lever. Applied from STA_START (registered after the
+ * band pin, so it runs second) and made certain with one deliberate re-association
+ * after the first join. With neither set (the default) nothing here is compiled. */
+#if defined(CONFIG_BENCH_WIFI_BW_20) || defined(CONFIG_BENCH_WIFI_BW_40)
+#define BENCH_PHY_HOOK 1
+#ifdef CONFIG_BENCH_WIFI_BW_40
+#define BENCH_BW WIFI_BW_HT40
+#else
+#define BENCH_BW WIFI_BW_HT20
+#endif
+
+static void apply_phy(void)
+{
+    esp_err_t err;
+#ifdef CONFIG_BENCH_WIFI_BW_40
+    wifi_protocols_t proto = {
+        .ghz_2g = WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N,
+        .ghz_5g = WIFI_PROTOCOL_11A | WIFI_PROTOCOL_11N,
+    };
+    err = esp_wifi_set_protocols(WIFI_IF_STA, &proto);
+    if (err != ESP_OK) ESP_LOGE(TAG, "esp_wifi_set_protocols: %s", esp_err_to_name(err));
+#endif
+    wifi_bandwidths_t bw = { .ghz_2g = BENCH_BW, .ghz_5g = BENCH_BW };
+    err = esp_wifi_set_bandwidths(WIFI_IF_STA, &bw);
+    if (err != ESP_OK) ESP_LOGE(TAG, "esp_wifi_set_bandwidths: %s", esp_err_to_name(err));
+}
+
+static void on_sta_start_phy(void *arg, esp_event_base_t base, int32_t id, void *data)
+{
+    (void)arg; (void)base; (void)id; (void)data;
+    apply_phy();
+}
+
+static void reassociate_with_phy(void)
+{
+    apply_phy();
+    /* The connect helper's disconnect handler rejoins, now with the width in place. */
+    esp_wifi_disconnect();
+    vTaskDelay(pdMS_TO_TICKS(500));
+    wifi_ap_record_t ap;
+    /* Waits as long as it takes, like connect_forever(): staying reachable is the
+     * board's one job. It says so, and nudges the join if the helper went quiet. */
+    for (int tick = 1; esp_wifi_sta_get_ap_info(&ap) != ESP_OK; tick++) {
+        if (tick % 40 == 0) {
+            ESP_LOGW(TAG, "still rejoining after the width change (%d s)", tick / 4);
+            esp_wifi_connect();
+        }
+        vTaskDelay(pdMS_TO_TICKS(250));
+    }
+    ESP_LOGI(TAG, "station width %d MHz requested (AP secondary channel: %d)",
+             BENCH_BW == WIFI_BW_HT40 ? 40 : 20, (int)ap.second);
+}
+#endif
+
 static void connect_forever(void)
 {
     for (int attempt = 1; ; attempt++) {
@@ -107,9 +166,19 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_START,
                                                on_sta_start, NULL));
 #endif
+#ifdef BENCH_PHY_HOOK
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_START,
+                                               on_sta_start_phy, NULL));
+#endif
     connect_forever();
+    /* Band first, width second: enforce_band() calls esp_wifi_set_band_mode() again,
+     * and the width must be the last thing set before the final association. */
 #if BENCH_BAND_PIN
     enforce_band();
+#endif
+    bench_wifi_station_setup(BENCH_BAND_PIN); /* AP pin, HE-MCS9; no-ops unless configured */
+#ifdef BENCH_PHY_HOOK
+    reassociate_with_phy();
 #endif
 
     /* Held constant across every run and both chips: power save off, TX power at the

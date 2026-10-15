@@ -1,0 +1,21 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-04-core-lock
+applies_to: esp32c5
+parent: t24-01-tcp-window
+study: max-tput
+lever: core_lock
+rationale: lwIP core locking (+input); Espressif enables it for the C5, where one
+  core carries every task switch it saves.
+config:
+  CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+  CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
+measured_gain_pct: null
+measured:
+  decision: unmeasured
+  reason: 'the board was on ch6, the current best on ch1: a different access point
+    or channel, not comparable'
+  offered_mbps: 60.0
+  tcp_mbps: 9.747
+  udp_mbps: 16.024
+  gain_tcp_pct: null
+  gain_udp_pct: null

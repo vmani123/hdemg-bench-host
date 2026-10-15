@@ -30,6 +30,23 @@ def test_high_airtime_warns_but_does_not_fail():
     assert r.ok and r.warnings
 
 
+def _post(**kw):
+    base = dict(commanded_bps=20e6, achieved_bps=20e6, esp_reset_during=False,
+                heap_min=100000, heap_floor=20000,
+                metrics={"frames": 100, "goodput_bps": 20e6}, rig_ceiling_mbps=60.0,
+                host_udp_drops=0)
+    base.update(kw)
+    return base
+
+
+def test_a_heap_low_water_below_the_floor_warns_without_voiding_the_run():
+    """The throughput number is still real; what it says is that this configuration nearly
+    ran out of memory (the C5 went offline at 4.4 KB). The study decides what to do."""
+    r = gates.post_run(_post(heap_min=4440))
+    assert r.ok
+    assert any("4440" in w and "heap" in w for w in r.warnings)
+
+
 def test_rssi_drift_fails():
     assert not gates.pre_run(_pre(rssi_dbm=-52)).ok
 

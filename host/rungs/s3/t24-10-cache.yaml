@@ -1,0 +1,20 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-10-cache
+applies_to: esp32s3
+parent: t24-08-extra-iram
+study: max-tput
+lever: cpu_max_clock
+rationale: 'S3 caches as in Espressif''s iperf rank: 32 KB instruction, 64 KB data.'
+config:
+  CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB: y
+  CONFIG_ESP32S3_DATA_CACHE_64KB: y
+measured_gain_pct: 2.51
+measured:
+  decision: rejected
+  reason: "unsafe: heap low-water 656 B is below the 20000 B floor (would have been:\
+    \ tcp +2.5% inside the repeat spread \xB115.3%)"
+  offered_mbps: 60.0
+  tcp_mbps: 32.393
+  udp_mbps: 44.609
+  gain_tcp_pct: 2.51
+  gain_udp_pct: 0.02

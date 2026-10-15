@@ -10,9 +10,13 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
+#include "sdkconfig.h"
 
-#define PIPE_BUF_BYTES  8192
-#define PIPE_NUM_BUFS   6
+/* Pool geometry is a per-chip tuning lever (plan §5.3), so its values come from the
+ * rung (CONFIG_BENCH_PIPE_*, defined in bench_common/Kconfig); the defaults are the
+ * original 6 x 8 KB. */
+#define PIPE_BUF_BYTES  CONFIG_BENCH_PIPE_BUF_BYTES
+#define PIPE_NUM_BUFS   CONFIG_BENCH_PIPE_NUM_BUFS
 
 typedef struct {
     uint64_t bytes_sent;

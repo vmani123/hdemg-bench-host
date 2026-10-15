@@ -1,0 +1,20 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-01-tcp-window
+applies_to: esp32s3
+parent: r2-core-split
+study: max-tput
+lever: lwip_window
+rationale: The measured 5.3 Mbit/s TCP ceiling is the stock 5760 B send buffer (4
+  segments in flight). Espressif's S3 iperf config uses 65535.
+config:
+  CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 65535
+  CONFIG_LWIP_TCP_WND_DEFAULT: 65535
+measured_gain_pct: 416.07
+measured:
+  decision: kept
+  reason: 'gained: tcp +416.1%, udp +2.6%'
+  offered_mbps: 60.0
+  tcp_mbps: 20.266
+  udp_mbps: 23.591
+  gain_tcp_pct: 416.07
+  gain_udp_pct: 2.56

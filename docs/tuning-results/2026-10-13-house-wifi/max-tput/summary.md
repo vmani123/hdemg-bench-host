@@ -1,0 +1,56 @@
+# Tuning study: max-tput
+
+_updated 2026-10-13T13:21:22Z_
+
+## esp32s3 @ 2.4 GHz
+
+- current best configuration: **t24-08-extra-iram** (done — candidate list exhausted)
+- TCP: **31.6 Mbit/s**
+- UDP: **44.6 Mbit/s**, loss 0.00%
+
+| step | rung | lever | parent | offered | TCP Mbit/s | UDP Mbit/s (loss) | gain % | decision | link | heap low KB | reason |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | r2-core-split | — | — | 60 | 3.9 ±0.2 | 23.0 ±0.3 (0.00%) | — | start | HT ch1 bw20 sta40 | — | starting point |
+| 1 | t24-01-tcp-window | lwip_window | r2-core-split | 60 | 20.3 ±0.3 | 23.6 ±0.0 (0.00%) | tcp +416.1, udp +2.6 | kept | HT ch1 bw20 sta40 | — | gained: tcp +416.1%, udp +2.6% |
+| 2 | t24-02-tx-ba-window | ampdu_ba_win | t24-01-tcp-window | 60 | 21.0 ±0.3 | 23.4 ±0.1 (0.04%) | tcp +3.4, udp -0.9 | kept | HT ch1 bw20 sta40 | — | gained: tcp +3.4% |
+| 3 | t24-03-wifi-tx-bufs | wifi_buffers | t24-02-tx-ba-window | 60 (re-measured) | 27.0 ±0.3 | 31.3 ±0.1 (0.00%) | tcp +1.5, udp +12.3 | kept | HT ch1 bw20 sta40 ap:b2c0fe | 59 | gained: udp +12.3% |
+| 4 | t24-04-wifi-rx-bufs | wifi_buffers | t24-03-wifi-tx-bufs | 60 | 20.1 ±0.2 | 28.0 ±0.1 (0.28%) | tcp -5.4, udp +6.8 | rejected | HT ch1 bw20 sta40 | — | regressed: tcp -5.4% |
+| 5 | t24-05-pipe-pool | frame_size | t24-03-wifi-tx-bufs | 60 | 21.0 ±0.3 | 26.4 ±0.3 (0.23%) | tcp -1.4, udp +0.5 | rejected | HT ch1 bw20 sta40 | — | no transport gained 2 % |
+| 6 | t24-06-core-lock | core_lock | t24-03-wifi-tx-bufs | 60 | 17.0 ±0.4 | 45.2 ±0.4 (4.07%) | tcp -19.9, udp +72.4 | rejected | HT ch1 bw20 sta40 | — | regressed: tcp -19.9% |
+| 7 | t24-07-tcpip-prio | core_lock | t24-03-wifi-tx-bufs | 60 | 26.4 ±1.0 | 30.8 ±0.3 (0.00%) | tcp -2.1, udp -1.5 | rejected | HT ch1 bw20 sta40 ap:b2c0fe | 44 | tcp -2.1% inside the repeat spread ±4.7% |
+| 8 | t24-08-extra-iram | iram_wifi | t24-03-wifi-tx-bufs | 60 | 31.6 ±3.5 | 44.6 ±1.2 (0.00%) | tcp +17.1, udp +42.7 | kept | HT ch1 bw20 sta40 ap:b2c0fe | 20 | gained: tcp +17.1%, udp +42.7% |
+| 9 | t24-09-static-tx | static_tx_buffers | t24-08-extra-iram | 60 | 30.5 ±1.0 | 43.1 ±1.2 (0.00%) | tcp -3.5, udp -3.5 | rejected | HT ch1 bw20 sta40 ap:b2c0fe | 14 | unsafe: heap low-water 14756 B is below the 20000 B floor (would have been: tcp -3.5% inside the repeat spread ±14.3%; udp -3.5% inside the repeat spread ±5.4%) |
+| 10 | t24-10-cache | cpu_max_clock | t24-08-extra-iram | 60 | 32.4 ±1.3 | 44.6 ±0.6 (0.00%) | tcp +2.5, udp +0.0 | rejected | HT ch1 bw20 sta40 ap:b2c0fe | 0 | unsafe: heap low-water 656 B is below the 20000 B floor (would have been: tcp +2.5% inside the repeat spread ±15.3%) |
+| 11 | t24-11-psram | psram_bufs | t24-08-extra-iram | 60 | 26.8 ±0.6 | 38.6 ±1.2 (0.00%) | tcp -15.3, udp -13.4 | rejected | HT ch1 bw20 sta40 ap:b2c0fe | 153 | regressed: tcp -15.3%, udp -13.4% |
+| 12 | t24-12-core-lock-on-iram | core_lock | t24-08-extra-iram | 60 | 30.2 ±2.8 | 43.2 ±1.1 (0.00%) | tcp -4.6, udp -3.1 | rejected | HT ch1 bw20 sta40 ap:b2c0fe | 7 | unsafe: heap low-water 7652 B is below the 20000 B floor (would have been: tcp -4.6% inside the repeat spread ±19.7%; udp -3.1% inside the repeat spread ±5.2%) |
+
+## esp32c5 @ 2.4 GHz
+
+- current best configuration: **t24-16-extra-iram** (done — candidate list exhausted (unmeasured, retried on the next run: phy-40mhz))
+- TCP: **31.3 Mbit/s**
+- UDP: **54.0 Mbit/s**, loss 0.00%
+
+| step | rung | lever | parent | offered | TCP Mbit/s | UDP Mbit/s (loss) | gain % | decision | link | heap low KB | reason |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | r2-iram | — | — | 60 | 4.5 ±0.0 | 29.7 ±1.5 (0.44%) | — | start | HE ch1 bw20 sta20 | — | starting point |
+| 1 | t24-01-tcp-window | lwip_window | r2-iram | 60 (re-measured) | 33.4 ±0.4 | 48.0 ±0.4 (0.00%) | tcp +322.1, udp +17.3 | kept | HE ch1 bw20 sta20 ap:b2c0fe | 2 | gained: tcp +322.1%, udp +17.3% |
+| 2 | t24-02-tx-ba-window | ampdu_ba_win | t24-01-tcp-window | 60 | 2.1 ±2.0 | 3.3 ±0.1 (1.39%) | tcp -88.8, udp -90.7 | unmeasured | HE ch6 bw20 sta20 | — | reopened: C5 was on the distant House WiFi AP (HE ch6, -85..-91 dBm) instead of the ch1 AP (-66..-75) for all 4 runs; measured the AP, not the lever (was rejected: regressed: tcp -88.8%, udp -90.7%) |
+| 3 | t24-03-tx-ba-window | ampdu_ba_win | t24-01-tcp-window | 60 | 16.9 ±0.1 | 25.7 ±0.6 (0.82%) | tcp -11.3, udp -26.3 | rejected | HE ch1 bw20 sta20 | — | regressed: tcp -11.3%, udp -26.3% |
+| 4 | t24-04-core-lock | core_lock | t24-01-tcp-window | 60 | 9.7 ±0.0 | 16.0 ±0.4 (0.00%) | — | unmeasured | HE ch6 bw20 sta20 | — | the board was on ch6, the current best on ch1: a different access point or channel, not comparable |
+| 5 | t24-05-wifi-tx-bufs | wifi_buffers | t24-01-tcp-window | 60 | 9.9 ±0.7 | 16.4 ±0.2 (0.00%) | — | unmeasured | HE ch6 bw20 sta20 | — | the board was on ch6, the current best on ch1: a different access point or channel, not comparable |
+| 6 | t24-06-core-lock | core_lock | t24-01-tcp-window | 60 | 34.4 ±0.2 | 50.6 ±1.2 (0.00%) | tcp +2.9, udp +5.5 | rejected | HE ch1 bw20 sta20 ap:b2c0fe | 1 | unsafe: heap low-water 1108 B is below the 20000 B floor (would have been: gained: tcp +2.9%, udp +5.5%) |
+| 7 | t24-07-tcp-sndbuf-41k | lwip_window | t24-01-tcp-window | 60 | 29.5 ±0.0 | 49.9 ±1.1 (0.00%) | tcp -11.8, udp +3.9 | rejected | HE ch1 bw20 sta20 ap:b2c0fe | 14 | unsafe: heap low-water 14776 B is below the 20000 B floor (would have been: regressed: tcp -11.8%) |
+| 8 | t24-08-tcp-sndbuf-32k | lwip_window | t24-01-tcp-window | 60 | 24.6 ±0.9 | 45.9 ±4.0 (0.30%) | tcp -26.4, udp -4.4 | rejected | HE ch1 bw20 sta20 ap:b2c0fe | 14 | unsafe: heap low-water 14860 B is below the 20000 B floor (would have been: regressed: tcp -26.4%) |
+| 9 | t24-09-core-lock-safe | core_lock | t24-01-tcp-window | 60 | 33.4 ±0.8 | 49.9 ±2.5 (0.01%) | tcp +0.0, udp +4.1 | rejected | HE ch1 bw20 sta20 ap:b2c0fe | 1 | unsafe: heap low-water 1932 B is below the 20000 B floor (would have been: udp +4.1% inside the repeat spread ±6.1%) |
+| 10 | t24-10-safe-memory | frame_size | t24-01-tcp-window | 60 | 29.7 ±0.1 | 48.5 ±1.0 (0.00%) | tcp -11.1, udp +1.0 | kept | HE ch1 bw20 sta20 ap:b2c0fe | 30 | replaces an unsafe incumbent (heap low-water 2540 B -> 31424 B); throughput: regressed: tcp -11.1% |
+| 11 | t24-11-wifi-tx-bufs | wifi_buffers | t24-10-safe-memory | 60 | 30.2 ±0.2 | 52.0 ±1.6 (0.00%) | tcp +1.6, udp +7.3 | rejected | HE ch1 bw20 sta20 ap:b2c0fe | 5 | unsafe: heap low-water 5880 B is below the 20000 B floor (would have been: gained: udp +7.3%) |
+| 12 | t24-12-core-lock-on-safe | core_lock | t24-10-safe-memory | 60 | 29.7 ±0.6 | 52.7 ±0.8 (0.00%) | tcp +0.2, udp +8.8 | kept | HE ch1 bw20 sta20 ap:b2c0fe | 54 | gained: udp +8.8% |
+| 13 | t24-13-wifi-rx-bufs | wifi_buffers | t24-12-core-lock-on-safe | 60 | 30.6 ±0.4 | 51.7 ±0.2 (0.00%) | tcp +2.8, udp -1.9 | rejected | HE ch1 bw20 sta20 ap:b2c0fe | 5 | unsafe: heap low-water 6088 B is below the 20000 B floor (would have been: tcp +2.8% inside the repeat spread ±3.3%) |
+| 14 | t24-14-pipe-pool | frame_size | t24-12-core-lock-on-safe | 60 | 26.8 ±2.4 | 51.4 ±0.7 (0.00%) | tcp -9.8, udp -2.5 | rejected | HE ch1 bw20 sta20 ap:b2c0fe | 1 | unsafe: heap low-water 1808 B is below the 20000 B floor (would have been: tcp -9.8% inside the repeat spread ±10.1%; udp -2.5% inside the repeat spread ±2.8%) |
+| 15 | t24-15-tcpip-prio | core_lock | t24-12-core-lock-on-safe | 60 | 30.6 ±0.6 | 53.7 ±0.9 (0.00%) | tcp +3.0, udp +1.8 | rejected | HE ch1 bw20 sta20 ap:b2c0fe | 54 | tcp +3.0% inside the repeat spread ±4.0% |
+| 16 | t24-16-extra-iram | iram_wifi | t24-12-core-lock-on-safe | 60 | 31.3 ±0.4 | 54.0 ±0.5 (0.00%) | tcp +5.4, udp +2.3 | kept | HE ch1 bw20 sta20 ap:b2c0fe | 30 | gained: tcp +5.4% |
+| 17 | t24-17-static-tx | static_tx_buffers | t24-16-extra-iram | 60 | 31.4 ±0.4 | 52.4 ±1.4 (0.00%) | tcp +0.0, udp -2.9 | rejected | HE ch1 bw20 sta20 ap:b2c0fe | 1 | unsafe: heap low-water 1944 B is below the 20000 B floor (would have been: udp -2.9% inside the repeat spread ±3.4%) |
+| 18 | t24-18-phy-40mhz | he_tuning | t24-16-extra-iram | 72 | 29.3 ±0.1 | 45.0 ±0.1 (0.00%) | — | unmeasured | HT ch1 bw20 sta40 ap:b2c0fe | 25 | lever not in effect: the link reads 'HT ch1 bw20 sta40 ap:b2c0fe', expected 'bw40 sta40' |
+| 19 | t24-19-tx-ba-64 | ampdu_ba_win | t24-16-extra-iram | 60 | 31.8 ±0.7 | 52.8 ±0.8 (0.00%) | tcp +1.4, udp -2.1 | rejected | HE ch1 bw20 sta20 ap:b2c0fe | 15 | unsafe: heap low-water 15908 B is below the 20000 B floor (would have been: udp -2.1% inside the repeat spread ±2.3%) |
+| 20 | t24-20-he-mcs9 | he_tuning | t24-16-extra-iram | 60 | 30.5 ±0.8 | 52.4 ±0.6 (0.00%) | tcp -2.8, udp -2.8 | rejected | HE ch1 bw20 sta20 ap:b2c0fe | 19 | unsafe: heap low-water 19660 B is below the 20000 B floor (would have been: regressed: udp -2.8%) |
+

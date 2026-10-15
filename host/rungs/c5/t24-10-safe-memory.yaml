@@ -1,0 +1,23 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-10-safe-memory
+applies_to: esp32c5
+parent: t24-01-tcp-window
+study: max-tput
+lever: frame_size
+rationale: 'Added 13 Oct, deliberately TWO settings: neither alone clears the 20 KB
+  heap floor. 41,760 B and 32 KB send buffers both bottomed at ~14.8 KB, so below
+  ~41 KB the TCP buffer is not what drains the heap. The pool is 48 KB of static SRAM
+  (6 x 8 KB); 4 buffers give 16 KB back to the heap on the C5.'
+config:
+  CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 41760
+  CONFIG_BENCH_PIPE_NUM_BUFS: 4
+measured_gain_pct: 0.98
+measured:
+  decision: kept
+  reason: 'replaces an unsafe incumbent (heap low-water 2540 B -> 31424 B); throughput:
+    regressed: tcp -11.1%'
+  offered_mbps: 60.0
+  tcp_mbps: 29.687
+  udp_mbps: 48.454
+  gain_tcp_pct: -11.1
+  gain_udp_pct: 0.98

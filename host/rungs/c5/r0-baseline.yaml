@@ -6,7 +6,9 @@ applies_to: esp32c5
 parent: null
 lever: null
 rationale: "Stock ESP-IDF defaults plus only what is needed to run. Common to both chips."
-config:
-  CONFIG_ESP_WIFI_POWER_SAVE_MIN_MODEM: n
-  CONFIG_ESP_WIFI_POWER_SAVE_NONE: y
+# Empty on purpose. Power save is environment, not tuning, and it is switched off at
+# runtime by esp_wifi_set_ps(WIFI_PS_NONE) in app_main.c. The two Kconfig symbols this
+# rung used to set (CONFIG_ESP_WIFI_POWER_SAVE_MIN_MODEM / _NONE) do not exist in ESP-IDF
+# v6 and were dropped by Kconfig without an error, so removing them changes no binary.
+config: {}
 measured_gain_pct: null

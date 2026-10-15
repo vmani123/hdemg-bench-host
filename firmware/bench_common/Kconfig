@@ -1,0 +1,79 @@
+# Bench tuning hooks — the levers that live in code rather than in ESP-IDF's own Kconfig.
+#
+# The MECHANISM is defined here, once, so both targets share the symbol names. The VALUES
+# belong to the rung ladders in host/rungs/<chip>/, exactly like every ESP-IDF lever: a
+# rung sets CONFIG_BENCH_* and apply_rung.py writes it into sdkconfig.rung. Defaults keep
+# the measurement core's behaviour unless stated otherwise in the help text.
+menu "hdemg bench: tuning hooks"
+
+    config BENCH_UDP_DGRAM_MAX
+        int "Largest UDP datagram the sink sends, in bytes (0 = one per pool buffer)"
+        range 0 65000
+        default 1472
+        help
+            The UDP sink packs WHOLE frames into datagrams of at most this many bytes.
+            1472 is the largest UDP payload that fits one 1500-byte Ethernet/Wi-Fi MTU,
+            so no datagram is IP-fragmented (5 frames of 270 B = 1350 B).
+
+            0 restores the original behaviour: one datagram per pool buffer (~8 KB),
+            which lwIP splits into ~6 IP fragments. Losing any one fragment then loses
+            all ~30 frames in it, and each datagram takes ~6 Wi-Fi TX buffers. Kept
+            selectable so that cost can be measured as a rung.
+
+    config BENCH_PIPE_NUM_BUFS
+        int "Pipe pool: number of buffers"
+        range 2 32
+        default 6
+        help
+            Buffers between the source and the sink. Pool size is how long the source
+            can keep generating while the radio stalls (6 x 8 KB is ~10 ms at
+            40 Mbit/s). The pool is static internal RAM; a size that does not fit fails
+            the build rather than the run.
+
+    config BENCH_PIPE_BUF_BYTES
+        int "Pipe pool: bytes per buffer"
+        range 1024 16384
+        default 8192
+
+    config BENCH_WIFI_PIN_CHANNEL
+        int "Stay on the access point on this channel (0 = any)"
+        range 0 177
+        default 0
+        help
+            For a network that serves one name from several access points. The board
+            rejoins until it is on this channel, then locks onto that access point's
+            BSSID. A rig setting: put it in sdkconfig.local, not in a rung. A channel on
+            the other band from the build's band pin is ignored.
+
+    config BENCH_WIFI_HE_MCS9
+        bool "Advertise HE-MCS8 and HE-MCS9 (802.11ax, 256-QAM)"
+        depends on SOC_WIFI_HE_SUPPORT
+        default n
+        help
+            ESP-IDF leaves he_mcs9_enabled off, which caps an HE20 link at MCS7
+            (86 Mbit/s instead of 114.7). A rung lever; only a strong signal uses the two
+            extra rates. Applied with one rejoin after the first association.
+
+    choice BENCH_WIFI_BW
+        prompt "Station channel width"
+        default BENCH_WIFI_BW_DEFAULT
+        help
+            The width the station asks for. The link runs at the narrower of this and
+            what the access point offers, so a 40 MHz rung only helps if the AP is set
+            to 40 MHz (or 20/40 auto) on that band. The device reports both in its
+            phy_rate string ("... bw<AP> sta<station>").
+
+        config BENCH_WIFI_BW_DEFAULT
+            bool "Driver default (no call)"
+        config BENCH_WIFI_BW_20
+            bool "20 MHz"
+        config BENCH_WIFI_BW_40
+            bool "40 MHz"
+            help
+                On a chip with 802.11ax (the C5) 40 MHz is only possible with 802.11n:
+                802.11ax and 802.11ac are 20 MHz-only there. Selecting 40 MHz on such
+                a chip therefore also restricts the station to b/g/n (2.4 GHz) and
+                a/n (5 GHz). That trade (HE20 vs HT40) is the lever being measured.
+    endchoice
+
+endmenu

@@ -1,0 +1,21 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-12-core-lock-on-safe
+applies_to: esp32c5
+parent: t24-10-safe-memory
+study: max-tput
+lever: core_lock
+rationale: Added 13 Oct. Core locking gained UDP +4-5% twice on the C5 but was rejected
+  both times only for heap (1.1 and 1.9 KB). Retried on the safe-memory base (31 KB
+  low-water).
+config:
+  CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+  CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
+measured_gain_pct: 8.82
+measured:
+  decision: kept
+  reason: 'gained: udp +8.8%'
+  offered_mbps: 60.0
+  tcp_mbps: 29.737
+  udp_mbps: 52.73
+  gain_tcp_pct: 0.17
+  gain_udp_pct: 8.82

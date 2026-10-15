@@ -183,6 +183,12 @@ Three things keep it alive overnight:
 
 Scale: Stage 1 is 288 runs at 60 s hold — about 5.5 hours, roughly 12 flashes.
 
+## Max-throughput study
+
+A separate, short study of how fast each chip can go per transport and band, climbing one
+lever at a time on its own ledger: `bash tune.sh 2.4` (then `5`), optionally supervised by
+a Claude `/loop`. How it works, timing and the run checklist: [`docs/TUNING_STUDY.md`](docs/TUNING_STUDY.md).
+
 ## Status
 
 Stage 1 (paced synthetic source) is implemented and the host harness is fully tested.

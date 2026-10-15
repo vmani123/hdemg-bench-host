@@ -1,0 +1,193 @@
+{
+  "chip": "esp32s3",
+  "port": "/dev/cu.usbmodem5B8F0676581",
+  "link": [
+    "connected with House WiFi, aid = 1, channel 1, BW20, bssid = 8c:30:66:b2:c0:fe"
+  ],
+  "tests": [
+    {
+      "proto": "tcp",
+      "repeat": 1,
+      "mac": {
+        "proto": "tcp",
+        "bytes": 83656704,
+        "active_s": 19.91,
+        "mbps_overall": 33.61,
+        "mbps_steady_median": 33.91,
+        "per_s_mbps": [
+          32.4,
+          33.9,
+          30.5,
+          35.6,
+          35.1,
+          33.0,
+          34.5,
+          32.9,
+          36.5,
+          32.8,
+          33.8,
+          31.6,
+          35.6,
+          36.2,
+          33.6,
+          36.0,
+          36.2,
+          33.9
+        ]
+      },
+      "esp_report": [
+        "0.0- 2.0 sec  25.81 Mbits/sec",
+        "2.0- 4.0 sec  30.81 Mbits/sec",
+        "4.0- 6.0 sec  33.56 Mbits/sec",
+        "6.0- 8.0 sec  32.38 Mbits/sec",
+        "8.0-10.0 sec  32.94 Mbits/sec",
+        "10.0-12.0 sec  31.75 Mbits/sec",
+        "12.0-14.0 sec  32.06 Mbits/sec",
+        "14.0-16.0 sec  33.25 Mbits/sec",
+        "16.0-18.0 sec  34.38 Mbits/sec",
+        "18.0-20.0 sec  32.12 Mbits/sec",
+        "0.0-20.0 sec  31.91 Mbits/sec"
+      ]
+    },
+    {
+      "proto": "tcp",
+      "repeat": 2,
+      "mac": {
+        "proto": "tcp",
+        "bytes": 81035264,
+        "active_s": 20.01,
+        "mbps_overall": 32.4,
+        "mbps_steady_median": 32.92,
+        "per_s_mbps": [
+          35.7,
+          35.7,
+          34.8,
+          31.2,
+          31.6,
+          32.9,
+          33.1,
+          32.2,
+          29.0,
+          33.7,
+          34.9,
+          30.5,
+          30.5,
+          24.6,
+          36.0,
+          32.7,
+          33.9,
+          33.9,
+          31.8
+        ]
+      },
+      "esp_report": [
+        "iperf>  0.0- 2.0 sec  30.94 Mbits/sec",
+        "2.0- 4.0 sec  33.69 Mbits/sec",
+        "4.0- 6.0 sec  29.94 Mbits/sec",
+        "6.0- 8.0 sec  31.50 Mbits/sec",
+        "8.0-10.0 sec  29.25 Mbits/sec",
+        "10.0-12.0 sec  32.75 Mbits/sec",
+        "12.0-14.0 sec  29.00 Mbits/sec",
+        "14.0-16.0 sec  28.94 Mbits/sec",
+        "16.0-18.0 sec  31.75 Mbits/sec",
+        "18.0-20.0 sec  31.31 Mbits/sec",
+        "0.0-20.0 sec  30.91 Mbits/sec"
+      ]
+    },
+    {
+      "proto": "udp",
+      "repeat": 1,
+      "mac": {
+        "proto": "udp",
+        "bytes": 114759960,
+        "active_s": 20.01,
+        "mbps_overall": 45.89,
+        "mbps_steady_median": 46.63,
+        "per_s_mbps": [
+          47.9,
+          46.6,
+          48.2,
+          46.5,
+          47.6,
+          40.6,
+          44.3,
+          46.9,
+          46.9,
+          45.0,
+          48.2,
+          45.0,
+          44.6,
+          43.7,
+          47.4,
+          47.6,
+          45.7,
+          43.5,
+          46.8
+        ],
+        "datagrams": 78068,
+        "loss_pct": 59.122
+      },
+      "esp_report": [
+        "iperf>  0.0- 2.0 sec  44.28 Mbits/sec",
+        "2.0- 4.0 sec  45.19 Mbits/sec",
+        "4.0- 6.0 sec  44.86 Mbits/sec",
+        "6.0- 8.0 sec  40.59 Mbits/sec",
+        "8.0-10.0 sec  44.70 Mbits/sec",
+        "10.0-12.0 sec  44.60 Mbits/sec",
+        "12.0-14.0 sec  42.62 Mbits/sec",
+        "14.0-16.0 sec  43.49 Mbits/sec",
+        "16.0-18.0 sec  44.40 Mbits/sec",
+        "18.0-20.0 sec  43.04 Mbits/sec",
+        "0.0-20.0 sec  43.78 Mbits/sec"
+      ]
+    },
+    {
+      "proto": "udp",
+      "repeat": 2,
+      "mac": {
+        "proto": "udp",
+        "bytes": 107473170,
+        "active_s": 20.0,
+        "mbps_overall": 42.98,
+        "mbps_steady_median": 44.45,
+        "per_s_mbps": [
+          44.5,
+          47.1,
+          42.9,
+          38.8,
+          43.5,
+          45.7,
+          45.1,
+          33.3,
+          39.7,
+          36.1,
+          39.2,
+          44.4,
+          48.0,
+          44.7,
+          46.8,
+          46.2,
+          44.9,
+          44.5,
+          41.7
+        ],
+        "datagrams": 73111,
+        "loss_pct": 61.974
+      },
+      "esp_report": [
+        "iperf>  0.0- 2.0 sec  41.60 Mbits/sec",
+        "2.0- 4.0 sec  43.04 Mbits/sec",
+        "4.0- 6.0 sec  39.20 Mbits/sec",
+        "6.0- 8.0 sec  43.36 Mbits/sec",
+        "8.0-10.0 sec  34.91 Mbits/sec",
+        "10.0-12.0 sec  35.74 Mbits/sec",
+        "12.0-14.0 sec  44.01 Mbits/sec",
+        "14.0-16.0 sec  43.58 Mbits/sec",
+        "16.0-18.0 sec  43.46 Mbits/sec",
+        "18.0-20.0 sec  41.07 Mbits/sec",
+        "0.0-20.0 sec  41.00 Mbits/sec"
+      ]
+    }
+  ],
+  "transcript_tail": "WiFi, aid = 1, channel 1, BW20, bssid = 8c:30:66:b2:c0:fe\r\nI (4253) wifi:security: WPA3-SAE, phy: bgn, rssi: -58\r\nI (4266) wifi:pm start, type: 0\r\n\r\nI (4266) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us\r\nI (4267) wifi:set rx beacon pti, rx_bcn_pti: 0, bcn_timeout: 25000, mt_pti: 0, mt_time: 10000\r\nI (4280) WIFI: WIFI_EVENT_STA_CONNECTED!\r\nI (4280) WIFI: STA_CONNECTED_AUTH:6\r\nI (4286) wifi:<ba-add>idx:0 (ifx:0, 8c:30:66:b2:c0:fe), tid:0, ssn:0, winSize:64\r\nI (4301) wifi:AP's beacon interval = 102400 us, DTIM period = 1\r\nI (5311) esp_netif_handlers: sta ip: 192.168.1.159, mask: 255.255.255.0, gw: 192.168.1.1\r\nI (5312) WIFI: IP_EVENT_STA_GOT_IP: Interface \"sta\" address: 192.168.1.159\r\nI (5323) WIFI: - IPv4 address: 192.168.1.159,\r\nI (5390) WIFI: IP_EVENT_GOT_IP6: Interface \"sta\" address: fe80:0000:0000:0000:eaf6:0aff:fe85:4610, type: 2\r\nI (5391) WIFI: - IPv6 address: fe80:0000:0000:0000:eaf6:0aff:fe85:4610, type: 2\r\nI (9346) wifi:<ba-add>idx:1 (ifx:0, 8c:30:66:b2:c0:fe), tid:6, ssn:2, winSize:64\r\niperf -c 192.168.1.127 -p 5101  -i 2 -t 20\r\nI (10688) IPERF: mode=tcp-client sip=localhost:5001, dip=192.168.1.127:5101, interval=2, time=20\r\niperf> \r\niperf> I (10770) iperf: Successfully connected\r\n\r\nInterval       Bandwidth\r\n 0.0- 2.0 sec  25.81 Mbits/sec\r\n 2.0- 4.0 sec  30.81 Mbits/sec\r\n 4.0- 6.0 sec  33.56 Mbits/sec\r\n 6.0- 8.0 sec  32.38 Mbits/sec\r\n 8.0-10.0 sec  32.94 Mbits/sec\r\n10.0-12.0 sec  31.75 Mbits/sec\r\n12.0-14.0 sec  32.06 Mbits/sec\r\n14.0-16.0 sec  33.25 Mbits/sec\r\n16.0-18.0 sec  34.38 Mbits/sec\r\n18.0-20.0 sec  32.12 Mbits/sec\r\n 0.0-20.0 sec  31.91 Mbits/sec\r\nI (30785) iperf: TCP Socket client is closed.\r\nI (30786) iperf: iperf exit\r\niperf --abort\r\nI (33301) iperf: DONE.IPERF_STOP,OK.\r\niperf> \r\niperf> iperf -c 192.168.1.127 -p 5101  -i 2 -t 20\r\nI (38584) IPERF: mode=tcp-client sip=localhost:5001, dip=192.168.1.127:5101, interval=2, time=20\r\niperf> I (38591) iperf: Successfully connected\r\n\r\n\r\nInterval       Bandwidth\r\niperf>  0.0- 2.0 sec  30.94 Mbits/sec\r\n 2.0- 4.0 sec  33.69 Mbits/sec\r\n 4.0- 6.0 sec  29.94 Mbits/sec\r\n 6.0- 8.0 sec  31.50 Mbits/sec\r\n 8.0-10.0 sec  29.25 Mbits/sec\r\n10.0-12.0 sec  32.75 Mbits/sec\r\n12.0-14.0 sec  29.00 Mbits/sec\r\n14.0-16.0 sec  28.94 Mbits/sec\r\n16.0-18.0 sec  31.75 Mbits/sec\r\n18.0-20.0 sec  31.31 Mbits/sec\r\n 0.0-20.0 sec  30.91 Mbits/sec\r\nI (58608) iperf: TCP Socket client is closed.\r\nI (58608) iperf: iperf exit\r\niperf --abort\r\nI (61127) iperf: DONE.IPERF_STOP,OK.\r\niperf> \r\niperf> iperf -c 192.168.1.127 -p 5101 -u -b 100 -i 2 -t 20\r\nI (66427) IPERF: mode=udp-client sip=localhost:5001, dip=192.168.1.127:5101, interval=2, time=20\r\niperf> I (66429) iperf: Socket created, sending to 2130815168:5101\r\n\r\n\r\nInterval       Bandwidth\r\niperf>  0.0- 2.0 sec  44.28 Mbits/sec\r\n 2.0- 4.0 sec  45.19 Mbits/sec\r\n 4.0- 6.0 sec  44.86 Mbits/sec\r\n 6.0- 8.0 sec  40.59 Mbits/sec\r\n 8.0-10.0 sec  44.70 Mbits/sec\r\n10.0-12.0 sec  44.60 Mbits/sec\r\n12.0-14.0 sec  42.62 Mbits/sec\r\n14.0-16.0 sec  43.49 Mbits/sec\r\n16.0-18.0 sec  44.40 Mbits/sec\r\n18.0-20.0 sec  43.04 Mbits/sec\r\n 0.0-20.0 sec  43.78 Mbits/sec\r\nI (86443) iperf: UDP Socket client is closed\r\nI (86443) iperf: iperf exit\r\niperf --abort\r\nI (88473) iperf: DONE.IPERF_STOP,OK.\r\niperf> \r\niperf> iperf -c 192.168.1.127 -p 5101 -u -b 100 -i 2 -t 20\r\nI (93785) IPERF: mode=udp-client sip=localhost:5001, dip=192.168.1.127:5101, interval=2, time=20\r\niperf> I (93786) iperf: Socket created, sending to 2130815168:5101\r\n\r\n\r\nInterval       Bandwidth\r\niperf>  0.0- 2.0 sec  41.60 Mbits/sec\r\n 2.0- 4.0 sec  43.04 Mbits/sec\r\n 4.0- 6.0 sec  39.20 Mbits/sec\r\n 6.0- 8.0 sec  43.36 Mbits/sec\r\n 8.0-10.0 sec  34.91 Mbits/sec\r\n10.0-12.0 sec  35.74 Mbits/sec\r\n12.0-14.0 sec  44.01 Mbits/sec\r\n14.0-16.0 sec  43.58 Mbits/sec\r\n16.0-18.0 sec  43.46 Mbits/sec\r\n18.0-20.0 sec  41.07 Mbits/sec\r\n 0.0-20.0 sec  41.00 Mbits/sec\r\nI (113801) iperf: UDP Socket client is closed\r\nI (113801) iperf: iperf exit\r\niperf --abort\r\nI (116332) iperf: DONE.IPERF_STOP,OK.\r\niperf> \r\niperf> "
+}

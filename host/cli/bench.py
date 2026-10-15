@@ -289,6 +289,143 @@ def cmd_effort(a) -> int:
     return 0
 
 
+IDF_DEFAULT = Path.home() / "Desktop" / "Research" / "esp-idf"    # hostrun.sh's IDF_EXPORT
+
+
+def _first_port(prefix: str, fallback: str) -> str:
+    found = sorted(p.name for p in Path("/dev").glob(prefix + "*"))
+    return found[0] if found else fallback
+
+
+def cmd_tune(a) -> int:
+    """The max-throughput climber (bench/tune.py). Refuses early rather than spending a
+    night on a study that cannot produce a number."""
+    import os
+    import shutil
+    from bench import tune
+    host = Path(__file__).resolve().parents[1]
+    plan_path = Path(a.plan)
+    plan = tune.Plan.load(plan_path)
+    state_dir, ledger, rungs_root = host / plan.state_dir, host / plan.ledger, host / "rungs"
+    if a.sim:
+        # A rehearsal of the plumbing, not of the rig: short holds, and none of the rig
+        # checks a fake ESP cannot pass (IDF version, network). The plan is not re-read
+        # per step, so these overrides hold for the whole rehearsal.
+        plan.hold_s, plan.discard_s = 1.0, 0.2
+        plan.expected_idf = plan.ssid = None
+        plan_path = None
+        # Its own state, ledger and rung tree: a rehearsal must never leave rung files
+        # whose parents disagree with the real study's.
+        state_dir = Path(str(state_dir) + "-sim")
+        ledger = ledger.with_name(ledger.stem + "-sim.jsonl")
+        sim_rungs = state_dir / "rungs"
+        if not sim_rungs.exists():
+            shutil.copytree(rungs_root, sim_rungs)
+        rungs_root = sim_rungs
+    if a.status:
+        summary = state_dir / "summary.md"
+        print(summary.read_text() if summary.exists() else "no results yet")
+        return 0
+    if a.reopen:
+        if not a.reason:
+            print("--reopen needs --reason (it is recorded in the step)", file=sys.stderr)
+            return 2
+        st = state_dir / "state.json"
+        climbs = json.loads(st.read_text())["climbs"] if st.exists() else {}
+        want = a.chips.split(",") if a.chips else None
+        keys = [k for k, c in climbs.items() if c["band"] == a.band
+                and (not want or c["chip"] in want)
+                and any(s["rung"] == a.reopen for s in c["steps"])]
+        if len(keys) != 1:
+            print(f"{a.reopen!r} matches {keys or 'no'} {a.band} GHz climb(s); name the "
+                  f"chip with --chips", file=sys.stderr)
+            return 2
+        key = keys[0]
+        try:
+            tune.Engine(plan, band=a.band, rungs_root=rungs_root, state_dir=state_dir,
+                        ledger=ledger, runner=None).reopen(key, a.reopen, a.reason)
+        except tune.TuneError as e:
+            print(f"not reopened: {e}", file=sys.stderr)
+            return 2
+        print(f"{key}: {a.reopen} reopened — its candidate is retried on the next run")
+        return 0
+
+    idf = Path(os.environ.get("IDF_PATH") or IDF_DEFAULT)
+    if (idf / "components").is_dir():
+        known = rungs.known_symbols(idf, host.parent / "firmware")
+        bad = [f"{c.key}/{k.id}: {s}" for c in plan.climbs for k in c.candidates
+               for s in k.config if s not in known]
+        if bad:
+            print("these candidate symbols are not defined by this ESP-IDF's Kconfig "
+                  "(Kconfig would drop them silently):", file=sys.stderr)
+            for b in bad:
+                print(f"  - {b}", file=sys.stderr)
+            return 2
+    else:
+        print(f"note: no ESP-IDF at {idf}; candidate symbols not pre-checked "
+              f"(the post-build check still applies)")
+
+    max_load = None
+    if a.sim:
+        runner = tune.SimRunner()
+    else:
+        hb = Path(a.agent_dir) / "heartbeat"
+        if not hb.exists() or time.time() - hb.stat().st_mtime > 60:
+            print(f"hostrun.sh is not running for this checkout (no fresh {hb}). Start it "
+                  f"in its own Terminal from THIS checkout — "
+                  f"bash {host.parent / 'hostrun.sh'} — and approve the flash window.",
+                  file=sys.stderr)
+            return 2
+        max_load = _ceilings(a.ceilings).get(a.band)
+        if not max_load:
+            print(f"--ceilings must give this band's rig ceiling (e.g. {a.band}=60): no "
+                  f"run is accepted above it, and the study never offers more",
+                  file=sys.stderr)
+            return 2
+        runner = tune.HardwareRunner(
+            band=a.band, ceilings=a.ceilings, agent_dir=a.agent_dir,
+            s3_port=a.s3_port or _first_port("cu.usbmodem", "cu.usbmodem101"),
+            c5_port=a.c5_port or _first_port("cu.usbserial-", "cu.usbserial-110"),
+            s3_hub_port=a.s3_hub_port, c5_hub_port=a.c5_hub_port,
+            allow_shared_band=a.allow_shared_band)
+        print(f"rig ceiling {max_load:g} Mbit/s on {a.band} GHz: no load above it is offered")
+    chips = a.chips.split(",") if a.chips else None
+    eng = tune.Engine(plan, band=a.band, rungs_root=rungs_root, state_dir=state_dir,
+                      ledger=ledger, runner=runner, plan_path=plan_path,
+                      max_load_mbps=max_load, chips=chips, remeasure=a.remeasure)
+    # A stop (kill, closed terminal) must unwind like Ctrl-C, so board locks are released
+    # and the bench-run child is stopped rather than left to flash a released board.
+    import signal
+    from contextlib import ExitStack
+
+    def _stop(signum, frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, _stop)
+    signal.signal(signal.SIGHUP, _stop)
+    try:
+        with ExitStack() as held:
+            if not a.sim:
+                ports = {"esp32s3": runner.args[runner.args.index("--s3-port") + 1],
+                         "esp32c5": runner.args[runner.args.index("--c5-port") + 1]}
+                need = sorted({c.chip for c in plan.climbs if c.band == a.band
+                               and (not chips or c.chip in chips)})
+                for chip in need:
+                    d = held.enter_context(tune.board_lock(
+                        chip, ports[chip], owner=f"bench tune {plan.study} {a.band} GHz "
+                        f"(throughput sweep, {host.parent})", expected_s=4500,
+                        root=a.lock_dir))
+                    print(f"holding {d} for this run")
+            eng.run(max_steps=a.max_steps)
+    except tune.TuneError as e:
+        print(f"tune stopped: {e}", file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:
+        print("tune stopped by a signal; locks released. Re-run to resume.", file=sys.stderr)
+        return 130
+    print((state_dir / "summary.md").read_text())
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="bench", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -385,6 +522,36 @@ def main(argv=None) -> int:
     e = sub.add_parser("effort", help="check the equal-effort protocol (plan §5.4)")
     e.add_argument("--rungs", default="rungs")
     e.set_defaults(fn=cmd_effort)
+
+    t = sub.add_parser("tune", help="max-throughput study: climb one lever at a time "
+                                    "(bench/tune.py, plan in tuning/)")
+    t.add_argument("--plan", default="tuning/max-tput.yaml")
+    t.add_argument("--band", required=True, choices=["2.4", "5"],
+                   help="one band per invocation: the climbs for that band")
+    t.add_argument("--ceilings", default=None, help='rig ceilings, e.g. "2.4=60,5=95"')
+    t.add_argument("--sim", action="store_true",
+                   help="rehearse against fake ESPs (separate state, ledger and rungs)")
+    t.add_argument("--status", action="store_true", help="print the summary and exit")
+    t.add_argument("--max-steps", type=int, default=None,
+                   help="stop after this many measurements (a supervisor's checkpoint)")
+    t.add_argument("--s3-port", default=None, help="default: first /dev/cu.usbmodem*")
+    t.add_argument("--c5-port", default=None, help="default: first /dev/cu.usbserial-*")
+    t.add_argument("--s3-hub-port", default=None)
+    t.add_argument("--c5-hub-port", default=None)
+    t.add_argument("--allow-shared-band", action="store_true",
+                   help="the Mac shares the cell's band (numbers are rig-limited)")
+    t.add_argument("--agent-dir", default=str(REPO / "_agent"),
+                   help="hostrun.sh's directory; must be this checkout's")
+    t.add_argument("--chips", default=None,
+                   help="only these chips' climbs, e.g. esp32c5 (others are not touched)")
+    t.add_argument("--lock-dir", default=str(Path.home()),
+                   help="where shared-board locks live (~/.<chip>-<port>.lock)")
+    t.add_argument("--remeasure", action="store_true",
+                   help="measure each climb's current best again first (conditions changed)")
+    t.add_argument("--reopen", default=None, metavar="RUNG",
+                   help="withdraw a rejected/unmeasured step's decision (needs --reason)")
+    t.add_argument("--reason", default=None)
+    t.set_defaults(fn=cmd_tune)
 
     a = p.parse_args(argv)
     return a.fn(a)

@@ -1,0 +1,21 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-06-core-lock
+applies_to: esp32c5
+parent: t24-01-tcp-window
+study: max-tput
+lever: core_lock
+rationale: lwIP core locking (+input); Espressif enables it for the C5, where one
+  core carries every task switch it saves.
+config:
+  CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+  CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
+measured_gain_pct: 5.51
+measured:
+  decision: rejected
+  reason: 'unsafe: heap low-water 1108 B is below the 20000 B floor (would have been:
+    gained: tcp +2.9%, udp +5.5%)'
+  offered_mbps: 60.0
+  tcp_mbps: 34.36
+  udp_mbps: 50.63
+  gain_tcp_pct: 2.89
+  gain_udp_pct: 5.51

@@ -1,0 +1,20 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-02-tx-ba-window
+applies_to: esp32c5
+parent: t24-01-tcp-window
+study: max-tput
+lever: ampdu_ba_win
+rationale: TX block-ack window 6 -> 32, as in Espressif's C5 iperf config.
+config:
+  CONFIG_ESP_WIFI_TX_BA_WIN: 32
+measured_gain_pct: -88.83
+measured:
+  decision: unmeasured
+  reason: 'reopened: C5 was on the distant House WiFi AP (HE ch6, -85..-91 dBm) instead
+    of the ch1 AP (-66..-75) for all 4 runs; measured the AP, not the lever (was rejected:
+    regressed: tcp -88.8%, udp -90.7%)'
+  offered_mbps: 60.0
+  tcp_mbps: 2.126
+  udp_mbps: 3.254
+  gain_tcp_pct: -88.83
+  gain_udp_pct: -90.66

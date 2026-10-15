@@ -1,0 +1,24 @@
+
+$ /Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.venv/bin/python -u -m cli.bench run --matrix /Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput/matrices/s3-24-t24-04-wifi-rx-bufs.yaml --ledger /Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/host/results/tuning/max-tput.jsonl --band 2.4 --ceilings 2.4=72 --s3-port cu.usbmodem5B8F0676581 --c5-port cu.usbserial-110 --agent-dir /Users/th3vik/Desktop/Research/NML work/ESP_COMPARISON_CODE/hdemg-bench/.claude/worktrees/tune-loop/_agent --unattended --rssi-drift-warn --passes 2
+network 'House WiFi': this Mac and every board's firmware are set to it
+access point 'house-wifi'  host ip 192.168.1.127  expected idf v6.0-dev-2980-gab149384e1-dirty
+host link: Wi-Fi (en0) on 'House WiFi', band 5 GHz, channel 48, 80 MHz, 802.11ax
+  found esp32s3 at 192.168.1.159  band=2.4 rung=t24-03-wifi-tx-bufs idf=v6.0-dev-2980-gab149384e1-dirty
+
+=== pass 1/2  pending 4 ===
+>> band 2.4 GHz: pinned in the firmware build; access point 'house-wifi' serves both bands
+
+--- band 2.4 ---
+  s1-esp32s3-2.4-synth-tcp-t24-04-wifi-rx-bufs off= 60.0  good= 19.89  loss= 0.00%  rep1
+  s1-esp32s3-2.4-synth-udp-t24-04-wifi-rx-bufs off= 60.0  good= 27.98  loss= 0.33%  rep1
+  s1-esp32s3-2.4-synth-tcp-t24-04-wifi-rx-bufs off= 60.0  good= 20.34  loss= 0.00%  rep2
+  s1-esp32s3-2.4-synth-udp-t24-04-wifi-rx-bufs off= 60.0  good= 28.08  loss= 0.23%  rep2
+{
+  "attempted": 4,
+  "valid": 4,
+  "invalid": 0,
+  "errors": 0,
+  "abandoned_cells": {},
+  "remaining": 0,
+  "stopped_for_time": false
+}

@@ -1,0 +1,20 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-08-tcp-sndbuf-32k
+applies_to: esp32c5
+parent: t24-01-tcp-window
+study: max-tput
+lever: lwip_window
+rationale: Added 13 Oct. A smaller send buffer again, in case 41,760 B is still under
+  the heap floor.
+config:
+  CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 32768
+measured_gain_pct: -4.38
+measured:
+  decision: rejected
+  reason: 'unsafe: heap low-water 14860 B is below the 20000 B floor (would have been:
+    regressed: tcp -26.4%)'
+  offered_mbps: 60.0
+  tcp_mbps: 24.584
+  udp_mbps: 45.883
+  gain_tcp_pct: -26.38
+  gain_udp_pct: -4.38

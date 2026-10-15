@@ -112,9 +112,14 @@ def post_run(ctx: dict) -> GateResult:
                      f"{cmd/1e6:.1f} Mbit/s")
     if ctx.get("esp_reset_during"):
         f.append("device reset during the run")
+    # The device's low-water mark of free internal heap since boot. Below the floor the
+    # number is still real, but the configuration nearly ran out of memory (a stalled
+    # stream then takes the board offline), so it is flagged, not voided: the study
+    # refuses to keep such a lever (bench/tune.py).
     hm, hf = ctx.get("heap_min"), ctx.get("heap_floor")
     if hm is not None and hf is not None and hm < hf:
-        f.append(f"heap low-water {hm} crossed floor {hf}")
+        w.append(f"heap low-water {hm} B is below the {hf} B floor: this configuration "
+                 f"nearly ran out of internal memory")
 
     m = ctx.get("metrics") or {}
     if m.get("error"):

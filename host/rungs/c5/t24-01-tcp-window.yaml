@@ -1,0 +1,20 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-01-tcp-window
+applies_to: esp32c5
+parent: r2-iram
+study: max-tput
+lever: lwip_window
+rationale: The measured ~8 Mbit/s TCP ceiling is the stock 5760 B send buffer. 65535
+  as on the S3 (Espressif's C5 config uses 41760, a RAM trade-off).
+config:
+  CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 65535
+  CONFIG_LWIP_TCP_WND_DEFAULT: 65535
+measured_gain_pct: 322.07
+measured:
+  decision: kept
+  reason: 'gained: tcp +322.1%, udp +17.3%'
+  offered_mbps: 60.0
+  tcp_mbps: 19.031
+  udp_mbps: 34.84
+  gain_tcp_pct: 322.07
+  gain_udp_pct: 17.32

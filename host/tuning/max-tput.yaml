@@ -1,0 +1,290 @@
+# Max-throughput study — `bench tune` (host/bench/tune.py).
+#
+# NOT a stage of the test plan and not comparable with the staged sweeps: its own ledger,
+# its own state, short holds. The question is only "how fast can each chip go, per
+# transport, per band, on this rig", answered by climbing one lever at a time.
+#
+# HOW A STEP WORKS: the candidate becomes a rung whose parent is the current best; it is
+# built, flashed and measured at ONE saturating offered load per transport (more than the
+# chip can carry, so the goodput read back is its maximum), `repeats` times each. It is
+# kept if some transport gains >= gain_pct beyond the repeat spread and none regresses as
+# much. A chip stops after `stop_after_misses` misses in a row, or when its list runs out.
+#
+# STEERING: this file is re-read before every step. Add, reorder or remove candidates
+# while a study runs and the next step follows the edit. A candidate already tried (by
+# id) is never re-run; to retry one with a different value, give it a new id.
+#
+# Values come from Espressif's own maximum-throughput configs (ESP-IDF v6.0
+# examples/wifi/iperf/sdkconfig.defaults.esp32s3 / .esp32c5) unless noted. Shield-box
+# references from the same docs: S3 UDP TX 98 / TCP TX 83 Mbit/s (40 MHz); C5 2.4 GHz
+# 63 / 49; C5 5 GHz 64 / 50. On a 20 MHz channel both chips share a 72.2 Mbit/s PHY cap.
+study: max-tput
+ledger: results/tuning/max-tput.jsonl
+state_dir: results/tuning/max-tput
+ap: house-wifi                             # a router rig; recorded in every run
+ssid: House WiFi                           # enforced: the Mac and both boards' firmware
+expected_idf: v6.0-dev-2980-gab149384e1-dirty
+frame_bytes: 270
+repeats: 2
+hold_s: 20                                 # 17 s measured after a 3 s discard
+discard_s: 3
+transports: [tcp, udp]
+saturate_mbps: 60                          # first load offered; raised while unsaturated
+unsaturated_ratio: 0.9                     # goodput >= 90 % of offered => load-limited
+load_step: 1.5                             # ... by this factor ...
+max_load_mbps: 150                         # ... never above this, nor the rig ceiling
+gain_pct: 2.0
+# Was 3 (plan §5.4's stop rule), which ended the S3 climb on 13 Oct with five levers
+# untried. Raised that morning at the user's request to finish both lists; every miss is
+# still recorded, so the §5.4 reading can be taken from state.json afterwards.
+stop_after_misses: 12
+block_after_unmeasured: 2                  # in a row: the rig is failing, not the levers
+max_attempts: 2                            # an unmeasured candidate is retried once
+
+climbs:
+  # ---------------------------------------------------------------- ESP32-S3, 2.4 GHz
+  - chip: esp32s3
+    band: "2.4"
+    start: r2-core-split                   # the formal ladder's current top
+    candidates:
+      - id: tcp-window
+        lever: lwip_window
+        why: "The measured 5.3 Mbit/s TCP ceiling is the stock 5760 B send buffer
+          (4 segments in flight). Espressif's S3 iperf config uses 65535."
+        config:
+          CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 65535
+          CONFIG_LWIP_TCP_WND_DEFAULT: 65535
+      # No 40 MHz candidate on the S3: its station already asks for HT40 by default
+      # (ESP-IDF Wi-Fi guide), so a firmware lever would change nothing. 40 MHz on the S3
+      # is the ROUTER's 2.4 GHz channel width — its phy_rate reads "sta40" already and
+      # "bw40" once the router offers it. Espressif's 98/83 Mbit/s S3 figures need it.
+      - id: tx-ba-window
+        lever: ampdu_ba_win
+        why: "TX block-ack window 6 -> 32: more MPDUs per A-MPDU, the main per-frame
+          airtime saving for a transmitter."
+        config:
+          CONFIG_ESP_WIFI_TX_BA_WIN: 32
+      - id: wifi-tx-bufs
+        lever: wifi_buffers
+        why: "Dynamic TX buffers 32 -> 64 so a burst is not throttled by ENOMEM."
+        config:
+          CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM: 64
+      - id: wifi-rx-bufs
+        lever: wifi_buffers
+        why: "RX side for TCP ACKs: static 10 -> 16, dynamic 32 -> 64, RX BA window
+          -> 32 (IDF requires RX_BA_WIN <= 2 x STATIC_RX)."
+        config:
+          CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM: 16
+          CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM: 64
+          CONFIG_ESP_WIFI_RX_BA_WIN: 32
+      - id: pipe-pool
+        lever: frame_size
+        why: "Source/sink pool 6 -> 12 x 8 KB (~20 ms of slack at 40 Mbit/s) so a Wi-Fi
+          stall does not starve the stream."
+        config:
+          CONFIG_BENCH_PIPE_NUM_BUFS: 12
+      - id: core-lock
+        lever: core_lock
+        why: "lwIP core locking: socket calls run in the caller's context instead of a
+          message to the tcpip task. Works against r2's core split — which one wins on
+          the S3 is a reportable result."
+        config:
+          CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+          CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
+      - id: tcpip-prio
+        lever: core_lock
+        why: "tcpip task priority 18 -> 23 and its mailbox 32 -> 64, as in Espressif's
+          iperf config."
+        config:
+          CONFIG_LWIP_TCPIP_TASK_PRIO: 23
+          CONFIG_LWIP_TCPIP_RECVMBOX_SIZE: 64
+      - id: extra-iram
+        lever: iram_wifi
+        why: "Hot lwIP/FreeRTOS paths in IRAM (the S3's r2 never enabled
+          LWIP_IRAM_OPTIMIZATION). Help text says it matters less on dual core."
+        config:
+          CONFIG_LWIP_IRAM_OPTIMIZATION: y
+          CONFIG_LWIP_EXTRA_IRAM_OPTIMIZATION: y
+          CONFIG_FREERTOS_IN_IRAM: y
+      - id: static-tx
+        lever: static_tx_buffers
+        why: "Static instead of dynamic Wi-Fi TX buffers: no allocation per frame."
+        config:
+          CONFIG_ESP_WIFI_STATIC_TX_BUFFER: y
+          CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM: 32
+          CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM: null
+      - id: cache
+        lever: cpu_max_clock
+        why: "S3 caches as in Espressif's iperf rank: 32 KB instruction, 64 KB data."
+        config:
+          CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB: y
+          CONFIG_ESP32S3_DATA_CACHE_64KB: y
+      - id: psram
+        lever: psram_bufs
+        why: "This S3 has 8 MB embedded octal PSRAM. Espressif's best S3 rank (TCP TX
+          ~93, UDP TX ~105 Mbit/s) puts Wi-Fi/lwIP buffers there and enables A-MSDU TX,
+          which needs PSRAM. PSRAM is slower than SRAM, so it can lose — measure.
+          Octal PSRAM takes GPIO33-37; the QSPI ingress (GPIO 7, 9-14) is clear."
+        config:
+          CONFIG_SPIRAM: y
+          CONFIG_SPIRAM_MODE_OCT: y
+          CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: y
+          CONFIG_ESP_WIFI_AMSDU_TX_ENABLED: y
+          CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM: null
+      - id: core-lock-on-iram
+        lever: core_lock
+        why: "Added 13 Oct. Core locking gave UDP +72% (TCP -20%) when the S3 was CPU-bound
+          on the lwIP core; IRAM placement has since relieved that core. Does core locking
+          still add UDP on top? Expected to be rejected for TCP; it answers the UDP-only
+          build question."
+        config:
+          CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+          CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
+
+  # ---------------------------------------------------------------- ESP32-C5, 2.4 GHz
+  - chip: esp32c5
+    band: "2.4"
+    start: r2-iram                         # the formal ladder's current top
+    candidates:
+      - id: tcp-window
+        lever: lwip_window
+        why: "The measured ~8 Mbit/s TCP ceiling is the stock 5760 B send buffer.
+          65535 as on the S3 (Espressif's C5 config uses 41760, a RAM trade-off)."
+        config:
+          CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 65535
+          CONFIG_LWIP_TCP_WND_DEFAULT: 65535
+      - id: tcp-sndbuf-41k
+        lever: lwip_window
+        why: "Added 13 Oct. With a 64 KB send buffer the C5's heap low-water was 2.5 KB and
+          the board went offline when a stream stalled. 41,760 B is Espressif's own C5
+          value (a RAM trade-off); the window stays 65,535."
+        config:
+          CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 41760
+      - id: tcp-sndbuf-32k
+        lever: lwip_window
+        why: "Added 13 Oct. A smaller send buffer again, in case 41,760 B is still under the
+          heap floor."
+        config:
+          CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 32768
+      - id: safe-memory
+        lever: frame_size
+        why: "Added 13 Oct, deliberately TWO settings: neither alone clears the 20 KB heap
+          floor. 41,760 B and 32 KB send buffers both bottomed at ~14.8 KB, so below ~41 KB
+          the TCP buffer is not what drains the heap. The pool is 48 KB of static SRAM
+          (6 x 8 KB); 4 buffers give 16 KB back to the heap on the C5."
+        config:
+          CONFIG_LWIP_TCP_SND_BUF_DEFAULT: 41760
+          CONFIG_BENCH_PIPE_NUM_BUFS: 4
+      - id: core-lock-on-safe
+        lever: core_lock
+        why: "Added 13 Oct. Core locking gained UDP +4-5% twice on the C5 but was rejected
+          both times only for heap (1.1 and 1.9 KB). Retried on the safe-memory base
+          (31 KB low-water)."
+        config:
+          CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+          CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
+      - id: core-lock-safe
+        lever: core_lock
+        why: "Added 13 Oct. Core locking on the 64 KB build gained TCP +2.9% and UDP +5.5%
+          (50.6 Mbit/s) but left 1.1 KB of heap. Retried on top of the smaller send buffer."
+        config:
+          CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+          CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
+      - id: tx-ba-window
+        lever: ampdu_ba_win
+        why: "TX block-ack window 6 -> 32, as in Espressif's C5 iperf config."
+        config:
+          CONFIG_ESP_WIFI_TX_BA_WIN: 32
+      - id: core-lock
+        lever: core_lock
+        why: "lwIP core locking (+input); Espressif enables it for the C5, where one
+          core carries every task switch it saves."
+        config:
+          CONFIG_LWIP_TCPIP_CORE_LOCKING: y
+          CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT: y
+      - id: wifi-tx-bufs
+        lever: wifi_buffers
+        why: "Dynamic TX buffers 32 -> 48 (Espressif's C5 value)."
+        config:
+          CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM: 48
+      - id: wifi-rx-bufs
+        lever: wifi_buffers
+        why: "RX side for TCP ACKs: static 10 -> 20, dynamic 32 -> 48, RX BA 22
+          (Espressif's C5 values)."
+        config:
+          CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM: 20
+          CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM: 48
+          CONFIG_ESP_WIFI_RX_BA_WIN: 22
+      - id: pipe-pool
+        lever: frame_size
+        why: "Source/sink pool 6 -> 12 x 8 KB."
+        config:
+          CONFIG_BENCH_PIPE_NUM_BUFS: 12
+      - id: tcpip-prio
+        lever: core_lock
+        why: "tcpip task priority 18 -> 23 and mailbox 32 -> 48 (Espressif's C5 values)."
+        config:
+          CONFIG_LWIP_TCPIP_TASK_PRIO: 23
+          CONFIG_LWIP_TCPIP_RECVMBOX_SIZE: 48
+      - id: extra-iram
+        lever: iram_wifi
+        why: "More hot paths in IRAM: lwIP extra (~17 KB) and FreeRTOS. The help text
+          expects >10 % on single-core parts."
+        config:
+          CONFIG_LWIP_EXTRA_IRAM_OPTIMIZATION: y
+          CONFIG_FREERTOS_IN_IRAM: y
+      - id: static-tx
+        lever: static_tx_buffers
+        why: "Static instead of dynamic Wi-Fi TX buffers."
+        config:
+          CONFIG_ESP_WIFI_STATIC_TX_BUFFER: y
+          CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM: 32
+          CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM: null
+      - id: phy-40mhz
+        lever: he_tuning
+        why: "802.11n at 40 MHz (150 Mbit/s PHY) instead of 802.11ax at 20 MHz — the C5
+          cannot do both. Counted only if the link reads 'bw40 sta40' (the router must
+          offer 40 MHz); offered 120, capped at the rig ceiling. 13 Oct: not measurable
+          on House WiFi — its 2.4 GHz radio offers 20 MHz only, the link read 'HT ch1
+          bw20 sta40' and fell from HE20 to HT20 (TCP 29.3 / UDP 45.0). Needs an AP set to
+          40 MHz on 2.4 GHz."
+        saturate_mbps: 120
+        expect_phy: "bw40 sta40"
+        config:
+          CONFIG_BENCH_WIFI_BW_40: y
+      - id: tx-ba-64
+        lever: ampdu_ba_win
+        why: "The C5 accepts a TX BA window up to 64 (the S3 stops at 32)."
+        config:
+          CONFIG_ESP_WIFI_TX_BA_WIN: 64
+      - id: he-mcs9
+        lever: he_tuning
+        why: "ESP-IDF leaves he_mcs9_enabled at 0, capping the C5's HE20 link at MCS7
+          (86 Mbit/s PHY). Advertise HE-MCS8/9 (114.7). Added 13 Oct; only a strong
+          signal uses them, and the C5 sits at about -65 to -70 dBm."
+        config:
+          CONFIG_BENCH_WIFI_HE_MCS9: y
+
+  # ---------------------------------------------------------------- ESP32-C5, 5 GHz
+  # Starts from whatever the 2.4 GHz climb ended on (run that band first). The Mac must
+  # not share the C5's 5 GHz channel: wire it to the router, or run with
+  # --allow-shared-band and read the numbers as rig-limited.
+  - chip: esp32c5
+    band: "5"
+    start: "best:2.4"
+    candidates:
+      - id: phy-40mhz
+        lever: he_tuning
+        why: "HT40 (11a/n, 150 Mbit/s PHY) against HE20 (11ax, 114.7). Counted only if the
+          link reads 'bw40 sta40'; offered 120, capped at the 5 GHz rig ceiling."
+        saturate_mbps: 120
+        expect_phy: "bw40 sta40"
+        config:
+          CONFIG_BENCH_WIFI_BW_40: y
+      - id: he20
+        lever: he_tuning
+        why: "Back to the driver default (802.11ax, 20 MHz) in case the 2.4 GHz winner
+          carried 40 MHz; a no-op otherwise."
+        config:
+          CONFIG_BENCH_WIFI_BW_40: null
+          CONFIG_BENCH_WIFI_BW_DEFAULT: y

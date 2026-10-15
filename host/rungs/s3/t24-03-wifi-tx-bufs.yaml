@@ -1,0 +1,18 @@
+# Written by `bench tune` (study rung — not part of the formal ladder).
+id: t24-03-wifi-tx-bufs
+applies_to: esp32s3
+parent: t24-02-tx-ba-window
+study: max-tput
+lever: wifi_buffers
+rationale: Dynamic TX buffers 32 -> 64 so a burst is not throttled by ENOMEM.
+config:
+  CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM: 64
+measured_gain_pct: 12.26
+measured:
+  decision: kept
+  reason: 'gained: udp +12.3%'
+  offered_mbps: 60.0
+  tcp_mbps: 21.265
+  udp_mbps: 26.242
+  gain_tcp_pct: 1.47
+  gain_udp_pct: 12.26

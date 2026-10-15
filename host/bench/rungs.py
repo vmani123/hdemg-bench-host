@@ -10,6 +10,7 @@ host repo owns is the bookkeeping that keeps the *effort* comparable:
   * the stop rule, evaluated from those gains rather than from memory.
 """
 from __future__ import annotations
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -28,6 +29,11 @@ class Rung:
     config: dict = field(default_factory=dict)
     lever: str | None = None
     measured_gain_pct: float | None = None
+    # Set on rungs written by a tuning study (`bench tune`). They resolve like any rung,
+    # so they can be built and flashed by name, but they are not steps of the formal
+    # ladder: a study climbs past it and leaves losing siblings behind, which would
+    # otherwise fork the ladder and change what Stage 1's `tuned` builds.
+    study: str | None = None
 
     @property
     def is_measured(self) -> bool:
@@ -39,6 +45,11 @@ class Ladder:
         self.chip = chip
         self.rungs = {r.id: r for r in rungs}
         self.order = [r.id for r in rungs]
+
+    @property
+    def formal(self) -> list[str]:
+        """Rung ids of the formal ladder, in file order: everything but study rungs."""
+        return [i for i in self.order if self.rungs[i].study is None]
 
     @classmethod
     def load(cls, root: str | Path, chip: str) -> "Ladder":
@@ -54,6 +65,7 @@ class Ladder:
                 config=raw.get("config") or {},
                 lever=raw.get("lever"),
                 measured_gain_pct=raw.get("measured_gain_pct"),
+                study=raw.get("study"),
             ))
         return cls(chip, rungs)
 
@@ -86,14 +98,14 @@ class Ladder:
 
     def plateaued(self) -> bool:
         """The §5.4 stop rule, evaluated from recorded gains."""
-        gains = [self.rungs[i].measured_gain_pct for i in self.order
+        gains = [self.rungs[i].measured_gain_pct for i in self.formal
                  if self.rungs[i].is_measured]
         if len(gains) < STOP_RULE_WINDOW:
             return False
         return all(g < STOP_RULE_GAIN_PCT for g in gains[-STOP_RULE_WINDOW:])
 
     def unmeasured(self) -> list[str]:
-        return [i for i in self.order if not self.rungs[i].is_measured]
+        return [i for i in self.formal if not self.rungs[i].is_measured]
 
     def top(self) -> str:
         """The rung at the end of the longest parent chain: the chip's current best.
@@ -101,8 +113,9 @@ class Ladder:
         Ambiguous if the ladder has forked into two equally deep branches — that is a
         decision for the ladder author, not something to be resolved silently here.
         """
-        parents = {r.parent for r in self.rungs.values() if r.parent}
-        leaves = [i for i in self.order if i not in parents]
+        formal = self.formal
+        parents = {self.rungs[i].parent for i in formal if self.rungs[i].parent}
+        leaves = [i for i in formal if i not in parents]
         if not leaves:
             raise ValueError(f"the {self.chip} ladder has no leaf rung")
 
@@ -128,7 +141,7 @@ class Ladder:
         if tune in self.rungs:
             return tune
         if tune == "baseline":
-            roots = [i for i in self.order if not self.rungs[i].parent]
+            roots = [i for i in self.formal if not self.rungs[i].parent]
             if len(roots) != 1:
                 raise ValueError(f"the {self.chip} ladder needs exactly one root rung, "
                                  f"found {roots}")
@@ -161,8 +174,57 @@ def effort_report(root: str | Path, chips=("esp32s3", "esp32c5")) -> dict:
         "unattempted": gaps,
         "equal_effort_ok": not gaps,
         "plateaued": {c: ladders[c].plateaued() for c in chips},
-        "rung_counts": {c: len(ladders[c].order) for c in chips},
+        "rung_counts": {c: len(ladders[c].formal) for c in chips},
     }
+
+
+_KCONFIG_DEF = re.compile(r"^\s*(?:menu)?config\s+([A-Za-z0-9_]+)\s*$", re.M)
+
+
+def known_symbols(idf_path: str | Path, firmware_root: str | Path) -> set[str]:
+    """Every CONFIG_ name defined by this ESP-IDF's Kconfig files or the bench's own.
+
+    A name check only: it catches a symbol that does not exist at all (which Kconfig
+    drops silently), not one whose dependencies are unmet — the post-build check in the
+    hardware driver catches those."""
+    files = [Path(idf_path) / "Kconfig"]               # compiler options live here
+    files += list(Path(idf_path).glob("components/**/Kconfig*"))
+    files += list(Path(firmware_root).glob("*/Kconfig*"))
+    files += list(Path(firmware_root).glob("*/main/Kconfig*"))
+    names: set[str] = set()
+    for f in files:
+        names |= {f"CONFIG_{n}" for n in _KCONFIG_DEF.findall(f.read_text(errors="ignore"))}
+    return names
+
+
+def symbols_not_applied(cfg: dict, sdkconfig_text: str) -> list[str]:
+    """Symbols a rung asked for that the built sdkconfig does not carry.
+
+    Kconfig drops an unknown name and replaces an out-of-range value with the default,
+    both without an error, so a build can quietly be the parent rung under a new name.
+    A symbol set to n may be absent: a disabled or non-existent option is the same thing.
+    """
+    built: dict[str, str] = {}
+    for line in sdkconfig_text.splitlines():
+        line = line.strip()
+        if line.startswith("CONFIG_") and "=" in line:
+            k, _, v = line.partition("=")
+            built[k] = v
+    missing = []
+    for k, v in cfg.items():
+        if v is False or v == "n":
+            if built.get(k, "n") == "y":
+                missing.append(k)
+            continue
+        if v is True or v == "y":
+            want = "y"
+        elif isinstance(v, int):
+            want = str(v)
+        else:
+            want = f'"{v}"'
+        if built.get(k) != want:
+            missing.append(k)
+    return missing
 
 
 def _short(chip: str) -> str:
