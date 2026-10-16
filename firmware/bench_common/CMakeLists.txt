@@ -39,6 +39,19 @@ elseif(BENCH_INGRESS STREQUAL "sdio")
     list(APPEND SRCS "ingress_common.c" "ingress_sdio.c")
 endif()
 
+# A wired link DMAs straight into pool buffers, and link DMA into PSRAM has not been
+# validated on this bench, so a wired build with the pool in PSRAM is refused here rather
+# than discovered as corrupt frames at 3 a.m. CONFIG_ values are only set once sdkconfig
+# has been processed, and BENCH_INGRESS only outside IDF's early requirements pass (see
+# bench_options.cmake), so in that pass this check is simply false. ingress_common.c
+# carries an #error as a second line of defence.
+if(CONFIG_BENCH_PIPE_POOL_PSRAM AND NOT BENCH_INGRESS STREQUAL "synth")
+    message(FATAL_ERROR
+        "CONFIG_BENCH_PIPE_POOL_PSRAM is set but BENCH_INGRESS='${BENCH_INGRESS}': a wired "
+        "link DMAs straight into pool buffers, which must stay in internal RAM. Drop "
+        "CONFIG_BENCH_PIPE_POOL_PSRAM from the rung, or build with BENCH_INGRESS=synth.")
+endif()
+
 # The esp_driver_* requirements are unconditional on purpose: IDF expands requirements
 # in a script context that does not see BENCH_INGRESS (see bench_options.cmake), so a
 # requirement made conditional on it would silently be dropped.

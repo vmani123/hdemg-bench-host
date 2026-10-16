@@ -5,7 +5,10 @@
  * either, and a step measured on the other radio compares two access points, not two
  * configurations. With the pin set, a board on the wrong channel rescans starting from
  * the pinned one (fast scan: the first match wins) and rejoins; once there it locks onto
- * that access point's BSSID so a later rejoin cannot drift either.
+ * that access point's BSSID so a later rejoin cannot drift either. A build band-pinned to
+ * 5 GHz takes its pin from CONFIG_BENCH_WIFI_PIN_CHANNEL_5G instead: one sdkconfig.local
+ * serves both bands' builds, and each band has its own access point to stay on. The lock
+ * lives in the driver's station config, so it also holds across a `linkdrop`.
  *
  * HE-MCS8/9 (CONFIG_BENCH_WIFI_HE_MCS9, a rung lever, 802.11ax chips). ESP-IDF leaves
  * he_mcs9_enabled at 0, which caps an HE20 link at MCS7 (86 Mbit/s). It is a capability
@@ -37,19 +40,15 @@ void bench_wifi_station_setup(int band_pin)
     }
 #endif
 
-    uint8_t want = 0;
-#if CONFIG_BENCH_WIFI_PIN_CHANNEL > 0
-    want = CONFIG_BENCH_WIFI_PIN_CHANNEL;
-    if ((band_pin == 5 && want <= 14) || (band_pin == 2 && want > 14)) {
+    uint8_t want = (band_pin == 5) ? CONFIG_BENCH_WIFI_PIN_CHANNEL_5G
+                                   : CONFIG_BENCH_WIFI_PIN_CHANNEL;
+    if (want && ((band_pin == 5 && want <= 14) || (band_pin == 2 && want > 14))) {
         ESP_LOGW(TAG, "pinned channel %u is not on this build's band; not pinning", want);
         want = 0;
-    } else {
+    } else if (want) {
         cfg.sta.channel = want;
         cfg.sta.scan_method = WIFI_FAST_SCAN;
     }
-#else
-    (void)band_pin;
-#endif
     if (!rejoin && !want) return;
     esp_wifi_set_config(WIFI_IF_STA, &cfg);
     if (rejoin) {

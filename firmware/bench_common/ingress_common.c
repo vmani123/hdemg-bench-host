@@ -1,6 +1,7 @@
 /* ingress_common.c — buffer verification, counters and the stat port shared by the
  * wired-ingress links. See ingress.h. */
 #include "ingress.h"
+#include "sdkconfig.h"
 #include "control.h"
 #include <string.h>
 #include <stdlib.h>
@@ -10,6 +11,12 @@
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "lwip/sockets.h"
+
+/* Second line of defence behind the check in CMakeLists.txt: the link DMAs straight into
+ * pool buffers, which must stay in internal RAM. */
+#ifdef CONFIG_BENCH_PIPE_POOL_PSRAM
+#error "CONFIG_BENCH_PIPE_POOL_PSRAM cannot be used with a wired ingress (qspi/sdio): the link DMAs into pool buffers"
+#endif
 
 static const char *TAG = "ingress";
 
