@@ -138,3 +138,117 @@ class FakeWiring:
         if (chip, gpio) in self.esp_driven:
             return self.esp_driven[(chip, gpio)]
         return self._net_level(self._net(self._esp_net.get((chip, gpio))))
+
+
+# ---- the wiring "hello world" (docs/CAMPAIGN_PROTOCOL.md §4) ------------------------
+def _levels(reply: dict) -> dict:
+    return {str(k): int(v) for k, v in (reply.get("levels") or {}).items()}
+
+
+def _high(levels: dict) -> set:
+    return {k for k, v in levels.items() if v}
+
+
+def check(h7, esps: dict, wires: tuple[Wire, ...] = WIRES) -> dict:
+    """Walk every wire in both directions. `h7` answers `pins ...` (H7Control or
+    FakeH7); `esps` maps chip -> a ControlClient-like object answering `pins ...`. Both
+    ESPs must run synth builds and the H7 must have no link open.
+
+    Returns {"ok": bool, "rows": [one per wire], "baseline_high": [...]} where each row
+    says what the H7 end and the ESP end saw and gives a verdict: ok, open, swapped with
+    #n, shorted to #n, stuck high, or one-way (only one direction worked)."""
+    by_esp = {(w.chip, w.gpio): w for w in wires}
+    by_h7 = {w.h7: w for w in wires}
+    rows: list[dict] = []
+    baseline: list[str] = []
+    try:
+        h7.pins("in")
+        for c in esps.values():
+            c.pins("in")
+        base_esp: set = set()
+        for chip, c in esps.items():
+            for g in sorted(_high(_levels(c.pins("read"))), key=int):
+                baseline.append(f"{chip} GPIO{g}")
+                base_esp.add((chip, int(g)))
+        base_h7 = _high(_levels(h7.pins("read")))
+        baseline += [f"H7 {p}" for p in sorted(base_h7)]
+
+        fwd: dict[int, set] = {}
+        fwd_low_stuck: dict[int, bool] = {}
+        for w in wires:
+            h7.pins("drive", w.h7, 1)
+            seen = set()
+            for chip, c in esps.items():
+                seen |= {(chip, int(g)) for g in _high(_levels(c.pins("read")))}
+            h7.pins("drive", w.h7, 0)
+            lo = esps[w.chip].pins("read") if w.chip in esps else {}
+            fwd_low_stuck[w.n] = bool(_levels(lo).get(str(w.gpio), 0))
+            h7.pins("in")
+            fwd[w.n] = seen
+        rev: dict[int, set] = {}
+        for w in wires:
+            c = esps.get(w.chip)
+            if c is None:
+                rev[w.n] = set()
+                continue
+            c.pins("drive", w.gpio, 1)
+            rev[w.n] = _high(_levels(h7.pins("read")))
+            c.pins("drive", w.gpio, 0)
+            c.pins("in")
+
+        for w in wires:
+            want_esp, want_h7 = (w.chip, w.gpio), w.h7
+            f = fwd[w.n] - (base_esp - {want_esp})
+            r = rev[w.n] - (base_h7 - {want_h7})
+            f_ok = f == {want_esp} and not fwd_low_stuck[w.n]
+            r_ok = r == {want_h7}
+            if f_ok and r_ok:
+                verdict = "ok"
+            elif fwd_low_stuck[w.n] or f"H7 {w.h7}" in baseline or \
+                    f"{w.chip} GPIO{w.gpio}" in baseline:
+                verdict = "stuck high"
+            elif not f and not r:
+                verdict = "open"
+            elif want_esp not in f and len(f) == 1:
+                other = by_esp.get(next(iter(f)))
+                verdict = f"swapped with #{other.n}" if other else \
+                    f"lands on {next(iter(f))[0]} GPIO{next(iter(f))[1]}"
+            elif want_esp in f and len(f) > 1:
+                others = sorted(by_esp[x].n for x in f - {want_esp} if x in by_esp)
+                verdict = "shorted to " + ", ".join(f"#{n}" for n in others)
+            elif f_ok != r_ok:
+                verdict = "one-way: " + ("H7 -> ESP only" if f_ok else "ESP -> H7 only")
+            else:
+                verdict = "wrong"
+            rows.append({"n": w.n, "h7": w.h7, "zio": w.zio, "esp": f"{w.chip} GPIO{w.gpio}",
+                         "role": w.role,
+                         "h7_drives_esp_sees": sorted(f"{c} GPIO{g}" for c, g in f),
+                         "esp_drives_h7_sees": sorted(r), "verdict": verdict})
+    finally:
+        for c in esps.values():
+            try:
+                c.pins("release")
+            except Exception:                                # noqa: BLE001
+                pass
+        try:
+            h7.pins("hiz")
+        except Exception:                                    # noqa: BLE001
+            pass
+    ok = bool(rows) and all(r["verdict"] == "ok" for r in rows) and not baseline
+    return {"ok": ok, "rows": rows, "baseline_high": baseline}
+
+
+def render(result: dict) -> str:
+    """A table for the terminal and the summary."""
+    out = ["| # | Nucleo | H7 pin | ESP | carries | H7 drives -> ESP sees | "
+           "ESP drives -> H7 sees | verdict |", "|---|---|---|---|---|---|---|---|"]
+    for r in result.get("rows", []):
+        out.append(f"| {r['n']} | {r['zio']} | {r['h7']} | {r['esp']} | {r['role']} | "
+                   f"{', '.join(r['h7_drives_esp_sees']) or '—'} | "
+                   f"{', '.join(r['esp_drives_h7_sees']) or '—'} | "
+                   f"{'ok' if r['verdict'] == 'ok' else '**' + r['verdict'] + '**'} |")
+    if result.get("baseline_high"):
+        out.append("")
+        out.append("Pins reading HIGH with nothing driving them (should all be low): "
+                   + ", ".join(result["baseline_high"]))
+    return "\n".join(out)

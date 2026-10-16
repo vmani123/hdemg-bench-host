@@ -8,6 +8,7 @@ from __future__ import annotations
 import re
 import socket
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -157,6 +158,9 @@ class HardwareDriver:
         # hostrun builds the repo root unless told to build a named worktree (work in
         # progress that must not touch the checkout a sweep is measuring from).
         self.tree = tree or None
+        # A board already running the requested build from this commit is not rebuilt
+        # or reflashed (see _running_build_is). Off by default; the campaign turns it on.
+        self.trust_running_build = False
         self.h7_port = h7_port
         self._h7: H7Control | None = None
         self._h7_ready = False
@@ -309,7 +313,11 @@ class HardwareDriver:
         want = (source, rung, band)
         if self._flashed.get(chip) == want:
             return {"flashed": False, "chip": chip, "rung": rung}
+        if self.trust_running_build and self._running_build_is(chip, rung, source, band):
+            self._flashed[chip] = want
+            return {"flashed": False, "chip": chip, "rung": rung, "adopted": True}
         self._flashed.pop(chip, None)
+        self._close_h7_links()
         if self.ssid:
             # The firmware can only ever join the one network it is built for, so
             # checking that before building is what enforces where the board ends up.
@@ -327,6 +335,69 @@ class HardwareDriver:
         self._await_boot(chip, rung, source, band)
         self._flashed[chip] = want
         return {"flashed": True, "chip": chip, "rung": rung}
+
+    def _running_build_is(self, chip: str, rung: str, source: str,
+                          band: str | None) -> bool:
+        """True if the board already runs this exact build: same rung, ingress and band,
+        and firmware built from this checkout's commit (the app version is `git
+        describe`, truncated to 8 characters in `hello`). Lets a resumed campaign skip
+        a rebuild and reflash it does not need; any doubt means flash."""
+        try:
+            h = self.control(chip).hello()
+        except Exception:                                    # noqa: BLE001
+            return False
+        if h.get("rung") != rung or h.get("ingress") != source:
+            return False
+        if band and str(h.get("band")) != str(band):
+            return False
+        try:
+            here = subprocess.run(["git", "-C", str(self.firmware_root), "describe",
+                                   "--always", "--dirty"], capture_output=True, text=True,
+                                  timeout=10).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return bool(here) and not here.endswith("-dirty") and \
+            str(h.get("fw_sha", ""))[:8] == here[:8]
+
+    def _close_h7_links(self) -> None:
+        """Every H7 link pin Hi-Z before an ESP is reset or flashed: two C5 strapping pins
+        (GPIO2, GPIO7) are on Stage 2 wires (docs/CAMPAIGN_PROTOCOL.md §2)."""
+        if self._h7 is None:
+            return
+        for words in (("stop",), ("pins", "hiz")):
+            try:
+                if words[0] == "stop":
+                    self._h7.stop()
+                else:
+                    self._h7.pins(*words[1:])
+            except Exception:                                # noqa: BLE001
+                pass
+
+    def boot_check(self, chip: str, secs: int = 12) -> dict:
+        """Reset a board through hostrun's esp_boot (esptool reaches the ROM bootloader,
+        then the app boots while its console is read) and wait for it on the control
+        plane. Catches a strapping pin held by the Stage 2 harness."""
+        self._close_h7_links()
+        text = self._hostrun("esp_boot", check=False, target=chip, port=self.ports[chip],
+                             secs=secs)
+        m = re.search(r"^=== boot: esptool=(\S+) rom_line=(\S+) mode=(\S+)", text, re.M)
+        out = {"esptool": m.group(1) if m else "unknown",
+               "rom_line": m.group(2) if m else "unknown",
+               "mode": m.group(3) if m else "unknown",
+               "log_tail": "\n".join(text.splitlines()[-25:])}
+        hello = None
+        deadline = time.monotonic() + self.BOOT_TIMEOUT_S
+        while time.monotonic() < deadline:
+            try:
+                hello = self.control(chip).hello()
+                break
+            except Exception:                                # noqa: BLE001
+                self.rediscover(chip)
+                time.sleep(3.0)
+        out["hello"] = hello
+        out["ok"] = out["esptool"] == "ok" and "DOWNLOAD" not in out["mode"] and \
+            hello is not None
+        return out
 
     def _check_rung_applied(self, chip: str, rung: str) -> None:
         """Refuse to flash a build that does not carry its rung. Kconfig drops an unknown
@@ -429,15 +500,22 @@ class HardwareDriver:
             self._clients[chip] = ControlClient(self.ips[chip])
         return self._clients[chip]
 
-    def _hostrun(self, action: str, **params) -> str:
+    _JID_LOCK = threading.Lock()
+    _last_jid = 0
+
+    def _hostrun(self, action: str, *, check: bool = True, **params) -> str:
         """Drop a job file for hostrun.sh, wait for its log, and fail on a non-zero
         exit. Ignoring the exit code is how a refused build used to be followed by a
-        flash of whatever stale binary was already in build/."""
+        flash of whatever stale binary was already in build/. check=False returns the
+        log whatever the exit code (a check whose failure is itself the answer)."""
         q = self.agent_dir / "queue"
         o = self.agent_dir / "out"
         q.mkdir(parents=True, exist_ok=True)
         o.mkdir(parents=True, exist_ok=True)
-        jid = f"{int(time.time()*1000)}"
+        with HardwareDriver._JID_LOCK:           # two boards' threads, one millisecond
+            n = max(int(time.time() * 1000), HardwareDriver._last_jid + 1)
+            HardwareDriver._last_jid = n
+        jid = f"{n}"
         if self.tree and action in self.TREE_ACTIONS:
             params = {**params, "tree": self.tree}
         body = f"action={action}\n" + "".join(f"{k}={v}\n" for k, v in params.items())
@@ -451,7 +529,7 @@ class HardwareDriver:
                 text = log.read_text()
                 m = re.search(r"^=== exit (\d+)", text, re.M)
                 if m:
-                    if int(m.group(1)) != 0:
+                    if int(m.group(1)) != 0 and check:
                         tail = "\n".join(text.splitlines()[-12:])
                         raise RuntimeError(f"hostrun {action} {params} failed "
                                            f"(exit {m.group(1)}):\n{tail}")

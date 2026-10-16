@@ -209,6 +209,22 @@ do_esp_flash() {   # target port tree
   ( . "$IDF_EXPORT" >/dev/null 2>&1; cd "$dir" && run_bounded 300 idf.py -p "$port" flash )
 }
 
+do_esp_boot() {   # target port secs
+  # Boot check (docs/CAMPAIGN_PROTOCOL.md §4): esptool reaches the ROM bootloader (the
+  # board can still be flashed with the Stage 2 harness on), then the board is reset
+  # into its application and its console read for <secs>. Flashes nothing.
+  local target port secs
+  target="$(resolve_target "$1")" || { echo "REFUSED: unknown target '$1'"; return 64; }
+  port="$(resolve_port "$2")"     || { echo "REFUSED: no such serial port '$2'"; return 64; }
+  secs="$3"; [[ "$secs" =~ ^[0-9]{1,2}$ ]] || { echo "REFUSED: bad seconds"; return 64; }
+  [ -f "$IDF_EXPORT" ]            || { echo "REFUSED: no ESP-IDF at $IDF_EXPORT"; return 64; }
+  restrict_path
+  audit "esp_boot target=$target port=$port secs=$secs"
+  ( . "$IDF_EXPORT" >/dev/null 2>&1
+    run_bounded 150 python3 "$WORK/host/tools/serial_boot.py" --chip "$target" \
+        --port "$port" --secs "$secs" )
+}
+
 do_esp_monitor() { # target port secs
   local dir port secs
   dir="$(resolve_target_dir "$1" "$WORK")" || { echo "REFUSED: unknown target '$1'"; return 64; }
@@ -330,7 +346,7 @@ echo "  repo      : $WORK"
 echo "  queue     : $Q"
 echo "  logs      : $O"
 echo "  audit     : $AUDIT"
-echo "  actions   : discover esp_build esp_flash esp_monitor stm_build stm_flash iperf hotspot bench parity power_cycle"
+echo "  actions   : discover esp_build esp_flash esp_monitor esp_boot stm_build stm_flash iperf hotspot bench parity power_cycle"
 echo "  flashing  : approved per session (${FLASH_WINDOW_MIN} min window), logged"
 echo "  stop      : Ctrl-C, or create the file _agent/DISABLED"
 echo
@@ -382,6 +398,7 @@ while true; do
       stm_build)   do_stm_build  "${project:-hdemg_h745}" "${config:-Release}" "${core:-cm7}" "$tree" >> "$log" 2>&1 ;;
       stm_flash)   do_stm_flash  "${project:-hdemg_h745}" "${core:-cm7}" "${config:-Release}" "$tree" "${mode:-UR}" >> "$log" 2>&1 ;;
       esp_monitor) do_esp_monitor "$target" "$port" "${secs:-30}"   >> "$log" 2>&1 ;;
+      esp_boot)    do_esp_boot   "$target" "$port" "${secs:-12}"    >> "$log" 2>&1 ;;
       iperf)       do_iperf      "${secs:-60}"                       >> "$log" 2>&1 ;;
       hotspot)     do_hotspot    "${band:-5}"                        >> "$log" 2>&1 ;;
       bench)       do_bench      "${matrix:-stage1}"                 >> "$log" 2>&1 ;;
