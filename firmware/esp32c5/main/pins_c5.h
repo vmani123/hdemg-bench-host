@@ -19,11 +19,14 @@
 #define PIN_READY      3
 
 /* SDIO 2.0 slave (Stage 2b) — fixed IO_MUX pins, soc/esp32c5/include/soc/sdio_slave_pins.h.
- * External 10-50 kohm pull-ups to 3V3 on CMD and DAT0-3 are MANDATORY; modules and
- * devkits do not include them. DAT1 is GPIO7, a strapping pin that the pull-up holds
- * high at reset: check the C5 still boots with the harness attached. The SDIO and QSPI
- * pin sets overlap (GPIO7, GPIO10): they are two harnesses and two builds, never both
- * wired. GPIO13/14 may be the native USB D-/D+; nothing may use that port in this build. */
+ * The Stage 2 harness is wired once with no resistors (docs/CAMPAIGN_PROTOCOL.md §2):
+ * CMD and DAT0-3 are pulled up by the slave's internal pull-ups
+ * (SDIO_SLAVE_FLAG_INTERNAL_PULLUP) together with the H7's on SDMMC1, about 20 kohm, and
+ * the link stays at <= 25 MHz. The SDIO and QSPI pin sets overlap on GPIO10 (CMD / CS)
+ * and GPIO7 (DAT1 / D0): one wire each, and the build chooses the role. DAT1 is GPIO7, a
+ * strapping pin: close every H7 link before any C5 reset or flash. GPIO13/14 are the
+ * native USB-Serial-JTAG D-/D+ by default; an SDIO build (and the `pins` check) takes
+ * them over, so this board is flashed and monitored over its UART, never native USB. */
 #define PIN_SDIO_CLK    9
 #define PIN_SDIO_CMD   10
 #define PIN_SDIO_D0     8

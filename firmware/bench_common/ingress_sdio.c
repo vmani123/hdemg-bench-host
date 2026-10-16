@@ -1,7 +1,7 @@
 /* ingress_sdio.c — Stage 2b: SDIO 4-bit slave, fed by the STM32H745's SDMMC1
  * (guide §6). ESP32-C5 only: the S3 has no SDIO slave.
  *
- * NOT YET RUN AGAINST HARDWARE: the 2b harness and its pull-ups have not been wired.
+ * NOT YET RUN AGAINST HARDWARE: the 2b harness has not been wired.
  *
  * Receive buffers are the pool buffers themselves (zero copy). The installed IDF limits
  * a receive buffer to 4092 bytes, so one packet from the master is at most
@@ -119,8 +119,13 @@ void ingress_sdio_start(void)
         .recv_buffer_size = HDEMG_SDIO_RECV_BUF_BYTES,
         /* First knob to turn if CMD53 CRC-fails at 25 MHz but passes at 400 kHz (guide §6.4). */
         .timing = SDIO_SLAVE_TIMING_PSEND_PSAMPLE,
-        /* No internal pull-ups: they are too weak to stand in for the external ones. */
-        .flags = 0,
+        /* No external resistors on the Stage 2 harness (docs/CAMPAIGN_PROTOCOL.md §2):
+         * CMD and DAT0-3 are pulled up by these internal pull-ups and by the H7's own on
+         * SDMMC1, about 20 kOhm combined. IDF's warning that internal pull-ups alone are
+         * not enough is about fast edges; this link stays at <= 25 MHz and starts slow.
+         * Every SDIO command and data block carries a CRC, so a marginal pull-up shows as
+         * link errors (and fails the link test) rather than as silently wrong data. */
+        .flags = SDIO_SLAVE_FLAG_INTERNAL_PULLUP,
     };
     esp_err_t err = sdio_slave_initialize(&cfg);
     if (err == ESP_OK) err = sdio_slave_start();
