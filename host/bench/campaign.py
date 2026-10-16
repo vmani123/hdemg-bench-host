@@ -328,6 +328,10 @@ class Campaign:
         s.update(status=status, finished=_now())
         if result is not None:
             s["result"] = result
+        if status == "done":
+            # A pass after a failed attempt: the old error stays in the log, not here.
+            s.pop("error", None)
+            s.pop("traceback", None)
         if error:
             s["error"] = error
         if status == "done" and t.kind in ("width", "five"):
