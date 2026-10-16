@@ -1,6 +1,12 @@
-/* link.c — link dispatch and the null link. */
+/* link.c — link dispatch and the null link.
+ *
+ * Pin ownership (docs/CAMPAIGN_PROTOCOL.md §2): the H7 is wired once to both ESPs, with
+ * no shared nets. Every open starts by de-initialising all 18 link pins, whatever a
+ * `pins` command or an earlier link left behind; the chosen link then sets up only its
+ * own pins; every close (and every failed open) de-initialises all 18 again. */
 #include <string.h>
 #include "link.h"
+#include "linkpins.h"
 #include "gen.h"
 
 static link_kind_t s_kind = LINK_NONE;
@@ -11,6 +17,7 @@ void link_cfg_defaults(link_cfg_t *c)
 {
     memset(c, 0, sizeof *c);
     c->kind = LINK_NONE;
+    c->target = LINK_TARGET_S3;
     c->qspi_hz = 10000000U;          /* bring-up clock; raise only after the link test passes */
     c->qspi_rd_hz = 5000000U;
     c->qspi_dummy = HDEMG_QSPI_DUMMY_CYCLES;
@@ -18,7 +25,7 @@ void link_cfg_defaults(link_cfg_t *c)
     c->qspi_sshift = 1U;
     c->qspi_even = 1U;
     c->qspi_nocredit = 0U;
-    c->sdio_hz = 25000000U;
+    c->sdio_hz = 25000000U;          /* default speed's ceiling (LINK_SDIO_HZ_MAX) */
     c->batch_max = HDEMG_LINK_MAX_FRAMES;
 }
 
@@ -31,11 +38,20 @@ const char *link_name(link_kind_t k)
     }
 }
 
+const char *link_target_name(const link_cfg_t *c)
+{
+    if (c->kind == LINK_SDIO) return "c5";
+    return c->target == LINK_TARGET_C5 ? "c5" : "s3";
+}
+
+int link_is_open(void) { return s_open; }
+
 int link_open(const link_cfg_t *c, const char **err)
 {
     int rc = 0;
     *err = "";
     if (s_open) link_close();
+    linkpins_release_all();
     /* Set before the attempt, so link_stats() after a FAILED open reports the link
      * that was tried (its error counters, the value it read back) and not the last one. */
     s_kind = c->kind;
@@ -45,6 +61,7 @@ int link_open(const link_cfg_t *c, const char **err)
     default:        memset(&s_none, 0, sizeof s_none); break;
     }
     if (rc == 0) s_open = 1;
+    else linkpins_release_all();
     return rc;
 }
 
@@ -77,6 +94,7 @@ void link_close(void)
     case LINK_SDIO: link_sdio_close(); break;
     default: break;
     }
+    linkpins_release_all();
     s_open = 0;
 }
 

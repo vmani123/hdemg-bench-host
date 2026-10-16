@@ -6,8 +6,17 @@
 
 typedef enum { LINK_NONE = 0, LINK_QSPI = 1, LINK_SDIO = 2 } link_kind_t;
 
+/* Which ESP a QUADSPI link drives, i.e. which of the two wired pin sets it uses
+ * (docs/CAMPAIGN_PROTOCOL.md §2). SDIO only goes to the C5, whatever this says. */
+typedef enum { LINK_TARGET_S3 = 0, LINK_TARGET_C5 = 1 } link_target_t;
+
+/* SDIO runs in default-speed mode only (no high-speed switch, no external pull-ups). */
+#define LINK_SDIO_HZ_MIN  100000U
+#define LINK_SDIO_HZ_MAX  25000000U
+
 typedef struct {
     link_kind_t kind;
+    link_target_t target;      /* QUADSPI pin set: S3 (hardware NCS) or C5 (software CS) */
     /* QUADSPI */
     uint32_t qspi_hz;          /* data clock for WRDMA / WR_END */
     uint32_t qspi_rd_hz;       /* clock for RDBUF register reads (slave MISO is slow) */
@@ -39,9 +48,13 @@ typedef struct {
 
 void        link_cfg_defaults(link_cfg_t *c);
 const char *link_name(link_kind_t k);
+/* The ESP the configured link would drive: "c5" for SDIO, else the QUADSPI target. */
+const char *link_target_name(const link_cfg_t *c);
+int         link_is_open(void);
 
-/* Returns 0 on success, otherwise a negative code; *err is a short reason. On failure
- * the link's pins are released again. */
+/* Returns 0 on success, otherwise a negative code; *err is a short reason. Every link
+ * pin is de-initialised first (whatever a `pins` command left behind), then only the
+ * chosen link's pins are set up; on failure, and on close, all of them are released. */
 int  link_open(const link_cfg_t *c, const char **err);
 void link_poll(int flush);          /* flush: the run is over, send odd leftovers too */
 void link_close(void);
