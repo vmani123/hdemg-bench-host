@@ -1,8 +1,21 @@
 /* link_qspi.c — Stage 2a: QUADSPI master -> ESP GP-SPI Slave HD (guide §5).
  *
- * Wiring (guide §3.1):  CLK PB2 · NCS PG6 · IO0 PD11 · IO1 PD12 · IO2 PE2 · IO3 PD13 ·
- * READY PG9 (input, from the ESP).  The pins are only driven while the link is open;
- * closed, they are analog/Hi-Z, so an idle H7 cannot disturb a board it is wired to.
+ * Two pin sets, one per ESP, both wired permanently (docs/CAMPAIGN_PROTOCOL.md §2);
+ * `cfg target=` picks one when the link opens:
+ *   S3:  CLK PB2 · NCS PG6 (the peripheral's own, AF10) · IO0 PD11 · IO1 PD12 · IO2 PE2 ·
+ *        IO3 PD13 · READY PG9 (EXTI9, EXTI9_5_IRQn)
+ *   C5:  CLK PF10 · IO0 PC9 · IO1 PF9 (AF10) · IO2 PF7 · IO3 PF6 · chip select SOFTWARE on
+ *        PD2, a push-pull GPIO (PD2 has no QUADSPI function) · READY PG10 (EXTI10,
+ *        EXTI15_10_IRQn). The peripheral's NCS is not routed anywhere: PG6 is the S3's
+ *        CS wire and stays Hi-Z.
+ * Only the chosen set is initialised; every other link pin stays de-initialised, and
+ * close releases them all (link.c), so an idle H7 cannot disturb a board it is wired to.
+ *
+ * Software chip select (C5): every transaction (WRDMA, WR_END, RDBUF, and the bring-up
+ * verbs, which use the same functions) drives PD2 low before the peripheral is touched,
+ * keeps it low through command, address, dummy and data, and raises it only once BUSY
+ * has cleared, i.e. after the last bit has been clocked. It then stays high for at
+ * least SWCS_HIGH_MIN_US before the next transaction may lower it.
  *
  * Every transaction: 8-bit command on ONE line, 8-bit address, 8 dummy cycles, data.
  *   push frames   WRDMA  0xA3 (address + data on 4 lines) or 0x23 (address on 1 line)
@@ -21,6 +34,7 @@
  * covers a missed edge, so a broken READY wire costs latency, not correctness. */
 #include <string.h>
 #include "link.h"
+#include "linkpins.h"
 #include "gen.h"
 #include "board.h"
 
@@ -41,6 +55,43 @@
 #define READY_TMO_US    10000U      /* no credit for this long counts as a ready_timeout */
 #define SINGLE_HOLD_US  2000U       /* how long one odd frame waits for a partner */
 #define CREDIT_SANE_MAX 64U         /* more "credit" than this means the counters disagree */
+#define SWCS_HIGH_MIN_US 1U         /* software CS (C5): minimum high time between transactions */
+#define READY_IRQ_PRIO  4U
+
+/* One QUADSPI pin set. All QUADSPI pins run at Very High speed. */
+typedef struct { GPIO_TypeDef *port; uint16_t pin; uint8_t af; } qpin_t;
+typedef struct {
+    qpin_t        clk, io0, io1, io2, io3;
+    qpin_t        ncs;          /* the peripheral's NCS; .port == NULL: chip select is software */
+    GPIO_TypeDef *cs_port;      /* software chip select (push-pull GPIO) */
+    uint16_t      cs_pin;
+    GPIO_TypeDef *rdy_port;     /* READY from the ESP: rising-edge EXTI */
+    uint16_t      rdy_pin;
+    IRQn_Type     rdy_irq;
+} qset_t;
+
+/* Alternate functions checked against the CubeMX database shipped with CubeIDE 1.18.1
+ * (db/mcu/IP/GPIO-STM32H747_gpio_v1_0_Modes.xml, the GPIO IP of STM32H745ZITx.xml). */
+static const qset_t QSET_S3 = {
+    .clk = { GPIOB, GPIO_PIN_2,  GPIO_AF9_QUADSPI },     /* QUADSPI_CLK */
+    .io0 = { GPIOD, GPIO_PIN_11, GPIO_AF9_QUADSPI },     /* QUADSPI_BK1_IO0 */
+    .io1 = { GPIOD, GPIO_PIN_12, GPIO_AF9_QUADSPI },     /* QUADSPI_BK1_IO1 */
+    .io2 = { GPIOE, GPIO_PIN_2,  GPIO_AF9_QUADSPI },     /* QUADSPI_BK1_IO2 */
+    .io3 = { GPIOD, GPIO_PIN_13, GPIO_AF9_QUADSPI },     /* QUADSPI_BK1_IO3 */
+    .ncs = { GPIOG, GPIO_PIN_6,  GPIO_AF10_QUADSPI },    /* QUADSPI_BK1_NCS */
+    .cs_port = NULL, .cs_pin = 0,
+    .rdy_port = GPIOG, .rdy_pin = GPIO_PIN_9, .rdy_irq = EXTI9_5_IRQn,
+};
+static const qset_t QSET_C5 = {
+    .clk = { GPIOF, GPIO_PIN_10, GPIO_AF9_QUADSPI },     /* QUADSPI_CLK */
+    .io0 = { GPIOC, GPIO_PIN_9,  GPIO_AF9_QUADSPI },     /* QUADSPI_BK1_IO0 (SDMMC1_D1 is AF12) */
+    .io1 = { GPIOF, GPIO_PIN_9,  GPIO_AF10_QUADSPI },    /* QUADSPI_BK1_IO1 */
+    .io2 = { GPIOF, GPIO_PIN_7,  GPIO_AF9_QUADSPI },     /* QUADSPI_BK1_IO2 */
+    .io3 = { GPIOF, GPIO_PIN_6,  GPIO_AF9_QUADSPI },     /* QUADSPI_BK1_IO3 */
+    .ncs = { NULL, 0, 0 },
+    .cs_port = GPIOD, .cs_pin = GPIO_PIN_2,              /* SDMMC1_CMD in SDIO mode */
+    .rdy_port = GPIOG, .rdy_pin = GPIO_PIN_10, .rdy_irq = EXTI15_10_IRQn,
+};
 
 static link_cfg_t   s_cfg;
 static link_stats_t s_st;
@@ -53,6 +104,10 @@ static int          s_waiting, s_timeout_counted;
 static uint32_t     s_wait_t0;
 static int          s_single_pending;
 static uint32_t     s_single_t0;
+static const qset_t *s_set = &QSET_S3;
+static GPIO_TypeDef *s_cs_port;     /* NULL: the peripheral drives NCS (S3) */
+static uint16_t     s_cs_pin;
+static uint32_t     s_cs_high_us;   /* board_micros() when software CS last went high */
 
 /* ---- low level -------------------------------------------------------------------- */
 
@@ -73,6 +128,33 @@ static void q_abort(void)
     Q->FCR = FCR_ALL;
 }
 
+/* Software chip select (C5 only; no-ops for the S3, whose NCS the peripheral drives).
+ * Assert: wait out the minimum high time (TIM2 counts whole microseconds, so more than
+ * SWCS_HIGH_MIN_US ticks guarantees at least that long), drive CS low, and read the
+ * port back so the write has reached the pin before QUADSPI is programmed (GPIO and
+ * QUADSPI sit on different buses; the read-back plus DSB orders them). */
+static inline void cs_assert(void)
+{
+    if (s_cs_port == NULL) return;
+    while ((uint32_t)(board_micros() - s_cs_high_us) <= SWCS_HIGH_MIN_US) { }
+    s_cs_port->BSRR = (uint32_t)s_cs_pin << 16;
+    (void)s_cs_port->ODR;
+    __DSB();
+}
+
+/* Release: only once BUSY has cleared, which is after the last bit is on the wire. If
+ * BUSY never clears, abort the peripheral and raise CS anyway: a chip select stuck low
+ * would wedge the slave far worse than one failed transaction. */
+static int cs_release(void)
+{
+    if (s_cs_port == NULL) return 0;
+    int rc = 0;
+    if (q_wait_clear(QUADSPI_SR_BUSY, XFER_TMO_US) != 0) { q_abort(); rc = -4; }
+    s_cs_port->BSRR = s_cs_pin;
+    s_cs_high_us = board_micros();
+    return rc;
+}
+
 static uint32_t presc_for(uint32_t hz)
 {
     if (hz == 0U) hz = 1000000U;
@@ -90,11 +172,14 @@ static int q_set_presc(uint32_t presc)
     return 0;
 }
 
-/* Indirect write. n == 0 with an address: the transfer is the command + address only. */
+/* Indirect write. n == 0 with an address: the transfer is the command + address only.
+ * Software CS (C5) goes low before CCR/AR are written and high only after BUSY clears. */
 static int q_write(uint32_t ccr, uint32_t addr, const uint8_t *d, uint32_t n)
 {
+    int rc = 0;
     if (q_wait_clear(QUADSPI_SR_BUSY, XFER_TMO_US) != 0) { q_abort(); return -1; }
     Q->FCR = FCR_ALL;
+    cs_assert();
     if (n) Q->DLR = n - 1U;
     Q->CCR = ccr | CCR_FMODE_WR;
     Q->AR = addr;                               /* with data, the first DR write starts it */
@@ -103,8 +188,8 @@ static int q_write(uint32_t ccr, uint32_t addr, const uint8_t *d, uint32_t n)
     while (n >= 4U) {
         while (((Q->SR & QUADSPI_SR_FLEVEL_Msk) >> QUADSPI_SR_FLEVEL_Pos) > 28U) {
             if ((Q->SR & QUADSPI_SR_TEF) || (uint32_t)(board_micros() - t0) > XFER_TMO_US) {
-                q_abort();
-                return -2;
+                rc = -2;
+                goto out;
             }
         }
         uint32_t w;
@@ -116,8 +201,8 @@ static int q_write(uint32_t ccr, uint32_t addr, const uint8_t *d, uint32_t n)
     while (n) {
         while (((Q->SR & QUADSPI_SR_FLEVEL_Msk) >> QUADSPI_SR_FLEVEL_Pos) > 31U) {
             if ((Q->SR & QUADSPI_SR_TEF) || (uint32_t)(board_micros() - t0) > XFER_TMO_US) {
-                q_abort();
-                return -2;
+                rc = -2;
+                goto out;
             }
         }
         *(__IO uint8_t *)&Q->DR = *d++;
@@ -125,18 +210,23 @@ static int q_write(uint32_t ccr, uint32_t addr, const uint8_t *d, uint32_t n)
     }
     while (!(Q->SR & QUADSPI_SR_TCF)) {
         if ((Q->SR & QUADSPI_SR_TEF) || (uint32_t)(board_micros() - t0) > XFER_TMO_US) {
-            q_abort();
-            return -3;
+            rc = -3;
+            goto out;
         }
     }
     Q->FCR = QUADSPI_FCR_CTCF;
-    return 0;
+out:
+    if (rc != 0) q_abort();
+    int cs = cs_release();
+    return rc != 0 ? rc : cs;
 }
 
 static int q_read(uint32_t ccr, uint32_t addr, uint8_t *d, uint32_t n)
 {
+    int rc = 0;
     if (q_wait_clear(QUADSPI_SR_BUSY, XFER_TMO_US) != 0) { q_abort(); return -1; }
     Q->FCR = FCR_ALL;
+    cs_assert();
     Q->DLR = n - 1U;
     Q->CCR = ccr | CCR_FMODE_RD;
     Q->AR = addr;                               /* starts the transfer */
@@ -148,15 +238,18 @@ static int q_read(uint32_t ccr, uint32_t addr, uint8_t *d, uint32_t n)
             *d++ = *(__IO uint8_t *)&Q->DR;
             n--;
         } else if ((sr & QUADSPI_SR_TEF) || (uint32_t)(board_micros() - t0) > XFER_TMO_US) {
-            q_abort();
-            return -2;
+            rc = -2;
+            goto out;
         }
     }
     while (!(Q->SR & QUADSPI_SR_TCF)) {
-        if ((uint32_t)(board_micros() - t0) > XFER_TMO_US) { q_abort(); return -3; }
+        if ((uint32_t)(board_micros() - t0) > XFER_TMO_US) { rc = -3; goto out; }
     }
     Q->FCR = QUADSPI_FCR_CTCF;
-    return 0;
+out:
+    if (rc != 0) q_abort();
+    int cs = cs_release();
+    return rc != 0 ? rc : cs;
 }
 
 /* ---- protocol --------------------------------------------------------------------- */
@@ -217,6 +310,8 @@ int link_qspi_send_raw(const uint8_t *data, uint32_t n, int end_buffer)
     return rc;
 }
 
+/* READY: PG9 (S3) on EXTI9, PG10 (C5) on EXTI10. Only the open set's line is unmasked
+ * in EXTI and only its NVIC vector is enabled. */
 void EXTI9_5_IRQHandler(void)
 {
     if (__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_9) != 0U) {
@@ -226,13 +321,76 @@ void EXTI9_5_IRQHandler(void)
     }
 }
 
-static void pins_release(void)
+void EXTI15_10_IRQHandler(void)
+{
+    if (__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_10) != 0U) {
+        __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_10);
+        s_ready_flag = 1;
+        s_ready_edges++;
+    }
+}
+
+static void ready_irqs_off(void)
 {
     HAL_NVIC_DisableIRQ(EXTI9_5_IRQn);
-    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_2);
-    HAL_GPIO_DeInit(GPIOG, GPIO_PIN_6 | GPIO_PIN_9);
-    HAL_GPIO_DeInit(GPIOD, GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13);
-    HAL_GPIO_DeInit(GPIOE, GPIO_PIN_2);
+    HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_9 | GPIO_PIN_10);
+    HAL_NVIC_ClearPendingIRQ(EXTI9_5_IRQn);
+    HAL_NVIC_ClearPendingIRQ(EXTI15_10_IRQn);
+}
+
+/* Every link pin back to Hi-Z, whichever set was open. */
+static void pins_release(void)
+{
+    ready_irqs_off();
+    linkpins_release_all();
+}
+
+static void af_pin(const qpin_t *p, uint32_t pull)
+{
+    GPIO_InitTypeDef g = {0};
+    g.Mode = GPIO_MODE_AF_PP;
+    g.Pull = pull;
+    g.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    g.Alternate = p->af;
+    g.Pin = p->pin;
+    HAL_GPIO_Init(p->port, &g);
+}
+
+/* The chosen set only; link.c has already de-initialised all 18 link pins. */
+static void pins_init(const qset_t *q)
+{
+    GPIO_InitTypeDef g = {0};
+    linkpins_clocks_on();
+    ready_irqs_off();
+
+    if (q->cs_port != NULL) {
+        /* Software CS first, and high before it becomes an output, so the slave is
+         * deselected before its clock and data lines come alive. */
+        q->cs_port->BSRR = q->cs_pin;
+        g.Mode = GPIO_MODE_OUTPUT_PP;
+        g.Pull = GPIO_NOPULL;
+        g.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+        g.Pin = q->cs_pin;
+        HAL_GPIO_Init(q->cs_port, &g);
+    }
+    af_pin(&q->clk, GPIO_NOPULL);
+    af_pin(&q->io0, GPIO_NOPULL);
+    af_pin(&q->io1, GPIO_NOPULL);
+    af_pin(&q->io2, GPIO_NOPULL);
+    af_pin(&q->io3, GPIO_NOPULL);
+    if (q->ncs.port != NULL) af_pin(&q->ncs, GPIO_PULLUP);    /* NCS idles high even before EN */
+
+    /* READY from the ESP: pulled down so an unconnected wire reads "not ready". */
+    memset(&g, 0, sizeof g);
+    g.Mode = GPIO_MODE_IT_RISING;
+    g.Pull = GPIO_PULLDOWN;
+    g.Pin = q->rdy_pin;
+    HAL_GPIO_Init(q->rdy_port, &g);
+    __HAL_GPIO_EXTI_CLEAR_IT(q->rdy_pin);
+    HAL_NVIC_ClearPendingIRQ(q->rdy_irq);
+    HAL_NVIC_SetPriority(q->rdy_irq, READY_IRQ_PRIO, 0);
+    HAL_NVIC_EnableIRQ(q->rdy_irq);
 }
 
 /* Bring the master's `sent` into step with the slave: with nothing in flight, the
@@ -252,8 +410,6 @@ static int resync(void)
 
 int link_qspi_open(const link_cfg_t *c, const char **err)
 {
-    GPIO_InitTypeDef g = {0};
-
     s_cfg = *c;
     memset(&s_st, 0, sizeof s_st);
     s_credit = 0;
@@ -265,34 +421,16 @@ int link_qspi_open(const link_cfg_t *c, const char **err)
     if (s_cfg.batch_max < 1U || s_cfg.batch_max > HDEMG_LINK_MAX_FRAMES) s_cfg.batch_max = HDEMG_LINK_MAX_FRAMES;
     if (s_cfg.qspi_dummy > 31U) s_cfg.qspi_dummy = HDEMG_QSPI_DUMMY_CYCLES;
 
-    __HAL_RCC_GPIOB_CLK_ENABLE();
-    __HAL_RCC_GPIOD_CLK_ENABLE();
-    __HAL_RCC_GPIOE_CLK_ENABLE();
-    __HAL_RCC_GPIOG_CLK_ENABLE();
+    s_set = (s_cfg.target == LINK_TARGET_C5) ? &QSET_C5 : &QSET_S3;
+    s_cs_port = s_set->cs_port;
+    s_cs_pin = s_set->cs_pin;
+
     __HAL_RCC_QSPI_CLK_ENABLE();
     __HAL_RCC_QSPI_FORCE_RESET();
     __HAL_RCC_QSPI_RELEASE_RESET();
 
-    g.Mode = GPIO_MODE_AF_PP;
-    g.Pull = GPIO_NOPULL;
-    g.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-    g.Alternate = GPIO_AF9_QUADSPI;
-    g.Pin = GPIO_PIN_2;                                HAL_GPIO_Init(GPIOB, &g);   /* CLK */
-    g.Pin = GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13;   HAL_GPIO_Init(GPIOD, &g);   /* IO0 IO1 IO3 */
-    g.Pin = GPIO_PIN_2;                                HAL_GPIO_Init(GPIOE, &g);   /* IO2 */
-    g.Alternate = GPIO_AF10_QUADSPI;
-    g.Pull = GPIO_PULLUP;                              /* NCS idles high even before EN */
-    g.Pin = GPIO_PIN_6;                                HAL_GPIO_Init(GPIOG, &g);   /* NCS */
-
-    /* READY from the ESP: pulled down so an unconnected wire reads "not ready". */
-    memset(&g, 0, sizeof g);
-    g.Mode = GPIO_MODE_IT_RISING;
-    g.Pull = GPIO_PULLDOWN;
-    g.Pin = GPIO_PIN_9;
-    HAL_GPIO_Init(GPIOG, &g);
-    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_9);
-    HAL_NVIC_SetPriority(EXTI9_5_IRQn, 4, 0);
-    HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+    pins_init(s_set);
+    s_cs_high_us = board_micros();
 
     s_hclk = HAL_RCC_GetHCLKFreq();                    /* QUADSPI kernel clock = HCLK3 */
     s_presc_data = presc_for(s_cfg.qspi_hz);
@@ -300,7 +438,8 @@ int link_qspi_open(const link_cfg_t *c, const char **err)
     if (s_presc_rd < s_presc_data) s_presc_rd = s_presc_data;   /* reads never faster than writes */
 
     /* Mode 0, CS high >= 8 cycles between transactions, "flash size" maxed so the
-     * peripheral's address-range check can never trip. */
+     * peripheral's address-range check can never trip. (With software CS, CSHT only
+     * spaces the peripheral's internal, unrouted NCS; SWCS_HIGH_MIN_US spaces PD2.) */
     Q->DCR = (31U << QUADSPI_DCR_FSIZE_Pos) | (7U << QUADSPI_DCR_CSHT_Pos);
     Q->CR = (s_presc_data << QUADSPI_CR_PRESCALER_Pos) |
             (s_cfg.qspi_sshift ? QUADSPI_CR_SSHIFT : 0U) | QUADSPI_CR_EN;
@@ -337,7 +476,9 @@ void link_qspi_close(void)
     if (!s_is_open) return;
     q_wait_clear(QUADSPI_SR_BUSY, XFER_TMO_US);
     Q->CR &= ~QUADSPI_CR_EN;
+    if (s_cs_port != NULL) s_cs_port->BSRR = s_cs_pin;   /* deselected before it floats */
     pins_release();
+    s_cs_port = NULL;
     __HAL_RCC_QSPI_CLK_DISABLE();
     s_is_open = 0;
 }

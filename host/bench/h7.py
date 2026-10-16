@@ -18,9 +18,23 @@ import select
 import socket
 import time
 
+from .wiring import H7_PINS, FakeWiring
+
 INGRESS_STAT_PORT = 3335
 H7_PROTO = 1
 DEFAULT_H7_PORT = "cu.usbmodem21103"
+H7_TARGETS = ("s3", "c5")          # cfg target=: which ESP's QSPI pin set; sdio is always c5
+
+# The H7's 18 link pins and their roles, exactly as the firmware's `pins list` reports
+# them (CM7/Core/Src/linkpins.c), in wire order (bench/wiring.py WIRES).
+H7_PIN_ROLES: dict[str, str] = {
+    "PB2": "s3_qspi_clk", "PG6": "s3_qspi_cs", "PD11": "s3_qspi_d0", "PD12": "s3_qspi_d1",
+    "PE2": "s3_qspi_d2", "PD13": "s3_qspi_d3", "PG9": "s3_ready",
+    "PF10": "c5_qspi_clk", "PD2": "c5_sdio_cmd/c5_qspi_cs", "PC9": "c5_sdio_d1/c5_qspi_d0",
+    "PF9": "c5_qspi_d1", "PF7": "c5_qspi_d2", "PF6": "c5_qspi_d3", "PG10": "c5_ready",
+    "PC12": "c5_sdio_clk", "PC8": "c5_sdio_d0", "PC10": "c5_sdio_d2", "PC11": "c5_sdio_d3",
+}
+assert tuple(H7_PIN_ROLES) == H7_PINS
 
 
 class H7Error(RuntimeError):
@@ -151,7 +165,7 @@ class H7Control:
                     continue                 # boot noise or a torn line: keep reading
                 if not isinstance(reply, dict) or "ok" not in reply:
                     continue
-                if reply["ok"] is False:
+                if not reply["ok"]:          # false, or 0 as the contract writes it
                     raise H7Error(str(reply.get("err", "generator refused the command")), reply)
                 return reply
         raise H7Error(f"no reply from the H7 on {self.device} to {line.split()[0]!r} ({last})")
@@ -171,6 +185,13 @@ class H7Control:
     def probe(self) -> dict:
         """Open the configured link, check a slave answers, close it again. Raises if not."""
         return self._rpc("probe", timeout=5.0)
+
+    def pins(self, *words) -> dict:
+        """The wiring check's pin commands (docs/CAMPAIGN_PROTOCOL.md §3):
+        pins("list") -> {"ok":..,"pins":{"PB2":"s3_qspi_clk",..}}; pins("hiz");
+        pins("in") / pins("read") / pins("drive", "PB2", 1) -> {"ok":..,"levels":{"PB2":0,..}}.
+        Raises H7Error if refused (a link is open, a run is active, not a link pin)."""
+        return self._rpc(" ".join(["pins", *(str(w) for w in words)]))
 
     def start(self) -> dict:
         return self._rpc("start", timeout=5.0)
@@ -280,34 +301,99 @@ def ingress_stat(ip: str, port: int = INGRESS_STAT_PORT, timeout: float = 2.0,
 
 class FakeH7:
     """In-process stand-in for the generator, for tests and `bench sim`: same replies,
-    no serial port. `faults` lets a test inject what a broken rig would report."""
+    no serial port. `faults` lets a test inject what a broken rig would report.
 
-    def __init__(self, faults: dict | None = None):
+    `wiring` is the simulated harness its `pins` commands act on, shared with the fake
+    ESPs for the wiring check; without one it gets a private, correctly wired harness."""
+
+    def __init__(self, faults: dict | None = None, wiring: FakeWiring | None = None):
         self.faults = dict(faults or {})
-        self.cfg_kv: dict = {"rate_bps": 0, "dur_s": 62, "link": "none", "seed": 0}
+        self.cfg_kv: dict = {"rate_bps": 0, "dur_s": 62, "link": "none", "seed": 0,
+                             "target": "s3"}
         self.running = False
         self._t0 = 0.0
         self._last: dict = {}
         self.starts = 0
+        self.wiring = wiring if wiring is not None else FakeWiring()
+        self.pin_mode = "hiz"              # hiz | in | drive: what the last pins command left
 
     def close(self) -> None:
         pass
 
+    def target(self) -> str:
+        """The ESP the configured link drives, as the firmware reports it."""
+        return "c5" if self.cfg_kv.get("link") == "sdio" else str(self.cfg_kv.get("target", "s3"))
+
     def hello(self) -> dict:
         return {"ok": True, "proto": H7_PROTO, "chip": "stm32h745", "fw_sha": "simh7",
                 "state": "running" if self.running else "idle", "simulated": True,
+                "target": self.target(), "cfg": self._applied(),
                 "t_us": int(time.monotonic() * 1e6) & 0xFFFFFFFF}
 
+    def _applied(self) -> dict:
+        return {**self.cfg_kv, "target": self.target()}
+
     def cfg(self, **kw) -> dict:
+        if "target" in kw and str(kw["target"]) not in H7_TARGETS:
+            raise H7Error("target must be s3 or c5",
+                          {"ok": False, "err": "target must be s3 or c5", "key": "target"})
         self.cfg_kv.update(kw)
-        return dict(self.cfg_kv)
+        return self._applied()
+
+    def _release_pins(self) -> None:
+        """What every link open does first: all 18 link pins back to Hi-Z."""
+        self.wiring.h7_release_all()
+        self.pin_mode = "hiz"
+
+    def _levels(self) -> dict:
+        # An analog (Hi-Z) pin's input buffer is off: the real H7 reads 0 there.
+        if self.pin_mode == "hiz":
+            return {p: 0 for p in H7_PINS}
+        return {p: self.wiring.h7_level(p) for p in H7_PINS}
+
+    def pins(self, *words) -> dict:
+        """`pins list|hiz|in|read|drive <PIN> <0|1>`, as the firmware answers them."""
+        def refuse(err: str, **extra) -> None:
+            raise H7Error(err, {"ok": False, "err": err, **extra})
+        w = [str(x) for x in words]
+        if not w:
+            refuse("pins needs list, hiz, in, read or drive <PIN> <0|1>")
+        sub = w[0]
+        if sub == "list":
+            return {"ok": True, "pins": dict(H7_PIN_ROLES)}
+        if self.running:
+            refuse("a run is active")
+        if sub == "hiz":
+            self._release_pins()
+            return {"ok": True}
+        if sub == "in":
+            self.wiring.h7_release_all()
+            self.pin_mode = "in"
+        elif sub == "read":
+            pass
+        elif sub == "drive":
+            if len(w) < 3:
+                refuse("pins drive <PIN> <0|1>")
+            pin = w[1].upper()
+            if pin not in H7_PIN_ROLES:
+                refuse("not a link pin", pin=w[1])
+            if w[2] not in ("0", "1"):
+                refuse("level must be 0 or 1")
+            self.wiring.h7_release_all()
+            self.wiring.h7_drive(pin, int(w[2]))
+            self.pin_mode = "drive"
+        else:
+            refuse("unknown pins command", sub=sub)
+        return {"ok": True, "levels": self._levels()}
 
     def probe(self) -> dict:
+        self._release_pins()
         if self.faults.get("no_slave"):
             raise H7Error("qspi: no slave answered (bad magic)")
         return {"ok": True}
 
     def start(self) -> dict:
+        self._release_pins()
         if self.faults.get("no_slave"):
             raise H7Error("qspi: no slave answered (bad magic)")
         self.running = True

@@ -256,6 +256,17 @@ Then *Generate Code* once, close the GUI, and use §1 from here on.
 
 ## 3. Wiring
 
+> **Superseded by the wire-once map (October 2026).** The current pin map is
+> `docs/CAMPAIGN_PROTOCOL.md` §2 (and `host/bench/wiring.py`): both ESPs stay wired to the
+> H7 at once, one wire per pin, no shared nets and **no external pull-ups**. The S3 keeps
+> the §3.1 QUADSPI set (PB2/PG6/PD11/PD12/PE2/PD13, READY PG9); the C5 gets its own QSPI
+> set (CLK PF10, IO0 PC9, IO1 PF9, IO2 PF7, IO3 PF6, READY PG10) with a **software chip
+> select on PD2**, and SDMMC1 (§3.3 pins) for SDIO, sharing PD2 and PC9 with that QSPI set.
+> The H7 picks the set when a link opens (`cfg target=s3|c5`; `link=sdio` is always the
+> C5) and leaves every other link pin Hi-Z; `pins ...` drives and reads them for the
+> wiring check (§3-4 there). The tables below are the original plan; where they differ
+> (the C5 QSPI pins, CS, READY, the mandatory pull-ups of §3.3), that file wins.
+
 General rules: **common ground first** (one wire per board pair, plus a ground next to CLK);
 wires ≤ 10 cm for QSPI above 20 MHz; every board powered from its own USB; all logic is
 3.3 V on both sides (no level shifting). Disconnect H7 ↔ ESP wires before flashing an ESP until

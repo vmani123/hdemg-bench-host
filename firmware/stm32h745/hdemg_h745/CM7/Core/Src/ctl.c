@@ -2,6 +2,7 @@
  *
  *   hello                         identity, clocks, current configuration
  *   cfg k=v ...                   rate_bps= dur_s= link=none|qspi|sdio seed= frame_bytes=270
+ *                                 target=s3|c5   (which ESP's QSPI pin set; sdio is always c5)
  *                                 qspi_hz= qspi_rd_hz= qspi_dummy= qspi_addr_lines=1|4
  *                                 qspi_sshift=0|1 qspi_even=0|1 qspi_nocredit=0|1 sdio_hz= batch=
  *                                 clk_ppm=   (board clock error measured by the host; see gen.h)
@@ -12,6 +13,9 @@
  *   reboot                        system reset
  *   q_open / q_rd addr= / q_tx frames= end= rep= gap_us= / q_close
  *                                 QUADSPI bring-up without a run (logic analyzer, guide §7.1)
+ *   pins list|hiz|in|read         the 18 link pins, for the wiring check
+ *   pins drive <PIN> <0|1>        (docs/CAMPAIGN_PROTOCOL.md §3-4); refused while a link
+ *                                 is open or a run is active
  *
  * One JSON object per line in reply. 64-bit values are formatted by hand: newlib-nano's
  * printf does not do %llu. */
@@ -22,6 +26,7 @@
 #include "console.h"
 #include "gen.h"
 #include "link.h"
+#include "linkpins.h"
 
 #if __has_include("fw_version.h")
 #include "fw_version.h"          /* written by hostrun.sh stm_build: git describe */
@@ -109,6 +114,7 @@ static void j_cfg(void)
     j_u("dur_s", s_dur_s);
     j_u("frame_bytes", GEN_FRAME_BYTES);
     j_s("link", link_name(s_link.kind));
+    j_s("target", link_target_name(&s_link));
     j_u("seed", s_seed);
     j_i("clk_ppm", s_clk_ppm);
     j_u("batch", s_link.batch_max);
@@ -191,6 +197,7 @@ static void cmd_hello(void)
     j_u("t_us", (uint32_t)board_ref_micros());
     j_s("timebase", g_board_lse_ok ? "lse" : "hse");
     j_s("state", state_name());
+    j_s("target", link_target_name(&s_link));
     j_u("ring_frames", GEN_RING_FRAMES);
     j_u("max_batch", HDEMG_LINK_MAX_FRAMES);
     j_open("cfg");
@@ -223,6 +230,11 @@ static const char *apply_kv(char *tok, link_cfg_t *lc)
         else if (!strcmp(v, "sdio")) lc->kind = LINK_SDIO;
         else return "link must be none, qspi or sdio";
     }
+    else if (!strcmp(k, "target")) {
+        if      (!strcmp(v, "s3")) lc->target = LINK_TARGET_S3;
+        else if (!strcmp(v, "c5")) lc->target = LINK_TARGET_C5;
+        else return "target must be s3 or c5";
+    }
     else if (!strcmp(k, "batch"))           lc->batch_max = (uint32_t)n;
     else if (!strcmp(k, "qspi_hz"))         lc->qspi_hz = (uint32_t)n;
     else if (!strcmp(k, "qspi_rd_hz"))      lc->qspi_rd_hz = (uint32_t)n;
@@ -231,7 +243,10 @@ static const char *apply_kv(char *tok, link_cfg_t *lc)
     else if (!strcmp(k, "qspi_sshift"))     lc->qspi_sshift = n ? 1U : 0U;
     else if (!strcmp(k, "qspi_even"))       lc->qspi_even = n ? 1U : 0U;
     else if (!strcmp(k, "qspi_nocredit"))   lc->qspi_nocredit = n ? 1U : 0U;
-    else if (!strcmp(k, "sdio_hz"))         lc->sdio_hz = (uint32_t)n;
+    else if (!strcmp(k, "sdio_hz")) {
+        if (n < LINK_SDIO_HZ_MIN || n > LINK_SDIO_HZ_MAX) return "sdio_hz must be 100000..25000000 (default speed only)";
+        lc->sdio_hz = (uint32_t)n;
+    }
     else return "unknown key";
     return NULL;
 }
@@ -306,6 +321,7 @@ static void cmd_start(void)
     j_u("seed", g.seed);
     j_u("first_seq", g.first_seq);
     j_s("link", link_name(s_link.kind));
+    j_s("target", link_target_name(&s_link));
     j_u("link_hz", l.actual_hz);
     j_u("loaded", l.last_loaded);
     j_u("completed", l.last_completed);
@@ -328,6 +344,7 @@ static void cmd_probe(void)
     j_b("ok", rc == 0);
     if (rc != 0) { j_s("err", err); j_u("code", (uint64_t)(uint32_t)(-rc)); }
     j_s("link", link_name(s_link.kind));
+    j_s("target", link_target_name(&s_link));
     j_u("link_hz", l.actual_hz);
     j_u("read_value", l.last_loaded);
     j_u("loaded", l.last_loaded);
@@ -394,6 +411,7 @@ static void cmd_q(const char *verb)
         j_begin();
         j_b("ok", rc == 0);
         if (rc != 0) { j_s("err", err); j_u("read_value", l.last_loaded); }
+        j_s("target", link_target_name(&c));
         j_u("link_hz", l.actual_hz);
         j_u("loaded", l.last_loaded);
         j_u("completed", l.last_completed);
@@ -463,6 +481,72 @@ static void cmd_q(const char *verb)
     }
 }
 
+/* ---- the wiring check: link pins by hand (docs/CAMPAIGN_PROTOCOL.md §3-4) ------------- */
+static void j_levels(void)
+{
+    j_open("levels");
+    for (int i = 0; i < LINKPINS_N; i++) j_u(g_linkpins[i].name, (uint64_t)linkpins_level(i));
+    j_close();
+}
+
+static void cmd_pins(void)
+{
+    const char *sub = strtok(NULL, " \t");
+    if (sub == NULL) { reply_err("pins needs list, hiz, in, read or drive <PIN> <0|1>"); return; }
+
+    if (!strcmp(sub, "list")) {                 /* static: allowed at any time */
+        j_begin();
+        j_b("ok", 1);
+        j_open("pins");
+        for (int i = 0; i < LINKPINS_N; i++) j_s(g_linkpins[i].name, g_linkpins[i].role);
+        j_close();
+        j_end();
+        return;
+    }
+    /* Everything else touches the pins, which belong to the link while one is open. */
+    if (busy()) return;
+    if (s_debug_open || link_is_open()) { reply_err("a link is open; close it first"); return; }
+
+    if (!strcmp(sub, "hiz")) {
+        linkpins_release_all();
+        j_begin();
+        j_b("ok", 1);
+        j_end();
+        return;
+    }
+    if (!strcmp(sub, "in")) {
+        linkpins_inputs();
+    } else if (!strcmp(sub, "read")) {
+        /* as they are: an analog (Hi-Z) pin reads 0 */
+    } else if (!strcmp(sub, "drive")) {
+        const char *name = strtok(NULL, " \t");
+        const char *lv = strtok(NULL, " \t");
+        if (name == NULL || lv == NULL) { reply_err("pins drive <PIN> <0|1>"); return; }
+        int idx = linkpins_find(name);
+        if (idx < 0) {
+            j_begin();
+            j_b("ok", 0);
+            j_s("err", "not a link pin");
+            j_s("pin", name);
+            j_end();
+            return;
+        }
+        if (strcmp(lv, "0") != 0 && strcmp(lv, "1") != 0) { reply_err("level must be 0 or 1"); return; }
+        linkpins_drive(idx, lv[0] == '1');
+    } else {
+        j_begin();
+        j_b("ok", 0);
+        j_s("err", "unknown pins command");
+        j_s("sub", sub);
+        j_end();
+        return;
+    }
+    j_begin();
+    j_b("ok", 1);
+    j_levels();
+    j_end();
+}
+
 /* ---- entry points ------------------------------------------------------------------- */
 void ctl_init(int cm4_synced)
 {
@@ -495,6 +579,7 @@ void ctl_poll(void)
     else if (!strcmp(verb, "stat"))   cmd_stat();
     else if (!strcmp(verb, "stop"))   cmd_stop();
     else if (!strcmp(verb, "reboot")) { j_begin(); j_b("ok", 1); j_end(); HAL_Delay(50); NVIC_SystemReset(); }
+    else if (!strcmp(verb, "pins"))   cmd_pins();
     else if (!strncmp(verb, "q_", 2)) cmd_q(verb);
     else {
         j_begin();

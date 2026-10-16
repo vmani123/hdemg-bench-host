@@ -1,10 +1,16 @@
 /* link_sdio.c — Stage 2b: SDMMC1 as an SDIO host -> ESP32-C5 SDIO slave (guide §6).
  *
  * NOT YET RUN AGAINST HARDWARE. Written from the HAL SDIO driver and the IDF sdio_slave
- * documentation; the 2b harness (with its mandatory pull-ups) has not been wired.
+ * documentation.
  *
- * Wiring (guide §3.3):  CK PC12 · CMD PD2 · D0 PC8 · D1 PC9 · D2 PC10 · D3 PC11, with
- * 10-50 kOhm pull-ups to 3V3 on CMD and D0-D3. Pins are only driven while the link is open.
+ * Wiring (docs/CAMPAIGN_PROTOCOL.md §2, all SDMMC1 AF12):  CK PC12 · CMD PD2 · D0 PC8 ·
+ * D1 PC9 · D2 PC10 · D3 PC11. There are NO external pull-ups: the H7 enables its internal
+ * pull-ups on CMD and D0-D3 and the C5's slave sets SDIO_SLAVE_FLAG_INTERNAL_PULLUP, about
+ * 20 kOhm together. That is weak, so the bus is only ever run in default-speed mode
+ * (<= LINK_SDIO_HZ_MAX, 25 MHz), and the whole card set-up (identification, bus width,
+ * function enable, block size) is done at 400 kHz; the data clock is set last. Pins are
+ * only driven while the link is open; PD2 and PC9 double as the C5 QSPI CS and IO0, and
+ * link.c releases all link pins before and after.
  *
  * Protocol, mirroring Espressif's ESSL host:
  *   - credit is the slave's 12-bit TOKEN1 counter (function 1, 0x044 bits [27:16]): the
@@ -23,6 +29,7 @@
 #define READY_TMO_US   10000U
 #define SINGLE_HOLD_US 2000U
 #define IO_TMO_MS      100U
+#define SETUP_HZ       400000U          /* identification and the whole card set-up */
 
 static SDIO_HandleTypeDef s_h;
 static link_cfg_t   s_cfg;
@@ -48,7 +55,7 @@ void HAL_SDIO_MspInit(SDIO_HandleTypeDef *hsdio)
     g.Mode = GPIO_MODE_AF_PP;
     g.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     g.Alternate = GPIO_AF12_SDMMC1;
-    g.Pull = GPIO_PULLUP;              /* in addition to the external pull-ups, not instead */
+    g.Pull = GPIO_PULLUP;              /* the only pull-ups on the H7 side: there are no external ones */
     g.Pin = GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11;
     HAL_GPIO_Init(GPIOC, &g);
     g.Pin = GPIO_PIN_2;
@@ -64,6 +71,18 @@ void HAL_SDIO_MspDeInit(SDIO_HandleTypeDef *hsdio)
     HAL_GPIO_DeInit(GPIOC, GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12);
     HAL_GPIO_DeInit(GPIOD, GPIO_PIN_2);
     __HAL_RCC_SDMMC1_CLK_DISABLE();
+}
+
+/* SDMMC_CK = kernel / (2 * CLKDIV). Rounded so the clock never exceeds the request, and
+ * CLKDIV is never 0 (that would bypass the divider: the full kernel clock on the wire). */
+static uint32_t clkdiv_for(uint32_t ker, uint32_t hz)
+{
+    if (hz < LINK_SDIO_HZ_MIN) hz = LINK_SDIO_HZ_MIN;
+    if (hz > LINK_SDIO_HZ_MAX) hz = LINK_SDIO_HZ_MAX;
+    uint32_t div = (ker + 2U * hz - 1U) / (2U * hz);
+    if (div < 1U) div = 1U;
+    if (div > (SDMMC_CLKCR_CLKDIV_Msk >> SDMMC_CLKCR_CLKDIV_Pos)) div = SDMMC_CLKCR_CLKDIV_Msk >> SDMMC_CLKCR_CLKDIV_Pos;
+    return div;
 }
 
 static int read_token(uint32_t *token)
@@ -130,9 +149,14 @@ int link_sdio_open(const link_cfg_t *c, const char **err)
     /* The FIFO is filled by a polled loop that the generation interrupt preempts: let
      * the peripheral hold the clock rather than underrun. */
     s_h.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_ENABLE;
-    s_h.Init.ClockDiv = SDMMC_NSPEED_CLK_DIV;
+    /* HAL_SDIO_Init identifies the card at 400 kHz (CMD0 / CMD5 / CMD3 / CMD7), then
+     * switches to Init.ClockDiv for its own CCCR write: keep that at 400 kHz too, so
+     * nothing before the final clock change depends on fast edges. */
+    uint32_t ker = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SDMMC);
+    if (ker == 0U) { *err = "sdio: no SDMMC kernel clock"; return -1; }
+    s_h.Init.ClockDiv = clkdiv_for(ker, SETUP_HZ);
 
-    if (HAL_SDIO_Init(&s_h) != HAL_OK) {            /* CMD0 / CMD5 / CMD3 / CMD7 at 400 kHz */
+    if (HAL_SDIO_Init(&s_h) != HAL_OK) {
         *err = "sdio: no card answered identification";
         HAL_SDIO_DeInit(&s_h);
         return -1;
@@ -141,8 +165,11 @@ int link_sdio_open(const link_cfg_t *c, const char **err)
     if (HAL_SDIO_SetDataBusWidth(&s_h, HAL_SDIO_4_WIRES_MODE) != HAL_OK) { *err = "sdio: 4-bit bus refused"; goto fail; }
     if (HAL_SDIO_EnableIOFunction(&s_h, HAL_SDIO_FUNCTION_1) != HAL_OK)  { *err = "sdio: function 1 did not enable"; goto fail; }
     if (HAL_SDIO_SetBlockSize(&s_h, HAL_SDIO_FUNCTION_1, HDEMG_SDIO_BLOCK_BYTES) != HAL_OK) { *err = "sdio: block size refused"; goto fail; }
-    if (HAL_SDIO_ConfigFrequency(&s_h, s_cfg.sdio_hz) != HAL_OK) { *err = "sdio: clock change failed"; goto fail; }
-    s_st.actual_hz = s_cfg.sdio_hz;
+    /* Only now the data clock (HAL_SDIO_ConfigFrequency would round it UP, and to the
+     * undivided kernel clock above 100 MHz). */
+    uint32_t div = clkdiv_for(ker, s_cfg.sdio_hz);
+    MODIFY_REG(s_h.Instance->CLKCR, SDMMC_CLKCR_CLKDIV, div << SDMMC_CLKCR_CLKDIV_Pos);
+    s_st.actual_hz = ker / (2U * div);
 
     uint32_t token;
     if (read_token(&token) != 0) { *err = "sdio: token register unreadable"; goto fail; }
