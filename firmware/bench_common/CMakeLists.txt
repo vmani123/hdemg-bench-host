@@ -25,6 +25,8 @@ set(SRCS
     "sink_udp.c"
     "sink_tcp.c"
     "wifi_pin.c"
+    "linkdrop.c"
+    "bench_pins.c"
 )
 
 # The paced synthetic source is part of the measurement contract (it is the Stage 1
