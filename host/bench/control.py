@@ -10,7 +10,7 @@ import socket
 import time
 
 CONTROL_PORT = 3334
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 
 
 class ControlError(RuntimeError):
