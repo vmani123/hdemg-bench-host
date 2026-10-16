@@ -41,6 +41,7 @@ class SimDriver:
         self._base_port = base_port
         self.flashes = 0
         self._flashed: dict[str, tuple] = {}
+        self._lock = threading.RLock()
         self.h7_faults: dict = {}          # tests inject what a broken rig would report
         self._h7 = None
         self.h7_clk_ppm = 0.0              # the fake generator's clock is the host's
@@ -69,14 +70,24 @@ class SimDriver:
         return fake_ingress_stat(self.h7().stat(), faults)
 
     def request_band(self, band: str) -> None:
-        self.band = str(band)
-        for chip in list(self._esps):
-            self._respawn(chip)
+        # Like the hardware driver: asking for the band already in force changes nothing.
+        # (Two boards measured at once each ask; respawning both fakes for every ask
+        # raced over their ports.)
+        with self._lock:
+            if str(band) == self.band and self._esps:
+                return
+            self.band = str(band)
+            for chip in list(self._esps):
+                self._respawn(chip)
 
     def band_of(self, chip: str) -> str:
         return self.band
 
     def ensure_flashed(self, chip: str, source: str, tune: str) -> dict:
+        with self._lock:
+            return self._ensure_flashed(chip, source, tune)
+
+    def _ensure_flashed(self, chip: str, source: str, tune: str) -> dict:
         want = (source, tune)
         if self._flashed.get(chip) != want:
             self._flashed[chip] = want

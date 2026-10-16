@@ -495,12 +495,36 @@ def cmd_tune(a) -> int:
     return 0
 
 
-def _bench_ports(h7_port: str) -> tuple[str | None, str | None]:
+def _find_h7_port(default: str) -> str | None:
+    """The STM32H745's ST-LINK serial port. The default name if it exists; otherwise ask
+    `hello` of each cu.usbmodem<digits> port (the ST-LINK's location-numbered name). The
+    S3's native-USB port is named after its MAC (letters and digits) and is never opened
+    here: opening an ESP's USB serial port can reset it."""
+    dev = sorted(p.name for p in Path("/dev").glob("cu.usbmodem*"))
+    if default.removeprefix("/dev/") in dev:
+        return default.removeprefix("/dev/")
+    for d in dev:
+        if not d.removeprefix("cu.usbmodem").isdigit():
+            continue
+        try:
+            h = H7Control(d, timeout=1.0, retries=1)
+            if h.hello().get("chip") == "stm32h745":
+                h.close()
+                return d
+            h.close()
+        except (H7Error, OSError):
+            continue
+    return None
+
+
+def _bench_ports(h7_port: str | None) -> tuple[str | None, str | None]:
     """The S3 (native USB, cu.usbmodem*) and C5 (CP2102N, cu.usbserial-*) ports, skipping
     the H7's ST-LINK (also cu.usbmodem*) and the Digilent FPGA adapter, which are not
     boards and must never be flashed."""
     dev = sorted(p.name for p in Path("/dev").glob("cu.*"))
-    s3 = [d for d in dev if d.startswith("cu.usbmodem") and d != h7_port.removeprefix("/dev/")]
+    h7 = (h7_port or "").removeprefix("/dev/")
+    s3 = [d for d in dev if d.startswith("cu.usbmodem") and d != h7
+          and not d.removeprefix("cu.usbmodem").isdigit()]
     c5 = [d for d in dev if d.startswith("cu.usbserial-") and "210352BF9796" not in d]
     return (s3[0] if s3 else None), (c5[0] if c5 else None)
 
@@ -551,7 +575,10 @@ def cmd_campaign(a) -> int:
               f"own Terminal — bash {REPO / 'hostrun.sh'} — and approve the flash window.",
               file=sys.stderr)
         return 2
-    s3_auto, c5_auto = _bench_ports(a.h7_port)
+    h7_port = a.h7_port if a.h7_port != DEFAULT_H7_PORT else \
+        (_find_h7_port(DEFAULT_H7_PORT) or DEFAULT_H7_PORT)
+    a.h7_port = h7_port
+    s3_auto, c5_auto = _bench_ports(h7_port)
     ports = {"esp32s3": a.s3_port or s3_auto, "esp32c5": a.c5_port or c5_auto}
     if not all(ports.values()):
         print(f"board ports not found ({ports}); pass --s3-port / --c5-port", file=sys.stderr)
