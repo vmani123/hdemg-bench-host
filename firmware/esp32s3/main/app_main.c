@@ -15,10 +15,32 @@
 #include "control.h"
 #include "instr.h"
 #include "wifi_pin.h"
+#include "bench_pins.h"
+#include "pins_s3.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 static const char *TAG = "app";
+
+/* ---- Stage 2 link GPIOs, for the wiring check (`pins`) -------------------------------
+ * Built from pins_s3.h so the check tests the pins the link driver actually uses, in
+ * wire order (docs/CAMPAIGN_PROTOCOL.md §2, wires 1-7). host/bench/wiring.py is the
+ * canonical map; host/tests check that the two agree. */
+static const bench_link_pin_t k_link_pins[] = {
+    { PIN_QSPI_CLK, { "qspi_clk" } },
+    { PIN_QSPI_CS,  { "qspi_cs" } },
+    { PIN_QSPI_D0,  { "qspi_d0" } },
+    { PIN_QSPI_D1,  { "qspi_d1" } },
+    { PIN_QSPI_D2,  { "qspi_d2" } },
+    { PIN_QSPI_D3,  { "qspi_d3" } },
+    { PIN_READY,    { "ready" } },
+};
+
+const bench_link_pin_t *bench_link_pins(size_t *n)
+{
+    *n = sizeof(k_link_pins) / sizeof(k_link_pins[0]);
+    return k_link_pins;
+}
 
 /* ---- station channel width (a rung lever) -----------------------------------------
  * CONFIG_BENCH_WIFI_BW_20 / _40 come from bench_common/Kconfig and are set by a rung.

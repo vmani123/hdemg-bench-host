@@ -22,8 +22,14 @@
 #define RUNG_NAME "unknown"
 #endif
 
-#define CONTROL_PROTOCOL_VERSION 1
+/* v2 (docs/CAMPAIGN_PROTOCOL.md §1): cfg keys nodelay / wr_max / dgram, the linkdrop
+ * and pins commands, and the health fields in stat. The host refuses any other version,
+ * so a board on an old build is reflashed rather than half-understood. */
+#define CONTROL_PROTOCOL_VERSION 2
 #define CONTROL_PORT             3334
+
+/* Every reply fits one unfragmented datagram on a 1500-byte MTU. */
+#define CONTROL_REPLY_MAX        1400
 
 typedef enum { XPORT_UDP = 0, XPORT_TCP = 1 } xport_t;
 
@@ -36,7 +42,19 @@ typedef struct {
     uint32_t frame_bytes;
     char     payload[16];
     char     label[48];
+    /* v2 transport knobs. Their defaults reproduce v1 byte for byte. */
+    uint8_t  nodelay;      /* TCP_NODELAY on the next TCP connection (1 = on, as in v1) */
+    uint32_t wr_max;       /* TCP: largest send(), whole frames; 0 = the whole pool buffer */
+    uint32_t dgram;        /* UDP: largest datagram, whole frames; 0 = CONFIG_BENCH_UDP_DGRAM_MAX */
 } run_cfg_t;
+
+/* The frame size the source actually uses: a value too small to hold a header is
+ * replaced by the 128-channel frame, as source_synth.c does. A sink that splits a pool
+ * buffer must split on this, or a write or a datagram could end mid-frame. */
+static inline uint32_t control_frame_bytes(const run_cfg_t *c)
+{
+    return (c->frame_bytes < HDEMG_HDR_BYTES + 2) ? HDEMG_RAW16_128CH : c->frame_bytes;
+}
 
 void             control_start(void);
 const run_cfg_t *control_cfg(void);

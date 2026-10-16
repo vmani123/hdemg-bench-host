@@ -155,6 +155,13 @@ void ingress_qspi_start(const ingress_qspi_pins_t *pins)
         ingress_set_init_err(err);
         return;
     }
+    /* No external resistors on the Stage 2 harness (docs/CAMPAIGN_PROTOCOL.md §2). The H7
+     * leaves every pin outside its active set Hi-Z, and a link that is closed or not yet
+     * opened leaves CS floating; a floating CS reads as random selects and clocks the
+     * slave's state machine with noise. The internal pull-up holds it deselected. Set
+     * after spi_slave_hd_init(), which routes the pin through IO_MUX but leaves its pulls
+     * alone; the pull is a pad setting, independent of the function selected. */
+    gpio_pullup_en(s_pins.cs);
     uint32_t zero = 0, magic = HDEMG_QSPI_MAGIC;
     spi_slave_hd_write_buffer(QSPI_HOST, HDEMG_QSPI_REG_LOADED, (uint8_t *)&zero, 4);
     spi_slave_hd_write_buffer(QSPI_HOST, HDEMG_QSPI_REG_COMPLETED, (uint8_t *)&zero, 4);

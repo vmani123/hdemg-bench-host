@@ -15,10 +15,44 @@
 #include "control.h"
 #include "instr.h"
 #include "wifi_pin.h"
+#include "bench_pins.h"
+#include "pins_c5.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 static const char *TAG = "app";
+
+/* ---- Stage 2 link GPIOs, for the wiring check (`pins`) -------------------------------
+ * Built from pins_c5.h so the check tests the pins the link drivers actually use, in
+ * wire order (docs/CAMPAIGN_PROTOCOL.md §2, wires 8-18). host/bench/wiring.py is the
+ * canonical map; host/tests check that the two agree. GPIO10 and GPIO7 each carry a QSPI
+ * and an SDIO role: one wire, and the H7 picks the role when it opens a link.
+ *
+ * GPIO13/14 are the USB-Serial-JTAG D-/D+ by default. `pins` (like the SDIO build)
+ * takes them over as plain GPIOs, which detaches the USB-JTAG port until reset; that is
+ * acceptable because this devkit is flashed and monitored through its CP2102N UART on
+ * GPIO11/12, never through the native USB port. */
+_Static_assert(PIN_QSPI_CS == PIN_SDIO_CMD, "wire 9 carries QSPI CS and SDIO CMD");
+_Static_assert(PIN_QSPI_D0 == PIN_SDIO_D1, "wire 10 carries QSPI D0 and SDIO D1");
+static const bench_link_pin_t k_link_pins[] = {
+    { PIN_QSPI_CLK, { "qspi_clk" } },
+    { PIN_QSPI_CS,  { "qspi_cs", "sdio_cmd" } },
+    { PIN_QSPI_D0,  { "qspi_d0", "sdio_d1" } },
+    { PIN_QSPI_D1,  { "qspi_d1" } },
+    { PIN_QSPI_D2,  { "qspi_d2" } },
+    { PIN_QSPI_D3,  { "qspi_d3" } },
+    { PIN_READY,    { "ready" } },
+    { PIN_SDIO_CLK, { "sdio_clk" } },
+    { PIN_SDIO_D0,  { "sdio_d0" } },
+    { PIN_SDIO_D2,  { "sdio_d2" } },
+    { PIN_SDIO_D3,  { "sdio_d3" } },
+};
+
+const bench_link_pin_t *bench_link_pins(size_t *n)
+{
+    *n = sizeof(k_link_pins) / sizeof(k_link_pins[0]);
+    return k_link_pins;
+}
 
 /* ---- band pin --------------------------------------------------------------------
  * The C5 is dual-band, and a dual-band access point (one SSID on 2.4 and 5 GHz) would

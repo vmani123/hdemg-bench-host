@@ -1,6 +1,7 @@
 /* pipe.c — buffer pool, queues, and the single byte-counting point. */
 #include "pipe.h"
 #include <string.h>
+#include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
@@ -8,7 +9,21 @@
 #include "freertos/task.h"
 #include "control.h"
 
+/* The pool. Static internal RAM by default, so a size that does not fit fails the build.
+ * CONFIG_BENCH_PIPE_POOL_PSRAM (a rung lever on a chip with PSRAM) moves it to PSRAM,
+ * allocated once here, to give the internal RAM to Wi-Fi and lwIP instead. Each buffer
+ * starts on a 64-byte boundary (a cache line) whatever PIPE_BUF_BYTES is. A wired-ingress
+ * build refuses that option at build time (CMakeLists.txt, ingress_common.c): its link
+ * DMAs straight into pool buffers. */
+#ifdef CONFIG_BENCH_PIPE_POOL_PSRAM
+#include "esp_heap_caps.h"
+#define POOL_STRIDE (((size_t)PIPE_BUF_BYTES + 63u) & ~(size_t)63u)
+static uint8_t         *s_pool;
+static inline uint8_t  *pool_buf(int i) { return s_pool + (size_t)i * POOL_STRIDE; }
+#else
 static uint8_t          s_pool[PIPE_NUM_BUFS][PIPE_BUF_BYTES];
+static inline uint8_t  *pool_buf(int i) { return s_pool[i]; }
+#endif
 static QueueHandle_t    s_free_q, s_filled_q;
 static SemaphoreHandle_t s_lock;
 static pipe_stats_t     s_stats;
@@ -18,11 +33,19 @@ typedef struct { uint8_t *buf; size_t len; } slot_t;
 
 void pipe_init(void)
 {
+#ifdef CONFIG_BENCH_PIPE_POOL_PSRAM
+    s_pool = heap_caps_aligned_alloc(64, (size_t)PIPE_NUM_BUFS * POOL_STRIDE, MALLOC_CAP_SPIRAM);
+    if (s_pool == NULL) {
+        /* Never fall back to internal RAM: that would quietly measure a different build. */
+        ESP_LOGE("pipe", "no PSRAM for the %d x %d B pool", PIPE_NUM_BUFS, PIPE_BUF_BYTES);
+        abort();
+    }
+#endif
     s_free_q   = xQueueCreate(PIPE_NUM_BUFS, sizeof(uint8_t *));
     s_filled_q = xQueueCreate(PIPE_NUM_BUFS, sizeof(slot_t));
     s_lock     = xSemaphoreCreateMutex();
     for (int i = 0; i < PIPE_NUM_BUFS; i++) {
-        uint8_t *p = s_pool[i];
+        uint8_t *p = pool_buf(i);
         xQueueSend(s_free_q, &p, 0);
     }
     memset(&s_stats, 0, sizeof(s_stats));
