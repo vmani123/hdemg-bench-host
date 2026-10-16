@@ -33,6 +33,7 @@ from .receiver import Receiver
 
 # Sources fed over a wire by the STM32H745 generator (Stage 2), not generated on the ESP.
 WIRED_SOURCES = ("qspi", "sdio")
+H7_TARGET = {"esp32s3": "s3", "esp32c5": "c5"}     # the H7's `cfg target=` per board
 
 # Cell keys that shape how a run is taken rather than what is measured (Run.opts).
 CELL_OPTS = ("hold_s", "discard_s", "device_cfg", "stress", "sample_s", "long_run",
@@ -337,7 +338,7 @@ class Orchestrator:
     def _probe_link(self, h7, r: Run) -> None:
         """Refuse a wired cell whose link is not there BEFORE spending a hold on it.
         Raising abandons the cell for this pass, exactly like a failed flash."""
-        h7.cfg(link=r.source, **self.link_opts)
+        h7.cfg(link=r.source, **self._h7_opts(r))
         last: Exception | None = None
         for _ in range(3):
             try:
@@ -362,6 +363,12 @@ class Orchestrator:
             return str(path)
         except OSError:
             return None
+
+    def _h7_opts(self, r: Run) -> dict:
+        """The generator settings for a wired run. `target` always follows the cell's
+        chip: the H7 drives a different pin set per ESP (docs/CAMPAIGN_PROTOCOL.md §2),
+        and a C5 cell opened on the S3's pins would measure the wrong board."""
+        return {**self.link_opts, "target": H7_TARGET.get(r.chip, "s3")}
 
     def _host_path(self, chip: str) -> dict:
         """How this host reaches the board (the second hop). Drivers that know say so;
@@ -472,7 +479,7 @@ class Orchestrator:
                 try:
                     h7.cfg(rate_bps=r.offered_bps, link=r.source, dur_s=int(hold) + 5,
                            frame_bytes=self.m.frame_bytes, clk_ppm=clk_applied,
-                           **self.link_opts)
+                           **self._h7_opts(r))
                     mark_a = clock_mark(h7)
                     h7.start()
                 except H7Error as e:
