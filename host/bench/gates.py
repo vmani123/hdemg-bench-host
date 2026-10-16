@@ -15,6 +15,7 @@ SOURCE_RATE_TOLERANCE = 0.05     # achieved vs commanded
 # load in the sweep (a datagram carries at most 30 frames).
 HOST_UDP_DROP_LIMIT = 50
 AIRTIME_WARN_PCT = 80.0
+CLOCK_DRIFT_WARN_MS = 2.0        # Stage 2: timestamp drift across a run worth flagging
 
 
 @dataclass
@@ -142,6 +143,73 @@ def post_run(ctx: dict) -> GateResult:
                f"(full socket buffer / content filter) — the loss figure is not the device's")
         (f if hd > HOST_UDP_DROP_LIMIT else w).append(msg)
     return GateResult(not f, f, w)
+
+
+def ingress(ctx: dict) -> GateResult:
+    """Stage 2 wired ingress (guide §8). ctx: h7 (the generator's run summary), esp (the
+    ESP's ingress counters), h7_error (why the generator did not start, if it did not).
+
+    Corruption on the wire is a RIG FAULT, not a result: a run with any of it is invalid.
+    Frames the generator had to drop because the link gave it no credit are a RESULT —
+    the link could not keep up at that load — and are labelled, like source_limited."""
+    f: list[str] = []
+    w: list[str] = []
+    h7, esp = ctx.get("h7") or {}, ctx.get("esp") or {}
+
+    if ctx.get("h7_error"):
+        f.append(f"generator did not start: {ctx['h7_error']}")
+        return GateResult(False, f, w)
+    if not h7:
+        f.append("no run summary from the H7 generator — the offered load is unverified")
+    if not esp:
+        f.append("no ingress counters from the ESP — link integrity is unverified")
+    if f:
+        return GateResult(False, f, w)
+
+    if esp.get("init_err"):
+        f.append(f"ESP ingress link failed to initialise (err {esp['init_err']})")
+    bad = {k: esp.get(k, 0) for k in ("len_errors", "magic_errors", "seq_backwards",
+                                      "payload_errors") if esp.get(k, 0)}
+    if bad:
+        f.append("link corruption seen by the ESP: "
+                 + ", ".join(f"{k}={v}" for k, v in sorted(bad.items())))
+    for k in ("link_errors", "credit_errors"):
+        if h7.get(k, 0):
+            f.append(f"H7 link reported {k}={h7[k]}")
+    # Every gap the ESP sees between consecutive frames must be a frame the generator
+    # itself dropped at its ring. Any more than that went missing on the wire.
+    drops, gaps = int(h7.get("ring_drops", 0)), int(esp.get("seq_gaps", 0))
+    if gaps > drops:
+        f.append(f"{gaps - drops} frames lost on the link (ESP saw {gaps} missing, "
+                 f"the generator dropped {drops})")
+
+    frames = int(h7.get("frames", 0))
+    if drops:
+        w.append(f"ingress-limited: the link refused {drops} of {frames} frames "
+                 f"({100.0 * drops / max(1, frames):.2f}%) — dropped at the H7 ring")
+    if h7.get("ready_timeouts", 0):
+        w.append(f"{h7['ready_timeouts']} waits of more than 10 ms for link credit")
+    if esp.get("pool_starved", 0):
+        w.append(f"ESP buffer pool ran dry {esp['pool_starved']} times — the sink, "
+                 f"not the link, was pushing back")
+    if h7.get("timebase") == "hse":
+        w.append("generator is on its fallback clock (the 32.768 kHz crystal did not "
+                 "start): it wanders by hundreds of ppm, so latency figures are unreliable")
+    # The generator's clock is trimmed with the value measured BEFORE this run. If the
+    # run's own measurement disagrees, its timestamps drifted by the difference: the
+    # goodput and loss stand, but the latency figures carry that ramp.
+    applied, measured = ctx.get("clk_applied_ppm"), ctx.get("clk_measured_ppm")
+    if applied is not None and measured is not None:
+        resid = float(measured) - float(applied)
+        drift_ms = abs(resid) * 1e-6 * float(ctx.get("hold_s") or 0) * 1e3
+        if drift_ms > CLOCK_DRIFT_WARN_MS:
+            w.append(f"generator clock was {resid:+.0f} ppm off its trim: latency figures "
+                     f"carry up to {drift_ms:.1f} ms of drift across the run")
+    return GateResult(not f, f, w)
+
+
+def ingress_limited(h7: dict | None) -> bool:
+    return bool(h7 and int(h7.get("ring_drops", 0)) > 0)
 
 
 def source_limited(ctx: dict) -> bool:

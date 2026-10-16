@@ -1,23 +1,24 @@
-/* source_qspi.c — Stage 2a ingress: GP-SPI Slave HD, 4-line data phase.
+/* source_qspi.c — Stage 2a ingress entry point for the ESP32-S3 (target-specific).
  *
- * NOT YET IMPLEMENTED. Stage 1 (paced synthetic source) runs first and is the control
- * arm this will be subtracted from; building this before Stage 1 has a number would
- * mean measuring the ingress against nothing.
- *
- * Before writing it, two things must be settled or the bench time is wasted:
- *   1. Read the phase table — command byte, address width, dummy cycles, data-line
- *      count — out of the INSTALLED ESP-IDF source and configure the STM32H745's
- *      QUADSPI field for field. A one-cycle dummy mismatch corrupts silently and looks
- *      exactly like a radio problem.
- *   2. Wire PIN_READY. The ESP asserts it when a DMA rx buffer is queued and the master
- *      gates the next transaction on it. Without it the master overruns the slave at
- *      precisely the load being measured.
- *
- * The contract this must meet: fill pool buffers with WHOLE frames only, call
- * pipe_submit(), and report source_achieved_bps() so a source-limited cell is labelled
- * rather than read as a radio ceiling.
- */
+ * The implementation is shared: firmware/bench_common/ingress_qspi.c runs GP-SPI2 as a
+ * Slave HD with a 4-line data phase, receiving straight into pool buffers from the
+ * STM32H745's QUADSPI. This file only supplies the pins. See docs/STM32_STAGE2_GUIDE.md
+ * and ingress.h for the contract and the link-test mode. */
 #include "pipe.h"
+#include "control.h"
+#include "ingress.h"
 #include "pins_s3.h"
 
-#error "source_qspi.c is a Stage 2 placeholder — build with -DBENCH_INGRESS=synth"
+void source_start(void)
+{
+    static const ingress_qspi_pins_t pins = {
+        .cs = PIN_QSPI_CS, .clk = PIN_QSPI_CLK,
+        .d0 = PIN_QSPI_D0, .d1 = PIN_QSPI_D1, .d2 = PIN_QSPI_D2, .d3 = PIN_QSPI_D3,
+        .ready = PIN_READY,
+    };
+    ingress_qspi_start(&pins);
+}
+
+void source_stop(void) { control_stop_run(); }
+
+uint64_t source_achieved_bps(void) { return ingress_achieved_bps(); }

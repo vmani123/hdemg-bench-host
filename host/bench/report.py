@@ -44,6 +44,10 @@ def _style(ax, theme, *, xlabel="", ylabel="", title=""):
                      loc="left", pad=12, fontweight="bold")
 
 
+def _source(r: dict) -> str:
+    return r.get("source") or "synth"
+
+
 def group(records: list[dict]) -> dict:
     """(entity, variant, transport) -> {offered_bps: [records]}"""
     out: dict = defaultdict(lambda: defaultdict(list))
@@ -52,6 +56,19 @@ def group(records: list[dict]) -> dict:
             continue
         ent = entity(r["target"], str(r["rf"]["band"]))
         out[(ent, r["variant"], r["transport"])][r["offered_bps"]].append(r)
+    return out
+
+
+def group_by_source(records: list[dict]) -> dict:
+    """(entity, source, variant, transport) -> {offered_bps: [records]}. A synthetic
+    cell and a wired cell of the same chip and band are different measurements and must
+    never be pooled into one knee."""
+    out: dict = defaultdict(lambda: defaultdict(list))
+    for r in records:
+        if not r.get("valid", True):
+            continue
+        ent = entity(r["target"], str(r["rf"]["band"]))
+        out[(ent, _source(r), r["variant"], r["transport"])][r["offered_bps"]].append(r)
     return out
 
 
@@ -272,28 +289,72 @@ def decomposition(records) -> dict:
 
 def matrix_table(records) -> str:
     """The table view. Required for accessibility, and the thing most readers want."""
-    g = group(records)
+    g = group_by_source(records)
     rows = ["| Cell | Variant | Transport | Knee (Mbit/s) | Goodput (Mbit/s) | "
             "Spread (MAD) | Loss @ knee | Repeats |",
             "|---|---|---|---|---|---|---|---|"]
-    for (ent, variant, transport), by in sorted(g.items()):
+    for (ent, source, variant, transport), by in sorted(g.items()):
         recs = [r for rs in by.values() for r in rs]
         k = knee(recs)
+        label = ENTITY_LABEL.get(ent, ent) + ("" if source == "synth" else f" · {source}")
         if not k["knee_offered_bps"]:
-            rows.append(f"| {ENTITY_LABEL.get(ent, ent)} | {variant} | {transport} | "
+            rows.append(f"| {label} | {variant} | {transport} | "
                         f"— | — | — | — | {len(recs)} |")
             continue
         at = by[k["knee_offered_bps"]]
         loss = _median(at, ["loss_pct"])
         mad = k.get("goodput_mad_bps") or 0.0
-        rows.append(f"| {ENTITY_LABEL.get(ent, ent)} | {variant} | {transport} | "
+        rows.append(f"| {label} | {variant} | {transport} | "
                     f"{k['knee_offered_bps']/1e6:.1f} | {k['goodput_bps']/1e6:.2f} | "
                     f"±{mad/1e6:.2f} | {loss:.3f} % | {k.get('repeats', len(at))} |")
     return "\n".join(rows)
 
 
-def render(ledger_path="results/runs.jsonl", out_dir="results/report") -> dict:
-    recs = Ledger(ledger_path).read()
+def ingress_table(records) -> str | None:
+    """Stage 2: each wired cell beside the SAME cell's synthetic number. The difference
+    is what feeding the ESP over a wire costs (plan §2.2) — the reason Stage 2 exists.
+    Loads at which the generator had to drop frames for lack of link credit are listed:
+    there the wire, not the radio, was the limit."""
+    g = group_by_source(records)
+    wired = {k: v for k, v in g.items() if k[1] != "synth"}
+    if not wired:
+        return None
+    rows = ["| Cell | Link | Variant | Transport | Knee (Mbit/s) | Goodput (Mbit/s) | "
+            "Synthetic goodput | Ingress cost (Mbit/s) | Ingress-limited loads |",
+            "|---|---|---|---|---|---|---|---|---|"]
+    for (ent, source, variant, transport), by in sorted(wired.items()):
+        recs = [r for rs in by.values() for r in rs]
+        k = knee(recs)
+        synth_by = g.get((ent, "synth", variant, transport))
+        ks = knee([r for rs in synth_by.values() for r in rs]) if synth_by else None
+        limited = sorted(
+            load for load, rs in by.items()
+            if statistics.median((r.get("ingress") or {}).get("h7", {}).get("ring_drops", 0)
+                                 for r in rs) > 0)
+        lim = ", ".join(f"{b/1e6:.0f}" for b in limited) or "none"
+        good = f"{k['goodput_bps']/1e6:.2f}" if k["goodput_bps"] else "—"
+        kn = f"{k['knee_offered_bps']/1e6:.1f}" if k["knee_offered_bps"] else "—"
+        sg = f"{ks['goodput_bps']/1e6:.2f}" if ks and ks["goodput_bps"] else "not measured"
+        cost = (f"{(ks['goodput_bps'] - k['goodput_bps'])/1e6:+.2f}"
+                if ks and ks["goodput_bps"] and k["goodput_bps"] else "—")
+        rows.append(f"| {ENTITY_LABEL.get(ent, ent)} | {source} | {variant} | {transport} | "
+                    f"{kn} | {good} | {sg} | {cost} | {lim} |")
+    return "\n".join(rows)
+
+
+def render(ledger_path="results/runs.jsonl", out_dir="results/report",
+           extra_ledgers=()) -> dict:
+    """extra_ledgers: further ledgers read alongside the first. Stage 2 keeps its own
+    ledger; reading Stage 1's beside it is what puts a synthetic number next to each
+    wired one."""
+    all_recs = Ledger(ledger_path).read()
+    for extra in extra_ledgers or ():
+        all_recs += Ledger(extra).read()
+    # The figures and the decomposition were designed for the synthetic (Stage 1)
+    # cells; pooling wired cells into them would mix two different measurements. A
+    # ledger with no synthetic records at all is drawn as it is.
+    synth = [r for r in all_recs if _source(r) == "synth"]
+    recs = synth or all_recs
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     made = []
@@ -313,17 +374,24 @@ def render(ledger_path="results/runs.jsonl", out_dir="results/report") -> dict:
     phy = sorted({str(r["rf"].get("phy_rate")) for r in recs if r["rf"].get("phy_rate")})
     md = [
         "# S3 vs C5 — measured results", "",
-        f"Records: **{len(recs)}** · rig ceiling by band: "
+        f"Records: **{len(all_recs)}** · rig ceiling by band: "
         f"{ceilings or 'NOT MEASURED'} · observed PHY: {', '.join(phy) or 'unknown'}",
         "",
         "> A number above the rig ceiling is a property of the rig, not the silicon.",
         "> If the PHY column never reads HE, the C5 was not exercised at Wi-Fi 6 rates",
         "> and its figure is a lower bound (plan §7.3b).", "",
-        "## Matrix", "", matrix_table(recs), "",
+        "## Matrix", "", matrix_table(all_recs), "",
         "## Decomposition (plan §5.1)", "",
     ]
     for k, v in dec.items():
         md.append(f"- **{k}**: {v}")
+    ing = ingress_table(all_recs)
+    if ing:
+        md += ["", "## Stage 2 — wired ingress (plan §2.2)", "",
+               "> Ingress cost = synthetic goodput − wired goodput for the same chip, band,",
+               "> variant and transport. Runs with corruption or frames lost on the wire are",
+               "> invalid and are not in this table; loads where the link itself refused",
+               "> frames are listed as ingress-limited.", "", ing]
     (out / "report.md").write_text("\n".join(md) + "\n")
     made.append(str(out / "report.md"))
-    return {"files": made, "records": len(recs), "decomposition": dec}
+    return {"files": made, "records": len(all_recs), "decomposition": dec}

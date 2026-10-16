@@ -24,8 +24,12 @@ from .control import ControlError
 from .keepalive import Keepalive, NullKeepalive
 from .control import ControlClient
 from .frame import HDR_BYTES
+from .h7 import H7Error, clock_mark, ppm_between
 from .ledger import Ledger, git_sha, new_run_id
 from .receiver import Receiver
+
+# Sources fed over a wire by the STM32H745 generator (Stage 2), not generated on the ESP.
+WIRED_SOURCES = ("qspi", "sdio")
 
 DEFAULT_SWEEP = {"start_mbps": 1, "stop_mbps": 60, "steps": 8,
                  "hold_s": 60, "discard_s": 3}
@@ -90,9 +94,14 @@ class Matrix:
         return [int((s + i * step) * 1e6) for i in range(n)]
 
     def expand(self, bands: list[str] | None = None,
-               transports: list[str] | None = None) -> list[Run]:
-        """bands: restrict to these bands. transports: restrict to these transports
-        (the points left out stay pending for a later sweep).
+               transports: list[str] | None = None, *,
+               chips: list[str] | None = None,
+               sources: list[str] | None = None) -> list[Run]:
+        """bands / transports / chips / sources: restrict to these (the points left out
+        stay pending for a later sweep).
+
+        chips and sources exist for Stage 2: only a chip that is physically wired to the
+        generator can run a wired cell, and that is a fact about the bench, not the matrix.
 
         The hotspot serves one band at a time and the switch is a manual toggle, so a
         sweep restricted to one band is the unit that can run unattended end to end.
@@ -111,6 +120,8 @@ class Matrix:
                 steps = ([int(float(x) * 1e6) for x in cell["loads_mbps"]]
                          if cell.get("loads_mbps") else sweep)
                 source = cell.get("source", "synth")
+                if (chips and chip not in chips) or (sources and source not in sources):
+                    continue
                 for transport in _aslist(cell.get("transport", ["udp"])):
                     if transports and transport not in transports:
                         continue
@@ -152,7 +163,9 @@ class Orchestrator:
                  allow_shared_band: bool = False,
                  transports: list[str] | None = None,
                  rssi_drift_warn_only: bool = False,
-                 deadline: float | None = None):
+                 deadline: float | None = None,
+                 chips: list[str] | None = None, sources: list[str] | None = None,
+                 link_opts: dict | None = None):
         self.m = matrix
         self.driver = driver
         self.ledger = ledger
@@ -168,6 +181,10 @@ class Orchestrator:
         self.rssi_drift_warn_only = rssi_drift_warn_only
         # time.monotonic() value after which no further run may be started (None = none).
         self.deadline = deadline
+        self.chips = list(chips) if chips else None
+        self.sources = list(sources) if sources else None
+        # Extra generator settings for wired cells (e.g. qspi_hz), recorded with each run.
+        self.link_opts = dict(link_opts or {})
         self.want_keepalive = keepalive
         self.want_recover = recover
         self.on_event = on_event or (lambda *_a, **_k: None)
@@ -177,7 +194,9 @@ class Orchestrator:
 
     def pending(self) -> list[Run]:
         done = self.ledger.completed_keys()
-        return [r for r in self.m.expand(self.bands, self.transports) if r.key not in done]
+        return [r for r in self.m.expand(self.bands, self.transports, chips=self.chips,
+                                         sources=self.sources)
+                if r.key not in done]
 
     def _keepalive_for(self, chip: str):
         """One keepalive per chip, created lazily once the device is reachable."""
@@ -293,6 +312,20 @@ class Orchestrator:
             "gate_warnings": [],
         }
 
+    def _probe_link(self, h7, r: Run) -> None:
+        """Refuse a wired cell whose link is not there BEFORE spending a hold on it.
+        Raising abandons the cell for this pass, exactly like a failed flash."""
+        h7.cfg(link=r.source, **self.link_opts)
+        last: Exception | None = None
+        for _ in range(3):
+            try:
+                h7.probe()
+                return
+            except H7Error as e:
+                last = e
+                time.sleep(0.5)
+        raise RuntimeError(f"no {r.source} link between the H7 and {r.chip}: {last}")
+
     def _host_path(self, chip: str) -> dict:
         """How this host reaches the board (the second hop). Drivers that know say so;
         the loopback fake has no second hop."""
@@ -305,7 +338,13 @@ class Orchestrator:
             return {"link": "unknown"}
 
     def run_one(self, r: Run) -> dict:
+        wired = r.source in WIRED_SOURCES
         self.driver.ensure_flashed(r.chip, r.source, r.tune)
+        h7 = None
+        if wired:
+            self.driver.ensure_h7()
+            h7 = self.driver.h7()
+            self._probe_link(h7, r)
         c = self.driver.control(r.chip)
         ka = self._keepalive_for(r.chip)
         reassociated = ka.take_reassociation()
@@ -355,6 +394,11 @@ class Orchestrator:
         heap_min: int | None = None
 
         host_drops: int | None = None      # datagrams THIS HOST discarded during the window
+        h7_sum: dict = {}
+        esp_ing: dict = {}
+        h7_error: str | None = None
+        clk_applied = int(round(getattr(self.driver, "h7_clk_ppm", 0.0))) if wired else 0
+        clk_measured: float | None = None
 
         if pre.ok:
           with ka.paused():        # the instrument must not appear in its own number
@@ -370,6 +414,18 @@ class Orchestrator:
                   dur_s=int(hold) + 5, frame_bytes=self.m.frame_bytes,
                   payload="rand", label=f"{r.cell_id}-r{r.repeat}")
             c.start()
+            if wired:
+                # ESP first, then the generator: the slave must be listening before the
+                # master offers load (guide §8). The commanded rate goes to the H7.
+                mark_a = mark_b = None
+                try:
+                    h7.cfg(rate_bps=r.offered_bps, link=r.source, dur_s=int(hold) + 5,
+                           frame_bytes=self.m.frame_bytes, clk_ppm=clk_applied,
+                           **self.link_opts)
+                    mark_a = clock_mark(h7)
+                    h7.start()
+                except H7Error as e:
+                    h7_error = str(e)
             metrics = rx.join()
             if drops0 is not None:
                 drops1 = rfmeta.host_udp_drops()
@@ -385,6 +441,18 @@ class Orchestrator:
                 live = c.stat()
             except Exception:                                 # noqa: BLE001
                 live = {}
+            if wired:                                         # then stop the source first
+                try:
+                    mark_b = clock_mark(h7)
+                    h7_sum = h7.stop()
+                except H7Error as e:
+                    h7_error = h7_error or str(e)
+                # The run itself is the best clock calibration there is: a minute between
+                # two marks. What it finds trims the NEXT run; this one used clk_applied.
+                if mark_a and mark_b:
+                    clk_measured = ppm_between(mark_a, mark_b)
+                    if clk_measured is not None:
+                        self.driver.h7_clk_ppm = clk_measured
             try:
                 stat1 = c.stop().get("summary", {}) or c.stat()
             except Exception:                                 # noqa: BLE001
@@ -396,6 +464,15 @@ class Orchestrator:
                 settled = live.get("rssi") or stat1.get("rssi")
                 if settled:                       # 0 means "not associated", not 0 dBm
                     self._first_rssi[r.cell_id] = settled
+            if wired:
+                try:
+                    esp_ing = self.driver.ingress_stat(r.chip)
+                except (OSError, ValueError):
+                    esp_ing = {}
+                # The H7 is the source: its achieved rate is the offered load. The
+                # ESP's own (live) figure is what came in over the wire, kept separately.
+                stat1 = {**stat1, "esp_ingress_bps": stat1.get("achieved_bps"),
+                         "achieved_bps": h7_sum.get("achieved_bps")}
             metrics_d = metrics.as_dict()
             # The device's low-water mark since boot (not the free heap after the run,
             # which had recovered by then and hid a 4 KB near-exhaustion).
@@ -410,6 +487,12 @@ class Orchestrator:
                 "metrics": metrics_d, "rig_ceiling_mbps": ceiling,
                 "host_udp_drops": host_drops,
             })
+            if wired:
+                ing = gates.ingress({"h7": h7_sum, "esp": esp_ing, "h7_error": h7_error,
+                                     "clk_applied_ppm": clk_applied,
+                                     "clk_measured_ppm": clk_measured, "hold_s": hold})
+                post = gates.GateResult(post.ok and ing.ok, post.failures + ing.failures,
+                                        post.warnings + ing.warnings)
 
         valid = pre.ok and post.ok
         rec = {
@@ -428,7 +511,15 @@ class Orchestrator:
                         "idle_pct": stat1.get("idle_pct", stat0.get("idle_pct")),
                         "retries": stat1.get("retries"),
                         "achieved_bps": stat1.get("achieved_bps"),
-                        "host_udp_drops": host_drops},
+                        "host_udp_drops": host_drops,
+                        **({"esp_ingress_bps": stat1.get("esp_ingress_bps"),
+                            "link_bps": h7_sum.get("link_bps")} if wired else {})},
+            # Stage 2 only: both ends' link counters, verbatim, plus the settings used.
+            "ingress": ({"h7": h7_sum, "esp": esp_ing, "opts": self.link_opts,
+                         "h7_error": h7_error,
+                         "clk_applied_ppm": clk_applied,
+                         "clk_measured_ppm": clk_measured} if wired else None),
+            "ingress_limited": gates.ingress_limited(h7_sum) if wired else False,
             "rf": rfmeta.collect(band=str(r.band), ap=self.m.ap,
                                  rig_ceiling_mbps=ceiling,
                                  device_stat={**stat0, **stat1},
