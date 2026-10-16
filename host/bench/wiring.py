@@ -1,0 +1,140 @@
+"""The Stage 2 harness as wired (docs/CAMPAIGN_PROTOCOL.md §2), and the wiring check.
+
+One wire per pin, nothing shared between boards. WIRES is the single source of truth:
+the wiring "hello world" (`bench wiring`) checks the bench against it, and FakeWiring
+simulates it so the fake H7 and fake ESPs can answer `pins` commands the way the real
+harness would, including the faults the check exists to find.
+"""
+from __future__ import annotations
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Wire:
+    n: int            # wire number, as on the wiring sheet
+    h7: str           # STM32H745 pin, e.g. "PB2"
+    chip: str         # "esp32s3" | "esp32c5"
+    gpio: int         # ESP GPIO number
+    role: str         # what the wire carries (both roles where the H7 switches)
+    zio: str          # Nucleo connector position
+
+
+WIRES: tuple[Wire, ...] = (
+    Wire(1, "PB2", "esp32s3", 12, "QSPI CLK", "CN10-15"),
+    Wire(2, "PG6", "esp32s3", 10, "QSPI CS", "CN10-13"),
+    Wire(3, "PD11", "esp32s3", 11, "QSPI D0", "CN10-23"),
+    Wire(4, "PD12", "esp32s3", 13, "QSPI D1", "CN10-21"),
+    Wire(5, "PE2", "esp32s3", 14, "QSPI D2", "CN10-25"),
+    Wire(6, "PD13", "esp32s3", 9, "QSPI D3", "CN10-19"),
+    Wire(7, "PG9", "esp32s3", 7, "READY", "CN7-20"),
+    Wire(8, "PF10", "esp32c5", 6, "QSPI CLK", "CN10-9"),
+    Wire(9, "PD2", "esp32c5", 10, "SDIO CMD / QSPI CS", "CN8-12"),
+    Wire(10, "PC9", "esp32c5", 7, "SDIO D1 / QSPI D0", "CN8-4"),
+    Wire(11, "PF9", "esp32c5", 2, "QSPI D1", "CN9-28"),
+    Wire(12, "PF7", "esp32c5", 5, "QSPI D2", "CN9-26"),
+    Wire(13, "PF6", "esp32c5", 4, "QSPI D3", "CN10-7"),
+    Wire(14, "PG10", "esp32c5", 3, "READY", "CN8-14"),
+    Wire(15, "PC12", "esp32c5", 9, "SDIO CLK", "CN8-10"),
+    Wire(16, "PC8", "esp32c5", 8, "SDIO D0", "CN8-2"),
+    Wire(17, "PC10", "esp32c5", 14, "SDIO D2", "CN8-6"),
+    Wire(18, "PC11", "esp32c5", 13, "SDIO D3", "CN8-8"),
+)
+
+H7_PINS: tuple[str, ...] = tuple(w.h7 for w in WIRES)
+
+
+def esp_pins(chip: str) -> list[int]:
+    """The link GPIOs of one board, in wire order."""
+    return [w.gpio for w in WIRES if w.chip == chip]
+
+
+def wire_for_h7(pin: str) -> Wire | None:
+    return next((w for w in WIRES if w.h7 == pin), None)
+
+
+def wire_for_esp(chip: str, gpio: int) -> Wire | None:
+    return next((w for w in WIRES if w.chip == chip and w.gpio == gpio), None)
+
+
+class FakeWiring:
+    """A simulated harness. Each end drives a pin or leaves it as an input with a
+    pull-down; a pin reads 1 only if something on its net drives it high.
+
+    faults (for tests of the check itself), by wire number:
+      {"open": [n, ...]}            the wire is missing
+      {"swap": [(a, b), ...]}       wires a and b are crossed at the ESP end
+      {"short": [(a, b), ...]}      wires a and b touch each other
+      {"stuck_high": [n, ...]}      the net is tied high
+    """
+
+    def __init__(self, wires: tuple[Wire, ...] = WIRES, faults: dict | None = None):
+        self.faults = faults or {}
+        swap = {}
+        for a, b in self.faults.get("swap", []):
+            swap[a], swap[b] = b, a
+        # net id per wire after the faults; a net joins one H7 pin and one ESP pin
+        self._h7_net: dict[str, int] = {}
+        self._esp_net: dict[tuple[str, int], int] = {}
+        opened = set(self.faults.get("open", []))
+        by_n = {w.n: w for w in wires}
+        for w in wires:
+            self._h7_net[w.h7] = w.n
+            if w.n in opened:
+                continue                       # the ESP end is not connected to anything
+            esp_end = by_n[swap.get(w.n, w.n)]
+            self._esp_net[(esp_end.chip, esp_end.gpio)] = w.n
+        self._merged: dict[int, int] = {}
+        for a, b in self.faults.get("short", []):
+            self._merged[b] = a
+        self._stuck = set(self.faults.get("stuck_high", []))
+        self.h7_driven: dict[str, int] = {}
+        self.esp_driven: dict[tuple[str, int], int] = {}
+
+    def _net(self, n: int | None) -> int | None:
+        while n in self._merged:
+            n = self._merged[n]
+        return n
+
+    def _net_level(self, net: int | None) -> int:
+        if net is None:
+            return 0
+        if any(self._net(n) == net for n in self._stuck):
+            return 1
+        for pin, lvl in self.h7_driven.items():
+            if self._net(self._h7_net.get(pin)) == net and lvl:
+                return 1
+        for key, lvl in self.esp_driven.items():
+            if self._net(self._esp_net.get(key)) == net and lvl:
+                return 1
+        return 0
+
+    # -- the H7 end ------------------------------------------------------------------
+    def h7_drive(self, pin: str, level: int | None) -> None:
+        if level is None:
+            self.h7_driven.pop(pin, None)
+        else:
+            self.h7_driven[pin] = int(bool(level))
+
+    def h7_release_all(self) -> None:
+        self.h7_driven.clear()
+
+    def h7_level(self, pin: str) -> int:
+        if pin in self.h7_driven:
+            return self.h7_driven[pin]
+        return self._net_level(self._net(self._h7_net.get(pin)))
+
+    # -- an ESP end ------------------------------------------------------------------
+    def esp_drive(self, chip: str, gpio: int, level: int | None) -> None:
+        if level is None:
+            self.esp_driven.pop((chip, gpio), None)
+        else:
+            self.esp_driven[(chip, gpio)] = int(bool(level))
+
+    def esp_release_all(self, chip: str) -> None:
+        for k in [k for k in self.esp_driven if k[0] == chip]:
+            del self.esp_driven[k]
+
+    def esp_level(self, chip: str, gpio: int) -> int:
+        if (chip, gpio) in self.esp_driven:
+            return self.esp_driven[(chip, gpio)]
+        return self._net_level(self._net(self._esp_net.get((chip, gpio))))

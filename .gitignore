@@ -35,3 +35,6 @@ firmware/stm32h745/*/CM*/Core/Inc/fw_version.h
 firmware/stm32h745/**/.settings/
 _agent/cubeide-ws/
 _agent/stage2.ready
+
+# compile checks (host/tools/verify_build.sh)
+_verify/
