@@ -190,6 +190,14 @@ A separate, short study of how fast each chip can go per transport and band, cli
 lever at a time on its own ledger: `bash tune.sh 2.4` (then `5`), optionally supervised by
 a Claude `/loop`. How it works, timing and the run checklist: [`docs/TUNING_STUDY.md`](docs/TUNING_STUDY.md).
 
+## Follow-up campaign (October 2026)
+
+Every test after the tuning study — Nagle and write size, PSRAM, 30-minute soaks and
+stress, 40 MHz, the C5 at 5 GHz, and Stage 2 over QSPI and SDIO — runs unattended from one
+command, `bash campaign.sh`, after a wiring hello world (`bash campaign.sh --only W.1,0.2`).
+Setup and run guide: [`docs/CAMPAIGN.md`](docs/CAMPAIGN.md). Firmware ↔ host contract and
+the wire-once Stage 2 pin map: [`docs/CAMPAIGN_PROTOCOL.md`](docs/CAMPAIGN_PROTOCOL.md).
+
 ## Status
 
 Stage 1 (paced synthetic source) is implemented and the host harness is fully tested.

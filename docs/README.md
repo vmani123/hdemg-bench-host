@@ -18,7 +18,13 @@ Read in this order if you are trying to understand the project as a person.
 - `TUNING_STUDY.md`: the run guide for the automated tuning loop (`tune.sh`, `bench tune`):
   the keep rule, safety checks, how to re-run.
 
-## 3. The experimental data
+## 3. The follow-up campaign
+- `CAMPAIGN.md`: the tests after the tuning study, how to set up the bench and router, how to
+  run and supervise the campaign, and the rules that pick each chip's settings for later tests.
+- `CAMPAIGN_PROTOCOL.md`: the firmware ↔ host contract (control protocol v2, new stat fields,
+  `linkdrop`, `pins`), the wire-once Stage 2 pin map, and the wiring hello world.
+
+## 4. The experimental data
 | Folder | What |
 |---|---|
 | `results-2026-10-05-verizon/` | First real sweep: TCP only, 2.4 GHz, Verizon router. UDP voided. |

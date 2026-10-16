@@ -9,3 +9,7 @@
 CONFIG_EXAMPLE_CONNECT_WIFI=y
 CONFIG_EXAMPLE_WIFI_SSID="your-network-name"
 CONFIG_EXAMPLE_WIFI_PASSWORD="your-network-password"
+# Optional rig settings (bench_common/Kconfig). A network that serves one name from several
+# access points: stay on the one on this channel, 2.4 GHz builds and 5 GHz builds apart.
+# CONFIG_BENCH_WIFI_PIN_CHANNEL=1
+# CONFIG_BENCH_WIFI_PIN_CHANNEL_5G=48

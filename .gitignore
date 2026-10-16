@@ -38,3 +38,5 @@ _agent/stage2.ready
 
 # compile checks (host/tools/verify_build.sh)
 _verify/
+# backups of the per-board network settings (they hold passwords)
+firmware/*/sdkconfig.local.*
