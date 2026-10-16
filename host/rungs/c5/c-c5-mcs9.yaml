@@ -1,0 +1,12 @@
+# Follow-up campaign rung (docs/CAMPAIGN.md). `study:` keeps it out of the formal ladder.
+
+id: c-c5-mcs9
+applies_to: esp32c5
+parent: c-c5-base
+study: campaign
+lever: he_tuning
+rationale: >-
+  HE20 with MCS 8-9 advertised (114.7 Mbit/s PHY). On 13 Oct it gained nothing at 2.4
+  GHz and -63 to -67 dBm; at 5 GHz the signal may be strong enough to use it.
+config:
+  CONFIG_BENCH_WIFI_HE_MCS9: y

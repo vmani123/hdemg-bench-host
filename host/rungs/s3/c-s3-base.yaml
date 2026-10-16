@@ -1,0 +1,13 @@
+# Follow-up campaign rung (docs/CAMPAIGN.md). `study:` keeps it out of the formal ladder.
+
+id: c-s3-base
+applies_to: esp32s3
+parent: t24-08-extra-iram
+study: campaign
+lever: channel_width
+rationale: >-
+  Today's S3 design (13 Oct, t24-08) held at 20 MHz. The router's 2.4 GHz radio is set
+  to 40 MHz for the whole campaign, and the S3 station asks for 40 MHz by default, so
+  every 20 MHz test must force it.
+config:
+  CONFIG_BENCH_WIFI_BW_20: y

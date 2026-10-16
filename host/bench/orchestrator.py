@@ -11,6 +11,7 @@ are not cosmetic:
 """
 from __future__ import annotations
 import itertools
+import json
 import statistics
 import time
 from collections import defaultdict
@@ -21,6 +22,8 @@ import yaml
 
 from . import gates, rfmeta
 from .control import ControlError
+from .stress import StressRunner, schedule
+from .telemetry import Sampler, summarize
 from .keepalive import Keepalive, NullKeepalive
 from .control import ControlClient
 from .frame import HDR_BYTES
@@ -30,6 +33,10 @@ from .receiver import Receiver
 
 # Sources fed over a wire by the STM32H745 generator (Stage 2), not generated on the ESP.
 WIRED_SOURCES = ("qspi", "sdio")
+
+# Cell keys that shape how a run is taken rather than what is measured (Run.opts).
+CELL_OPTS = ("hold_s", "discard_s", "device_cfg", "stress", "sample_s", "long_run",
+             "window_s", "reconnect", "tcp_rcvbuf")
 
 DEFAULT_SWEEP = {"start_mbps": 1, "stop_mbps": 60, "steps": 8,
                  "hold_s": 60, "discard_s": 3}
@@ -47,6 +54,9 @@ class Run:
     tune: str
     offered_bps: int
     repeat: int
+    # Per-cell run options (campaign cells): hold_s, discard_s, device_cfg, stress,
+    # sample_s, long_run, window_s, reconnect, tcp_rcvbuf. Not part of the run's identity.
+    opts: dict = field(default_factory=dict, compare=False)
 
     @property
     def key(self) -> tuple:
@@ -73,6 +83,13 @@ class Matrix:
     # Repeat numbers start here. A re-measurement of points already in the ledger takes
     # fresh numbers, or resume would treat it as done and return the old runs.
     first_repeat: int = 1
+    # The network THIS HOST must be on, when it differs from the boards' `ssid`: a router
+    # that offers one band-locked network per band for the host, so the host can sit on
+    # the band a cell is not measuring (docs/CAMPAIGN.md). Default: the boards' network.
+    host_ssid: str | None = None
+    # Where each run's time series (receiver windows, device samples, stress log) is
+    # written, one JSON file per run. None = not written.
+    timeseries_dir: str | None = None
 
     @classmethod
     def load(cls, path: str | Path) -> "Matrix":
@@ -84,7 +101,9 @@ class Matrix:
                    frame_bytes=raw.get("frame_bytes", 270),
                    expected_idf=raw.get("expected_idf", "v6.0.2"),
                    ssid=raw.get("ssid"),
-                   allow_shared_band=bool(raw.get("allow_shared_band", False)))
+                   allow_shared_band=bool(raw.get("allow_shared_band", False)),
+                   host_ssid=raw.get("host_ssid"),
+                   timeseries_dir=raw.get("timeseries_dir"))
 
     def offered_steps(self) -> list[int]:
         s, e, n = self.sweep["start_mbps"], self.sweep["stop_mbps"], self.sweep["steps"]
@@ -127,9 +146,12 @@ class Matrix:
                         continue
                     for tune in _aslist(cell.get("tune", ["tuned"])):
                         cid = f"s{self.stage}-{chip}-{band}-{source}-{transport}-{tune}"
+                        if cell.get("tag"):
+                            cid += f"-{cell['tag']}"
+                        opts = {k: cell[k] for k in CELL_OPTS if k in cell}
                         for off in steps:
                             runs.append(Run(cid, chip, band, source, transport,
-                                            tune, off, rep))
+                                            tune, off, rep, opts))
         # Band-ordered: minimise manual hotspot switches. Within a chip, group by tune
         # (the only axis that needs a reflash; transport and load are runtime) and
         # alternate its direction per repeat, so each repeat starts on the build the
@@ -237,7 +259,7 @@ class Orchestrator:
 
     def run_cost_s(self, r: Run) -> float:
         """Worst-case wall-clock seconds the next run needs, flash included."""
-        cost = float(self.m.sweep["hold_s"]) + self.RUN_OVERHEAD_S
+        cost = float(r.opts.get("hold_s", self.m.sweep["hold_s"])) + self.RUN_OVERHEAD_S
         needs_flash = getattr(self.driver, "needs_flash", None)
         if needs_flash is not None and needs_flash(r.chip, r.source, r.tune):
             cost += self.FLASH_COST_S
@@ -326,6 +348,21 @@ class Orchestrator:
                 time.sleep(0.5)
         raise RuntimeError(f"no {r.source} link between the H7 and {r.chip}: {last}")
 
+    def _write_timeseries(self, run_id: str, metrics, samples, stress_log) -> str | None:
+        """One JSON file per run: what a soak is read from (windows, device samples,
+        injected faults). The ledger keeps only the summary and this file's path."""
+        try:
+            d = Path(self.m.timeseries_dir)
+            d.mkdir(parents=True, exist_ok=True)
+            path = d / f"{run_id}.json"
+            path.write_text(json.dumps({
+                "run_id": run_id, "windows": getattr(metrics, "windows", []),
+                "receiver_events": getattr(metrics, "events", []),
+                "device": samples, "stress": stress_log}, separators=(",", ":")))
+            return str(path)
+        except OSError:
+            return None
+
     def _host_path(self, chip: str) -> dict:
         """How this host reaches the board (the second hop). Drivers that know say so;
         the loopback fake has no second hop."""
@@ -370,7 +407,8 @@ class Orchestrator:
             "associated": True, "band": self.driver.band_of(r.chip),
             "host_link": host_path.get("link"), "host_band": host_path.get("band"),
             "allow_shared_band": self.allow_shared_band,
-            "expected_ssid": self.m.ssid, "host_ssid": host_path.get("ssid"),
+            "expected_ssid": self.m.host_ssid or self.m.ssid,
+            "host_ssid": host_path.get("ssid"),
             "expected_band": r.band, "rig_ceiling_mbps": ceiling,
             "offered_bps": r.offered_bps,
             "rssi_dbm": stat0.get("rssi") if first_rssi is not None else None,
@@ -383,7 +421,11 @@ class Orchestrator:
         pre = gates.pre_run(pre_ctx)
 
         payload_bytes = self.m.frame_bytes - HDR_BYTES
-        hold = float(self.m.sweep["hold_s"])
+        opts = r.opts or {}
+        hold = float(opts.get("hold_s", self.m.sweep["hold_s"]))
+        discard = float(opts.get("discard_s", self.m.sweep["discard_s"]))
+        samples: list[dict] = []
+        stress_log: list[dict] = []
         # A run blocked by a pre-gate is still recorded, with zeroed metrics: the
         # ledger must show that the point was attempted and refused, or resume would
         # retry it forever and the report would silently under-count the matrix.
@@ -407,13 +449,22 @@ class Orchestrator:
             drops0 = rfmeta.host_udp_drops() \
                 if r.transport == "udp" and host_path.get("link") != "loopback" else None
             rx = Receiver(r.transport, self.recv_port, payload_bytes,
-                          duration_s=hold, discard_s=float(self.m.sweep["discard_s"]))
+                          duration_s=hold, discard_s=discard,
+                          long_run=opts.get("long_run"),
+                          window_s=float(opts.get("window_s", 10.0)),
+                          reconnect=bool(opts.get("reconnect", False)),
+                          tcp_rcvbuf=opts.get("tcp_rcvbuf"))
             rx.start()
             c.cfg(rate_bps=r.offered_bps, transport=r.transport,
                   dst=f"{self.driver.host_ip()}:{self.recv_port}",
                   dur_s=int(hold) + 5, frame_bytes=self.m.frame_bytes,
-                  payload="rand", label=f"{r.cell_id}-r{r.repeat}")
+                  payload="rand", label=f"{r.cell_id}-r{r.repeat}",
+                  **(opts.get("device_cfg") or {}))
+            sampler = Sampler(_quick(c), float(opts["sample_s"])).start() \
+                if opts.get("sample_s") else None
             c.start()
+            stresser = StressRunner(schedule(opts.get("stress")), rx, c,
+                                    device_ip=_addr_of(c)).start()
             if wired:
                 # ESP first, then the generator: the slave must be listening before the
                 # master offers load (guide §8). The commanded rate goes to the H7.
@@ -427,6 +478,7 @@ class Orchestrator:
                 except H7Error as e:
                     h7_error = str(e)
             metrics = rx.join()
+            stress_log = stresser.stop()
             if drops0 is not None:
                 drops1 = rfmeta.host_udp_drops()
                 host_drops = max(0, drops1 - drops0) if drops1 is not None else None
@@ -457,6 +509,8 @@ class Orchestrator:
                 stat1 = c.stop().get("summary", {}) or c.stat()
             except Exception:                                 # noqa: BLE001
                 stat1 = {}
+            if sampler is not None:
+                samples = sampler.stop()
             for k in ("achieved_bps", "idle_pct"):
                 if live.get(k) is not None:
                     stat1[k] = live[k]
@@ -476,8 +530,8 @@ class Orchestrator:
             metrics_d = metrics.as_dict()
             # The device's low-water mark since boot (not the free heap after the run,
             # which had recovered by then and hid a 4 KB near-exhaustion).
-            lows = [s.get("heap_min") for s in (stat0, live, stat1)
-                    if s.get("heap_min") is not None]
+            lows = [s.get(k) for s in (stat0, live, stat1, *samples)
+                    for k in ("heap_min", "heap_win_min") if s.get(k) is not None]
             heap_min = min(lows) if lows else None
             post = gates.post_run({
                 "commanded_bps": r.offered_bps,
@@ -538,6 +592,15 @@ class Orchestrator:
             "gate_failures": pre.failures + post.failures,
             "gate_warnings": pre.warnings + post.warnings,
         }
+        if samples:
+            rec["telemetry"] = summarize(samples)
+        if stress_log:
+            rec["stress"] = stress_log
+        if opts.get("device_cfg"):
+            rec["device_cfg"] = dict(opts["device_cfg"])
+        if self.m.timeseries_dir and pre.ok:
+            rec["timeseries"] = self._write_timeseries(rec["run_id"], metrics, samples,
+                                                       stress_log)
         self.ledger.append(rec)
         self.on_event("run", run=r, valid=valid,
                       goodput_mbps=metrics_d.get("goodput_bps", 0) / 1e6,
@@ -587,3 +650,14 @@ def knee(records: list[dict], threshold_pct: float = LOSS_THRESHOLD_PCT) -> dict
 
 def _aslist(v):
     return v if isinstance(v, list) else [v]
+
+
+def _quick(c):
+    """A short-timeout second client for the sampler (fakes in tests may lack quick())."""
+    q = getattr(c, "quick", None)
+    return q() if q else c
+
+
+def _addr_of(c) -> str | None:
+    addr = getattr(c, "addr", None)
+    return addr[0] if addr else None

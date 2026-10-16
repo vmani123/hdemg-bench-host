@@ -1,0 +1,12 @@
+# Follow-up campaign rung (docs/CAMPAIGN.md). `study:` keeps it out of the formal ladder.
+
+id: c-c5-ht40
+applies_to: esp32c5
+parent: t24-16-extra-iram
+study: campaign
+lever: channel_width
+rationale: >-
+  802.11n at 40 MHz (150 Mbit/s PHY) instead of 802.11ax at 20 MHz: the C5 cannot do
+  both. Counted only if the link reads 'bw40 sta40'.
+config:
+  CONFIG_BENCH_WIFI_BW_40: y

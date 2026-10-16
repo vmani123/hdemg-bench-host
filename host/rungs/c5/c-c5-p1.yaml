@@ -1,0 +1,12 @@
+# Follow-up campaign rung (docs/CAMPAIGN.md). `study:` keeps it out of the formal ladder.
+
+id: c-c5-p1
+applies_to: esp32c5
+parent: c-c5-p0
+study: campaign
+lever: psram
+rationale: >-
+  P1: the bench's own pipe pool (4 x 8 KB on this design) in PSRAM. Cold data the radio
+  never touches; frees internal RAM, which is what limits the C5.
+config:
+  CONFIG_BENCH_PIPE_POOL_PSRAM: y

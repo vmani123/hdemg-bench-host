@@ -66,6 +66,22 @@ class ControlClient:
     def reset(self) -> dict:
         return self._rpc("reset")
 
+    # ---- protocol v2 (docs/CAMPAIGN_PROTOCOL.md §1.2) ---------------------------------
+    def linkdrop(self, ms: int) -> dict:
+        """Take the board's Wi-Fi link down for `ms` and rejoin. The reply is sent before
+        the drop, so it arrives; the board is unreachable until it has rejoined."""
+        return self._rpc(f"linkdrop {int(ms)}")
+
+    def pins(self, *words) -> dict:
+        """Wiring check: `pins list | in | read | drive <gpio> <0|1> | release`."""
+        return self._rpc("pins " + " ".join(str(w) for w in words))
+
+    def quick(self, timeout: float = 0.8) -> "ControlClient":
+        """A second client for the same board with a short timeout and one try: what a
+        background sampler should use, so a board that is busy or rejoining costs it one
+        missed sample instead of blocking for retries x timeout."""
+        return ControlClient(self.addr[0], self.addr[1], timeout=timeout, retries=1)
+
 
 def discover(addresses, port: int = CONTROL_PORT, timeout: float = 1.5,
              batch: int = 32, gap_s: float = 0.04) -> dict:

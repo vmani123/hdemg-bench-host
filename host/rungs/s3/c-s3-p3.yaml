@@ -1,0 +1,13 @@
+# Follow-up campaign rung (docs/CAMPAIGN.md). `study:` keeps it out of the formal ladder.
+
+id: c-s3-p3
+applies_to: esp32s3
+parent: c-s3-p2
+study: campaign
+lever: psram
+rationale: >-
+  P3: P2 plus A-MSDU transmit, i.e. the 13 Oct bundle re-measured in this session.
+  A-MSDU on its own cannot be built: it needs the cache TX buffers that exist only with
+  Wi-Fi/lwIP memory in PSRAM.
+config:
+  CONFIG_ESP_WIFI_AMSDU_TX_ENABLED: y

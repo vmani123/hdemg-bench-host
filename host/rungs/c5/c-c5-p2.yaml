@@ -1,0 +1,13 @@
+# Follow-up campaign rung (docs/CAMPAIGN.md). `study:` keeps it out of the formal ladder.
+
+id: c-c5-p2
+applies_to: esp32c5
+parent: c-c5-p0
+study: campaign
+lever: psram
+rationale: >-
+  P2: Wi-Fi and lwIP buffers allocated in PSRAM first (the dynamic TX buffer count is
+  replaced by cache TX buffers in this mode, hence the null).
+config:
+  CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: y
+  CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM: null

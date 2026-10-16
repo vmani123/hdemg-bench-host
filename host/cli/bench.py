@@ -129,8 +129,9 @@ def cmd_run(a) -> int:
         # and every board's firmware configured to join it.
         on = rfmeta.host_ssid()
         problems = []
-        if on != m.ssid:
-            problems.append(f"this Mac is on Wi-Fi network {on!r}; join {m.ssid!r} first")
+        want_host = m.host_ssid or m.ssid
+        if on != want_host:
+            problems.append(f"this Mac is on Wi-Fi network {on!r}; join {want_host!r} first")
         for chip in sorted({c["chip"] for c in m.cells}):
             built_for = drv.board_ssid(chip)
             if built_for != m.ssid:
@@ -142,14 +143,15 @@ def cmd_run(a) -> int:
                 print(f"  - {p}", file=sys.stderr)
             print("refusing to run; nothing was built or flashed", file=sys.stderr)
             return 2
-        print(f"network '{m.ssid}': this Mac and every board's firmware are set to it")
+        print(f"network '{m.ssid}': every board's firmware is set to it; this Mac is on "
+              f"'{want_host}'")
     print(f"access point '{m.ap}'  host ip {drv.host_ip()}  expected idf {m.expected_idf}")
     print(f"host link: {_describe_path(rfmeta.host_path(_gateway_of(drv.host_ip()), m.ap))}")
     for chip, h in sorted(drv.rediscover().items()):
         print(f"  found {chip} at {h['ip']}  band={h.get('band')} rung={h.get('rung')} "
               f"idf={h.get('idf')}")
     orc = Orchestrator(m, drv, Ledger(a.ledger),
-                       rig_ceilings=_ceilings(a.ceilings),
+                       rig_ceilings=_ceilings(a.ceilings), recv_port=a.recv_port,
                        parity_ok=par["ok"],
                        bands=[a.band] if a.band else None,
                        keepalive=True, recover=True, on_event=_progress,
@@ -568,6 +570,9 @@ def main(argv=None) -> int:
                    help="uhubctl port number for the S3, enabling auto power-cycle "
                         "recovery of a wedged board")
     r.add_argument("--c5-hub-port", default=None)
+    r.add_argument("--recv-port", type=int, default=3333,
+                   help="port this host receives the stream on (two concurrent runs need "
+                        "two ports)")
     r.add_argument("--chips", default=None,
                    help="restrict to these chips (comma separated). For Stage 2: only a "
                         "chip that is physically wired to the H7 can run a wired cell")

@@ -1,0 +1,12 @@
+# Follow-up campaign rung (docs/CAMPAIGN.md). `study:` keeps it out of the formal ladder.
+
+id: c-c5-p3
+applies_to: esp32c5
+parent: c-c5-p2
+study: campaign
+lever: psram
+rationale: >-
+  P3: P2 plus A-MSDU transmit (in this IDF A-MSDU needs the cache TX buffers, which
+  exist only with Wi-Fi/lwIP memory in PSRAM).
+config:
+  CONFIG_ESP_WIFI_AMSDU_TX_ENABLED: y

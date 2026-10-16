@@ -1,0 +1,15 @@
+# Follow-up campaign rung (docs/CAMPAIGN.md). `study:` keeps it out of the formal ladder.
+
+id: c-s3-p2
+applies_to: esp32s3
+parent: c-s3-base
+study: campaign
+lever: psram
+rationale: >-
+  P2: Wi-Fi and lwIP buffers in PSRAM, WITHOUT A-MSDU: half of the 13 Oct bundle
+  (t24-11), to separate its two parts.
+config:
+  CONFIG_SPIRAM: y
+  CONFIG_SPIRAM_MODE_OCT: y
+  CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: y
+  CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM: null

@@ -8,8 +8,13 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import threading
 import time
 from pathlib import Path
+
+# Two boards can be measured at once (a soak at the HD-EMG rate runs both), each in its
+# own thread; one line per record must stay one line.
+_WRITE_LOCK = threading.Lock()
 
 REQUIRED = (
     "run_id", "timestamp", "git_sha", "target", "variant", "source",
@@ -57,8 +62,9 @@ class Ledger:
 
     def append(self, rec: dict) -> dict:
         validate(rec)
-        with self.path.open("a") as f:
-            f.write(json.dumps(rec, sort_keys=True) + "\n")
+        line = json.dumps(rec, sort_keys=True) + "\n"
+        with _WRITE_LOCK, self.path.open("a") as f:
+            f.write(line)
         return rec
 
     def read(self, *, skip_bad: bool = True) -> list[dict]:
@@ -106,7 +112,7 @@ class Ledger:
             return 0
         marker = {"void": ids, "reason": reason, "valid": False,
                   "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-        with self.path.open("a") as f:
+        with _WRITE_LOCK, self.path.open("a") as f:
             f.write(json.dumps(marker, sort_keys=True) + "\n")
         return len(ids)
 

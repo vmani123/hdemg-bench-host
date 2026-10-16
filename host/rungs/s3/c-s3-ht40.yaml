@@ -1,0 +1,12 @@
+# Follow-up campaign rung (docs/CAMPAIGN.md). `study:` keeps it out of the formal ladder.
+
+id: c-s3-ht40
+applies_to: esp32s3
+parent: t24-08-extra-iram
+study: campaign
+lever: channel_width
+rationale: >-
+  The S3 design asking for 40 MHz (HT40, 150 Mbit/s PHY). Counted only if the link reads
+  'bw40 sta40'.
+config:
+  CONFIG_BENCH_WIFI_BW_40: y

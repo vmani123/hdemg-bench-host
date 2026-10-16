@@ -1,0 +1,14 @@
+# Follow-up campaign rung (docs/CAMPAIGN.md). `study:` keeps it out of the formal ladder.
+
+id: c-s3-p1
+applies_to: esp32s3
+parent: c-s3-base
+study: campaign
+lever: psram
+rationale: >-
+  P1: the pipe pool (6 x 8 KB) in the S3's 8 MB octal PSRAM. Never tried on 13 Oct,
+  where only the bundle of Wi-Fi/lwIP buffers in PSRAM plus A-MSDU was measured.
+config:
+  CONFIG_SPIRAM: y
+  CONFIG_SPIRAM_MODE_OCT: y
+  CONFIG_BENCH_PIPE_POOL_PSRAM: y

@@ -1,0 +1,12 @@
+# Follow-up campaign rung (docs/CAMPAIGN.md). `study:` keeps it out of the formal ladder.
+
+id: c-c5-p0
+applies_to: esp32c5
+parent: c-c5-base
+study: campaign
+lever: psram
+rationale: >-
+  P0, the control: PSRAM enabled (quad, module-attached), nothing moved into it. Any
+  change here is the cost of having PSRAM at all.
+config:
+  CONFIG_SPIRAM: y

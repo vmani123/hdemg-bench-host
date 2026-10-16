@@ -1,0 +1,12 @@
+# Follow-up campaign rung (docs/CAMPAIGN.md). `study:` keeps it out of the formal ladder.
+
+id: c-c5-base
+applies_to: esp32c5
+parent: t24-16-extra-iram
+study: campaign
+lever: channel_width
+rationale: >-
+  Today's C5 design (13 Oct, t24-16) explicitly at 20 MHz (802.11ax HE20 at 2.4 and 5
+  GHz), so a 40 MHz access point cannot change what it measures.
+config:
+  CONFIG_BENCH_WIFI_BW_20: y
