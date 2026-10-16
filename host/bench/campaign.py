@@ -21,6 +21,7 @@ before any of those results exist:
 from __future__ import annotations
 import json
 import random
+import re
 import socket
 import statistics
 import threading
@@ -41,6 +42,9 @@ HD_EMG, T1, T2 = 4.32, 20.5, 41.3          # Mbit/s: the operating point and two
 SAT20, SAT40 = 60.0, 120.0                 # saturating offered loads at 20 / 40 MHz
 SWEEP = [10, 25.7, 41.4, 57.1, 72.9, 88.6, 104.3, 120]   # 8 loads, 10-120 Mbit/s
 SHORT = {"esp32s3": "s3", "esp32c5": "c5"}
+# Protocol v2 runtime settings stay on a board until set again, so every campaign run
+# states all of them: a Nagle-on test must not leak into the soak that follows it.
+DEVICE_DEFAULTS = {"nodelay": 1, "wr_max": 0, "dgram": 0}
 CHIPS = ("esp32s3", "esp32c5")
 
 
@@ -156,8 +160,9 @@ class RealMac:
         same band: the typical-home comparison of test 5.6)."""
         other = "5" if measured_band == "2.4" else "2.4"
         on_band = measured_band if shared else other
-        ssid = self.networks[other if on_band == "5" else "5"] if False else \
-            self.networks["2.4" if on_band == "5" else "5"]
+        # networks is keyed by the band MEASURED: the network that puts the Mac on band
+        # X is the one used while the other band is measured.
+        ssid = self.networks["2.4" if on_band == "5" else "5"]
         try:
             return macnet.switch(ssid, self.password, want_band=on_band, log=self.log)
         except macnet.MacNetError as e:
@@ -325,6 +330,8 @@ class Campaign:
             s["result"] = result
         if error:
             s["error"] = error
+        if status == "done" and t.kind in ("width", "five"):
+            self._update_best()
         self.save()
         self.log(f"=== {t.id} {status.upper()}" + (f": {error}" if error else ""))
 
@@ -390,6 +397,7 @@ class Campaign:
         for c in cells:
             c["tag"] = f"{tag0}-{c.pop('label')}"
             c.setdefault("source", "synth")
+            c["device_cfg"] = {**DEVICE_DEFAULTS, **(c.get("device_cfg") or {})}
         host_ssid = None if self.sim else (getattr(self, "mac_state", None) or {}).get("ssid")
         m = Matrix(stage=stage, repeats=repeats,
                    sweep={"start_mbps": 1, "stop_mbps": 1, "steps": 1,
@@ -437,6 +445,7 @@ class Campaign:
         chip = cells[0]["chip"]
         port = int(self.cfg["recv_ports"][chip]) + (0 if not self.sim else 10000)
         orc = Orchestrator(sub, self.driver, self.ledger,
+                           stress_pf=_NoPf() if self.sim else None,
                            rig_ceilings={str(k): float(v) for k, v in
                                          self.cfg["ceilings"].items()},
                            parity_ok=self.parity_ok, recv_port=port,
@@ -537,7 +546,7 @@ class Campaign:
             for label, dc in p["variants"].items():
                 cells.append({"chip": chip, "band": "2.4", "transport": [p["transport"]],
                               "tune": [self.design(chip)], "loads_mbps": [SAT20],
-                              "label": label, "device_cfg": dict(dc)})
+                              "label": label, "device_cfg": dict(dc), "sample_s": 1.0})
         recs = self._measure(t, cells, hold_s=20, repeats=3)
         out = {"scores": score_table(recs)}
         for label, (tid, other) in (p.get("reuse") or {}).items():
@@ -626,6 +635,9 @@ class Campaign:
         tr = t.params["transport"]
         total = self._h(1800)
         sched = stress_mod.tcp_stress(total) if tr == "tcp" else stress_mod.udp_stress(total)
+        if self.sim:
+            for e in sched:
+                e["secs"] = max(0.2, round(e["secs"] * 0.02, 2))
         cells = [{"chip": chip, "band": "2.4", "transport": [tr],
                   "tune": [self.soak_design(chip)], "loads_mbps": [HD_EMG],
                   "label": f"stress{tr}", "sample_s": 1.0, "long_run": True,
@@ -705,9 +717,7 @@ class Campaign:
                                      ("40mhz", self.variant(chip, "ht40")))]
         recs = self._measure(t, cells, hold_s=60, repeats=3)
         sc = score_table(recs)
-        out = {"scores": sc, "in_effect_40": _in_effect(sc, chip, "40mhz")}
-        self._update_best()
-        return out
+        return {"scores": sc, "in_effect_40": _in_effect(sc, chip, "40mhz")}
 
     def _t_sweep40(self, t: Test) -> dict:
         out = {}
@@ -738,7 +748,6 @@ class Campaign:
         out = {"rung": rung, "scores": sc}
         if key == "ht40":
             out["in_effect_40"] = _in_effect(sc, "esp32c5", key)
-        self._update_best()
         return out
 
     def _best5(self) -> tuple[str, str] | None:
@@ -856,8 +865,6 @@ class Campaign:
                     break
             out[f"{chip}/{link}"] = {"up": up is not None, "opts": up, "tries": tries,
                                      "rung": b["rung"], "band": b["band"]}
-            # Back to synth, so a board left in a wired build does not hold its pins.
-            self.driver.ensure_flashed(chip, "synth", b["rung"])
         self.state["derived"]["links"] = out
         ok = any(v["up"] for v in out.values())
         return {"arms": out, "_ok": ok, "why": None if ok else "no link came up"}
@@ -881,9 +888,15 @@ class Campaign:
               links.get(f"{chip}/{link}", {}).get("up")]
         if not up:
             return {"_ok": False, "why": f"no wired link of {chip} came up in 6.2"}
-        cells = self._wired_cells(chip, ["synth", *up], [HD_EMG, T1, T2], ["udp", "tcp"])
-        recs = self._measure(t, cells, hold_s=20, repeats=3, stage=2,
-                             link_opts=self._link_opts(chip))
+        # One block per source: a source change is a reflash (~2 min), and interleaving
+        # three sources over three repeats would cost nine of them. Synth comes first; the
+        # cost of a wire is read against it from the same session.
+        recs = []
+        for src in ["synth", *up]:
+            recs += self._measure(t, self._wired_cells(chip, [src], [HD_EMG, T1, T2],
+                                                       ["udp", "tcp"]),
+                                  hold_s=20, repeats=3, stage=2,
+                                  link_opts=self._link_opts(chip))
         sc = score_table(recs)
         return {"best": self.best(chip), "links": up, "scores": sc,
                 "ingress_cost": ingress_cost(sc, chip, up)}
@@ -900,6 +913,13 @@ class Campaign:
 
 
 # ---- small helpers -------------------------------------------------------------------
+class _NoPf:
+    """A rehearsal never asks for sudo: the firewall block is recorded as skipped."""
+
+    def available(self) -> bool:
+        return False
+
+
 class _Sink:
     """Accepts and drains whatever a board streams during the leak test (TCP and UDP on
     one port), so its sink has somewhere to connect and nothing is refused."""
@@ -968,11 +988,13 @@ def _slope(pts) -> float | None:
     return sum((p[0] - mx) * (p[1] - my) for p in pts) / var if var else None
 
 
+_TAG = re.compile(r"-t\d+\.\d+(?:r\d+)?-(.+)$")
+
+
 def _label(rec: dict) -> str:
     """The cell tag minus the test prefix: 'nagle-on', '40mhz', 'qspi', ..."""
-    cid = rec.get("cell_id", "")
-    tag = cid.split("-t", 1)[1] if "-t" in cid else cid
-    return tag.split("-", 1)[1] if "-" in tag else tag
+    m = _TAG.search(rec.get("cell_id", ""))
+    return m.group(1) if m else rec.get("cell_id", "")
 
 
 def score_table(recs: list[dict]) -> dict:

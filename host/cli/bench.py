@@ -495,6 +495,118 @@ def cmd_tune(a) -> int:
     return 0
 
 
+def _bench_ports(h7_port: str) -> tuple[str | None, str | None]:
+    """The S3 (native USB, cu.usbmodem*) and C5 (CP2102N, cu.usbserial-*) ports, skipping
+    the H7's ST-LINK (also cu.usbmodem*) and the Digilent FPGA adapter, which are not
+    boards and must never be flashed."""
+    dev = sorted(p.name for p in Path("/dev").glob("cu.*"))
+    s3 = [d for d in dev if d.startswith("cu.usbmodem") and d != h7_port.removeprefix("/dev/")]
+    c5 = [d for d in dev if d.startswith("cu.usbserial-") and "210352BF9796" not in d]
+    return (s3[0] if s3 else None), (c5[0] if c5 else None)
+
+
+def cmd_campaign(a) -> int:
+    """The follow-up campaign (bench/campaign.py, docs/CAMPAIGN.md)."""
+    import os
+    import subprocess
+    import yaml
+    from contextlib import ExitStack
+    from bench import campaign as cp, macnet, tune
+    from bench.wiring import FakeWiring
+    host = Path(__file__).resolve().parents[1]
+    plan_path = Path(a.plan) if Path(a.plan).is_absolute() else host / a.plan
+    cfg = yaml.safe_load(plan_path.read_text())
+    only = _csv(a.only)
+    if a.list:
+        for t in cp.plan():
+            print(f"{t.id:>4}  [{t.kind:<9}] {t.band or '-':>4}  ~{t.est_min:>3g} min  {t.title}")
+        return 0
+    if a.sim:
+        drv = SimDriver(wiring=FakeWiring(faults=json.loads(a.sim_faults or "{}")))
+        c = cp.Campaign(plan_path, driver=drv, host_dir=host, sim=True)
+    else:
+        drv = None
+        c = cp.Campaign(plan_path, driver=None, host_dir=host)
+    if a.status:
+        print((c.state_dir / "summary.md").read_text() if (c.state_dir / "summary.md").exists()
+              else "no results yet")
+        return 0
+    for tid in _csv(a.redo) or []:
+        c.redo(tid)
+        print(f"{tid} will be run again (round {c.st(tid)['round']})")
+    if a.sim:
+        try:
+            return c.run(only=only, start=a.start, stop=a.stop, max_tests=a.max_tests)
+        finally:
+            drv.shutdown()
+            print(f"summary: {c.state_dir / 'summary.md'}")
+
+    par = parity.check(a.firmware)
+    if not par["ok"]:
+        print(parity.summary(par), file=sys.stderr)
+        return 2
+    hb = Path(a.agent_dir) / "heartbeat"
+    if not hb.exists() or time.time() - hb.stat().st_mtime > 60:
+        print(f"hostrun.sh is not running for this checkout (no fresh {hb}). Start it in its "
+              f"own Terminal — bash {REPO / 'hostrun.sh'} — and approve the flash window.",
+              file=sys.stderr)
+        return 2
+    s3_auto, c5_auto = _bench_ports(a.h7_port)
+    ports = {"esp32s3": a.s3_port or s3_auto, "esp32c5": a.c5_port or c5_auto}
+    if not all(ports.values()):
+        print(f"board ports not found ({ports}); pass --s3-port / --c5-port", file=sys.stderr)
+        return 2
+    drv = HardwareDriver(ips={"esp32s3": "auto", "esp32c5": "auto"},
+                         firmware_root=a.firmware, ports=ports, agent_dir=a.agent_dir,
+                         host_ip="auto", interactive_band=False, h7_port=a.h7_port,
+                         ap=cfg["ap"], ssid=cfg["ssid"])
+    drv.trust_running_build = True
+    wrong = {chip: drv.board_ssid(chip) for chip in ports
+             if drv.board_ssid(chip) != cfg["ssid"]}
+    if wrong:
+        print(f"the boards' firmware must join {cfg['ssid']!r}; sdkconfig.local says {wrong}",
+              file=sys.stderr)
+        return 2
+    password = macnet.password_from_sdkconfig(Path(a.firmware) / "esp32s3" / "sdkconfig.local")
+    c = cp.Campaign(plan_path, driver=drv, host_dir=host, mac=cp.RealMac(
+        cfg["mac_networks"], password), agent_dir=a.agent_dir, parity_ok=True)
+    print(f"boards: S3 {ports['esp32s3']}, C5 {ports['esp32c5']}, H7 {a.h7_port}")
+    # Keep the Mac awake for as long as this process lives (display, idle, system, disk).
+    awake = subprocess.Popen(["/usr/bin/caffeinate", "-dimsu", "-w", str(os.getpid())])
+    import signal
+
+    def _stop(signum, frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, _stop)
+    signal.signal(signal.SIGHUP, _stop)
+    try:
+        with ExitStack() as held:
+            for chip, port in ports.items():
+                d = held.enter_context(tune.board_lock(
+                    chip, port, owner=f"bench campaign {cfg.get('campaign')} ({REPO})",
+                    expected_s=36 * 3600, root=a.lock_dir))
+                print(f"holding {d}")
+            return c.run(only=only, start=a.start, stop=a.stop, max_tests=a.max_tests)
+    except tune.TuneError as e:
+        print(f"campaign not started: {e}", file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:
+        c.save()
+        print("campaign stopped by a signal; locks released. Re-run to resume.",
+              file=sys.stderr)
+        return 130
+    finally:
+        awake.terminate()
+
+
+def cmd_wiring(a) -> int:
+    """The wiring hello world on its own: W.1 (all 18 wires, both ways) and 0.2 (boot)."""
+    a.only = "W.1,0.2"
+    if a.again:
+        a.redo = "W.1,0.2"
+    return cmd_campaign(a)
+
+
 def _wired_args(p) -> None:
     p.add_argument("--tree", default=None,
                    help="build and flash from this git worktree (.claude/worktrees/<name>) "
@@ -676,6 +788,36 @@ def main(argv=None) -> int:
                    help="withdraw a rejected/unmeasured step's decision (needs --reason)")
     t.add_argument("--reason", default=None)
     t.set_defaults(fn=cmd_tune)
+
+    for name, fn, hlp in (("campaign", cmd_campaign, "the follow-up campaign "
+                           "(docs/CAMPAIGN.md): every test, unattended, resumable"),
+                          ("wiring", cmd_wiring, "wiring hello world: all 18 Stage 2 "
+                           "wires both ways, then both ESPs' boot check")):
+        cp_ = sub.add_parser(name, help=hlp)
+        cp_.add_argument("--plan", default="campaign/followup.yaml")
+        cp_.add_argument("--sim", action="store_true",
+                         help="rehearse against fake boards and a fake harness")
+        cp_.add_argument("--sim-faults", default=None,
+                         help='wiring faults for --sim, JSON, e.g. \'{"open": [3]}\'')
+        cp_.add_argument("--status", action="store_true", help="print the summary and exit")
+        cp_.add_argument("--list", action="store_true", help="list the tests and exit")
+        cp_.add_argument("--only", default=None, help="run only these test ids (comma list)")
+        cp_.add_argument("--from", dest="start", default=None, help="first test id")
+        cp_.add_argument("--to", dest="stop", default=None, help="last test id")
+        cp_.add_argument("--redo", default=None,
+                         help="run these done tests again (comma list; new repeats)")
+        cp_.add_argument("--max-tests", type=int, default=None)
+        cp_.add_argument("--s3-port", default=None, help="default: the cu.usbmodem* that "
+                                                         "is not the H7")
+        cp_.add_argument("--c5-port", default=None, help="default: first cu.usbserial-*")
+        cp_.add_argument("--h7-port", default=DEFAULT_H7_PORT)
+        cp_.add_argument("--firmware", default=str(REPO / "firmware"))
+        cp_.add_argument("--agent-dir", default=str(REPO / "_agent"))
+        cp_.add_argument("--lock-dir", default=str(Path.home()))
+        if name == "wiring":
+            cp_.add_argument("--again", action="store_true",
+                             help="re-run the check even if it already passed")
+        cp_.set_defaults(fn=fn)
 
     a = p.parse_args(argv)
     return a.fn(a)

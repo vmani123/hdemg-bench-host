@@ -195,6 +195,7 @@ def host_wifi(max_age_s: float = WIFI_CACHE_S) -> dict:
                     continue
                 info = {"associated": True, "dev": itf.get("_name"), "ssid": cur.get("_name"),
                         "phy": cur.get("spairport_network_phymode"),
+                        "tx_rate_mbps": cur.get("spairport_network_rate"),
                         "signal_noise": cur.get("spairport_signal_noise"),
                         **parse_channel(cur.get("spairport_network_channel"))}
                 break

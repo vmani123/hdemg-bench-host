@@ -33,7 +33,7 @@ class SimDriver:
     }
 
     def __init__(self, bands: dict[str, str] | None = None,
-                 ceilings: dict | None = None, base_port: int = 13340):
+                 ceilings: dict | None = None, base_port: int = 13340, wiring=None):
         self.ceilings = {**self.DEFAULT_CEILINGS, **(ceilings or {})}
         self.band = "5"
         self._esps: dict[str, FakeESP] = {}
@@ -44,6 +44,9 @@ class SimDriver:
         self.h7_faults: dict = {}          # tests inject what a broken rig would report
         self._h7 = None
         self.h7_clk_ppm = 0.0              # the fake generator's clock is the host's
+        # A simulated Stage 2 harness (bench/wiring.FakeWiring) shared by the fake H7 and
+        # the fake ESPs, so `pins` commands behave as the wired bench would.
+        self.wiring = wiring
 
     def host_ip(self) -> str:
         return "127.0.0.1"
@@ -53,7 +56,7 @@ class SimDriver:
 
     def h7(self):
         if self._h7 is None:
-            self._h7 = FakeH7(self.h7_faults)
+            self._h7 = FakeH7(self.h7_faults, wiring=self.wiring)
         return self._h7
 
     def ingress_stat(self, chip: str) -> dict:
@@ -117,7 +120,8 @@ class SimDriver:
                       cpu_bound_mbps=params["cpu_bound_mbps"],
                       rung=tune, band=band,
                       fw_sha=f"sim{CHIP_SHORT.get(chip, chip)}",
-                      seed=hash((chip, band, tune)) & 0xFFFF)
+                      seed=hash((chip, band, tune)) & 0xFFFF,
+                      **({"wiring": self.wiring} if self.wiring is not None else {}))
         esp.start()
         self._esps[chip] = esp
 

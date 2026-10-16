@@ -188,7 +188,7 @@ class Orchestrator:
                  rssi_drift_warn_only: bool = False,
                  deadline: float | None = None,
                  chips: list[str] | None = None, sources: list[str] | None = None,
-                 link_opts: dict | None = None):
+                 link_opts: dict | None = None, stress_pf=None):
         self.m = matrix
         self.driver = driver
         self.ledger = ledger
@@ -208,6 +208,7 @@ class Orchestrator:
         self.sources = list(sources) if sources else None
         # Extra generator settings for wired cells (e.g. qspi_hz), recorded with each run.
         self.link_opts = dict(link_opts or {})
+        self.stress_pf = stress_pf        # stress.PfBlock stand-in (a rehearsal's no-op)
         self.want_keepalive = keepalive
         self.want_recover = recover
         self.on_event = on_event or (lambda *_a, **_k: None)
@@ -471,7 +472,7 @@ class Orchestrator:
                 if opts.get("sample_s") else None
             c.start()
             stresser = StressRunner(schedule(opts.get("stress")), rx, c,
-                                    device_ip=_addr_of(c)).start()
+                                    device_ip=_addr_of(c), pf=self.stress_pf).start()
             if wired:
                 # ESP first, then the generator: the slave must be listening before the
                 # master offers load (guide §8). The commanded rate goes to the H7.
