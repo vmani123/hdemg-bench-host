@@ -8,6 +8,7 @@ host/results/*.jsonl
 host/results/report/
 host/results/sim-report/
 host/results/tuning/
+host/results/campaign/
 !host/results/.gitkeep
 
 # ESP-IDF build products
