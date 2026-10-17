@@ -14,6 +14,13 @@ SOURCE_RATE_TOLERANCE = 0.05     # achieved vs commanded
 # 50 datagrams keeps the host's share of the loss under the 0.1 % knee criterion at every
 # load in the sweep (a datagram carries at most 30 frames).
 HOST_UDP_DROP_LIMIT = 50
+# A long run (soak, stress: half an hour, millions of frames) sees the same stray drops
+# many times over, so a fixed count would refuse every one. There the limit scales with
+# the run under the same criterion: the host's share stays under 0.1 % of the frames even
+# if every dropped datagram carried the most frames one can (30).
+LONG_RUN_S = 120.0
+HOST_SHARE_MAX = 0.001
+FRAMES_PER_DATAGRAM_MAX = 30
 AIRTIME_WARN_PCT = 80.0
 CLOCK_DRIFT_WARN_MS = 2.0        # Stage 2: timestamp drift across a run worth flagging
 
@@ -141,8 +148,30 @@ def post_run(ctx: dict) -> GateResult:
     if hd is not None and hd > 0:
         msg = (f"this host discarded {hd} datagrams at its own socket during the run "
                f"(full socket buffer / content filter) — the loss figure is not the device's")
-        (f if hd > HOST_UDP_DROP_LIMIT else w).append(msg)
+        (f if hd > host_drop_limit(m) else w).append(msg)
     return GateResult(not f, f, w)
+
+
+def host_drop_limit(metrics: dict) -> float:
+    """Datagrams this host may drop at its own socket before a run is refused."""
+    if (metrics.get("duration_s") or 0) >= LONG_RUN_S:
+        return max(HOST_UDP_DROP_LIMIT,
+                   HOST_SHARE_MAX * metrics.get("frames", 0) / FRAMES_PER_DATAGRAM_MAX)
+    return HOST_UDP_DROP_LIMIT
+
+
+def counts_as_valid(rec: dict) -> bool:
+    """Whether a ledger run counts, under the gates as they are now. A run recorded
+    invalid only because this host dropped datagrams, within today's limit for it, counts:
+    runs logged before the long-run limit existed are judged by the same rule as new ones."""
+    if rec.get("valid", True):
+        return True
+    fails = rec.get("gate_failures") or []
+    m = rec.get("metrics") or {}
+    hd = m.get("host_udp_drops")
+    return (bool(fails) and hd is not None
+            and all(x.startswith("this host discarded") for x in fails)
+            and hd <= host_drop_limit(m))
 
 
 def ingress(ctx: dict) -> GateResult:

@@ -12,6 +12,8 @@ import threading
 import time
 from pathlib import Path
 
+from .gates import counts_as_valid
+
 # Two boards can be measured at once (a soak at the HD-EMG rate runs both), each in its
 # own thread; one line per record must stay one line.
 _WRITE_LOCK = threading.Lock()
@@ -118,7 +120,7 @@ class Ledger:
 
     def completed_keys(self) -> set[tuple]:
         """Keys of runs that count as done: present and not marked invalid."""
-        return {run_key(r) for r in self.read() if r.get("valid", True)}
+        return {run_key(r) for r in self.read() if counts_as_valid(r)}
 
 
 def git_sha(repo: str | os.PathLike = ".") -> str:

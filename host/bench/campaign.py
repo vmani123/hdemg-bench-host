@@ -33,7 +33,7 @@ from pathlib import Path
 
 import yaml
 
-from . import linktest, macnet, stress as stress_mod, wiring
+from . import gates, linktest, macnet, stress as stress_mod, wiring
 from .control import ControlError
 from .ledger import Ledger
 from .orchestrator import Matrix, Orchestrator
@@ -306,6 +306,10 @@ class Campaign:
                 self._preflight(t)
                 res = getattr(self, f"_t_{t.kind}")(t)
                 ok = res.pop("_ok", True) if isinstance(res, dict) else True
+                starved = _starved(res.get("scores")) if ok and isinstance(res, dict) else []
+                if starved:
+                    ok = False
+                    res["why"] = "delivered almost nothing: " + "; ".join(starved)
                 self._finish(t, "done" if ok else "failed", result=res,
                              error=None if ok else res.get("why"))
                 return
@@ -564,7 +568,7 @@ class Campaign:
                                   "tune": [rung], "loads_mbps": [SAT20], "label": key,
                                   "sample_s": 1.0}], hold_s=20, repeats=2)
         out = {"rung": rung, "scores": score_table(recs)}
-        if not any(r.get("valid", True) for r in recs):
+        if not any(gates.counts_as_valid(r) for r in recs):
             out.update(_ok=False, why="no valid run (build, flash or gates) — see the log")
         return out
 
@@ -1019,15 +1023,30 @@ def score_table(recs: list[dict]) -> dict:
         key = (r["target"], _label(r), r["transport"], round(r["offered_bps"] / 1e6, 2))
         groups.setdefault(key, []).append(r)
     for (chip, label, tr, off), rs in sorted(groups.items()):
-        good = [r for r in rs if r.get("valid", True)]
+        good = [r for r in rs if gates.counts_as_valid(r)]
         sc = _score(good) if good else None
         if sc is None:
             sc = {"n": 0}
         sc["invalid"] = len(rs) - len(good)
         if sc["invalid"]:
-            sc["why_invalid"] = sorted({f for r in rs if not r.get("valid", True)
+            sc["why_invalid"] = sorted({f for r in rs if not gates.counts_as_valid(r)
                                         for f in r.get("gate_failures", [])})[:4]
         out.setdefault(chip, {}).setdefault(label, {}).setdefault(tr, {})[str(off)] = sc
+    return out
+
+
+def _starved(scores: dict | None) -> list[str]:
+    """Scores whose valid runs delivered under 2 % of the offered load. A board that has
+    wedged can still pass every gate (the receiver saw a few frames, none were lost), so
+    such a score is a failure, not a measurement."""
+    out = []
+    for chip, labs in (scores or {}).items():
+        for lab, trs in labs.items():
+            for tr, loads in trs.items():
+                for off, sc in loads.items():
+                    if sc.get("n") and sc.get("mbps", 0.0) < 0.02 * float(off):
+                        out.append(f"{chip} {lab} {tr} at {off} Mbit/s gave "
+                                   f"{sc['mbps']:.2f}")
     return out
 
 
@@ -1083,7 +1102,7 @@ def soak_table(recs: list[dict]) -> dict:
     for r in recs:
         m = r["metrics"]
         out[f"{r['target']}/{r['transport']}/{_label(r)}"] = {
-            "valid": r.get("valid", True), "goodput_mbps": round(m.get("goodput_bps", 0) / 1e6, 3),
+            "valid": gates.counts_as_valid(r), "goodput_mbps": round(m.get("goodput_bps", 0) / 1e6, 3),
             "loss_pct": m.get("loss_pct"), "lost_frames": m.get("lost_frames"),
             "duration_s": m.get("duration_s"), "longest_gap_s": m.get("longest_gap_s"),
             "lat_p50_us": m.get("latency_p50_us"), "lat_p99_us": m.get("latency_p99_us"),

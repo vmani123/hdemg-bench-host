@@ -103,3 +103,17 @@ def test_best_setup_without_width_tests_uses_the_reference(tmp_path):
     # 5 GHz beats the 2.4 GHz reference by more than the spread: the C5 moves to 5 GHz.
     assert b["esp32c5"]["band"] == "5"
     assert "c-c5-base@2.4=38.0" in b["esp32c5"]["why"]
+
+
+def test_long_run_host_drops_within_the_share_count_and_starved_scores_fail():
+    from bench import gates
+    rec = {"valid": False, "gate_failures": ["this host discarded 103 datagrams at its own "
+                                             "socket during the run"],
+           "metrics": {"host_udp_drops": 103, "duration_s": 1800.0, "frames": 3463442}}
+    assert gates.counts_as_valid(rec)                    # 103 <= 0.1 % of 3.46 M / 30
+    assert not gates.counts_as_valid({**rec, "metrics": {**rec["metrics"], "duration_s": 20}})
+    assert not gates.counts_as_valid({**rec, "gate_failures": rec["gate_failures"]
+                                      + ["no frames received"]})
+    sc = {"esp32c5": {"wr-540": {"tcp": {"60.0": _sc(0.02)}}},
+          "esp32s3": {"wr-540": {"tcp": {"60.0": _sc(30)}}}}
+    assert cp._starved(sc) == ["esp32c5 wr-540 tcp at 60.0 Mbit/s gave 0.02"]
