@@ -789,6 +789,15 @@ class Campaign:
         cands: dict = {c: [] for c in CHIPS}
         for chip, tid in (("esp32s3", "4.1"), ("esp32c5", "4.2")):
             r = self.result(tid)
+            if not r and self.result("0.3"):
+                # The width test was not run (no 40 MHz on this router): the design's
+                # 2.4 GHz figure comes from the reference instead.
+                u = _pick(self.result("0.3").get("scores") or {}, chip, "udp", label="ref")
+                if u:
+                    cands[chip].append({"rung": self.design(chip), "band": "2.4",
+                                        "udp": u["mbps"], "spread": u["spread"],
+                                        "from": "0.3", "plain": True})
+                continue
             for label, rung in (("20mhz", self.design(chip)),
                                 ("40mhz", self.variant(chip, "ht40"))):
                 if label == "40mhz" and not r.get("in_effect_40"):

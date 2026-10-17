@@ -87,3 +87,19 @@ def test_best_setup_rule(tmp_path):
     # 40 MHz was not in effect on the C5 (not counted); 5 GHz at 54.3 vs 2.4 GHz at 54.0
     # is inside the spread, so the tie goes to the plain design at 2.4 GHz.
     assert b["esp32c5"]["rung"] == "c-c5-base" and b["esp32c5"]["band"] == "2.4"
+
+
+def test_best_setup_without_width_tests_uses_the_reference(tmp_path):
+    c, drv = _campaign(tmp_path, base_port=14480)
+    drv.shutdown()
+    c.st("0.3").update(status="done", result={"scores": {
+        "esp32s3": {"ref": {"udp": {"60.0": _sc(38)}}},
+        "esp32c5": {"ref": {"udp": {"60.0": _sc(38)}}}}})
+    c.st("5.2").update(status="done", result={"rung": "c-c5-base", "scores": {"esp32c5": {
+        "base": {"udp": {"120.0": _sc(55)}}}}})
+    c._update_best()
+    b = c.state["derived"]["best"]
+    assert b["esp32s3"]["rung"] == "c-s3-base" and b["esp32s3"]["band"] == "2.4"
+    # 5 GHz beats the 2.4 GHz reference by more than the spread: the C5 moves to 5 GHz.
+    assert b["esp32c5"]["band"] == "5"
+    assert "c-c5-base@2.4=38.0" in b["esp32c5"]["why"]

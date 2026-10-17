@@ -39,6 +39,11 @@ docstring), not by judgement:
 - **Best setup per chip** (used by Stage 2): the highest UDP median among the chip's
   20 MHz and 40 MHz builds (and, for the C5, its 5 GHz builds). A 40 MHz build counts
   only if its link read `bw40 sta40`. A tie within the spread goes to the plain design.
+  If the width tests (4.1/4.2) were not run, the design's 2.4 GHz figure is the reference
+  (0.3).
+
+**17 Oct:** the router's 2.4 GHz radio stayed at 20 MHz, so the campaign was run without
+the 40 MHz tests (4.1, 4.2, 4.3, 5.3).
 
 ### Where the plan had to give
 
