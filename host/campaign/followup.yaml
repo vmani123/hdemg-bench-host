@@ -10,8 +10,8 @@ ssid: House WiFi                            # the boards' network (both bands, o
 # hops never share a channel. Both are band-locked networks on the same LAN, set up on
 # the router with the House WiFi password.
 mac_networks:
-  "2.4": House WiFi 5G
-  "5": House WiFi 2G
+  "2.4": House wifi 5g
+  "5": House wifi 2g
 expected_idf: v6.0-dev-2980-gab149384e1-dirty
 frame_bytes: 270
 

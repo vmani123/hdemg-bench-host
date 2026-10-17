@@ -54,7 +54,7 @@ docstring), not by judgement:
 
 1. **Router (UniFi app), once.**
    - Add two networks on the same LAN, with the House WiFi password and client isolation
-     off: `House WiFi 2G` (Advanced → WiFi Band: 2.4 GHz only) and `House WiFi 5G` (5 GHz
+     off: `House wifi 2g` (Advanced → WiFi Band: 2.4 GHz only) and `House wifi 5g` (5 GHz
      only).
    - The 2.4 GHz access point the boards use (channel 1): set Channel 1 (not Auto) and
      Channel Width 40 MHz.
