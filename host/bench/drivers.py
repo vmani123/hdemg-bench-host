@@ -305,6 +305,18 @@ class HardwareDriver:
                 print(f">> {chip} found again at {self.ips[chip]}")
                 return True
             time.sleep(5.0)
+        # Still away: reset it through its own USB-serial adapter (hostrun's esp_boot
+        # pulses EN). A board that hung or ran out of memory stays away otherwise until
+        # someone presses RESET (17 Oct: the leak check wedged both boards, and the S3
+        # was still gone an hour later). The build is unchanged, so nothing is reflashed.
+        if not hub_port and self.ports.get(chip):
+            print(f">> {chip} is not answering; resetting it through its serial port")
+            try:
+                if self.boot_check(chip, secs=4).get("hello") is not None:
+                    print(f">> {chip} is back after a reset, at {self.ips[chip]}")
+                    return True
+            except (TimeoutError, OSError, RuntimeError) as e:
+                print(f">> reset of {chip} failed: {e}")
         print(f">> {chip} is not answering and was not found on the subnet; "
               f"skipping this point")
         return False

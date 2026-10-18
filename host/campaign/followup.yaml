@@ -30,5 +30,9 @@ variants:
 # Where each board's stream lands on this Mac (two boards can stream at once).
 recv_ports: {esp32s3: 3333, esp32c5: 3343}
 # Stage 2 link clocks to try, fastest first; the first that passes the link check is used.
-qspi_hz: [25000000, 12500000, 6250000]
-sdio_hz: [25000000, 12000000, 4000000]
+# QSPI runs at 25 MHz only (user's call, 18 Oct).
+qspi_hz: [25000000]
+sdio_hz: [25000000, 4000000]
+# H7 link pin edge speed (0 low .. 3 very high). The jumper harness rings at the H7's
+# fastest edges: 25 MHz QSPI passes clean only at 0 on the C5 set (0 or 1 on the S3).
+link_slew: 0

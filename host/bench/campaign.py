@@ -515,10 +515,10 @@ class Campaign:
         if len(rs) == 2 and abs(rs[0] - rs[1]) > 6:
             notes.append(f"the boards' signal differs by {abs(rs[0] - rs[1])} dB — move the "
                          f"stronger one back for a fair comparison")
-        for chip, b in out["boards"].items():
-            if b.get("phy_rate") and "bw40" not in str(b["phy_rate"]) and not self.sim:
-                notes.append(f"{chip}: the access point offers {b['phy_rate']} — the 2.4 GHz "
-                             f"radio is not at 40 MHz, so the HT40 tests will not be in effect")
+        # No width note here: the boards run their 20 MHz designs, and "bw" in phy_rate is
+        # the connection's width, which a 20 MHz station always reads as bw20 whatever the
+        # access point offers (17 Oct: this note called a 40 MHz router 20 MHz). Whether
+        # 40 MHz is in effect is read where it is tested, from the 40 MHz builds (4.x, 5.3).
         out["notes"] = notes
         for n in notes:
             self.log(f"  note: {n}")
@@ -678,11 +678,19 @@ class Campaign:
         sink = _Sink(port)
         c = self.driver.control(chip)
         host = self.driver.host_ip()
-        rows, errors = [], 0
+        rows, errors, run_of_errors, wedges = [], 0, 0, []
         on_s = 1.0 if not self.sim else 0.15
         try:
             for i in range(cycles):
                 tr = "tcp" if i % 2 else "udp"
+                if run_of_errors >= 3:
+                    # The board stopped answering (17 Oct: both did, after 31-43 cycles,
+                    # and stayed away). Record where, get it back (a reset, if need be),
+                    # and carry on: how often it wedges is the finding.
+                    wedges.append(i)
+                    rows.append({"i": i, "recovered": bool(self.driver.recover(chip))})
+                    c = self.driver.control(chip)
+                    run_of_errors = 0
                 try:
                     c.cfg(rate_bps=int(HD_EMG * 1e6), transport=tr, dst=f"{host}:{port}",
                           dur_s=5, frame_bytes=self.cfg["frame_bytes"], payload="rand",
@@ -693,11 +701,13 @@ class Campaign:
                     rows.append({"i": i, "transport": tr, **{k: s.get(k) for k in (
                         "heap", "heap_min", "heap_largest", "uptime_s", "tcp_opens",
                         "send_errs", "wifi_disc")}})
+                    run_of_errors = 0
                 except (ControlError, OSError) as e:
                     errors += 1
+                    run_of_errors += 1
                     rows.append({"i": i, "error": str(e)})
                     time.sleep(2.0)
-                    if errors > 20:
+                    if errors > 100:
                         break
         finally:
             sink.stop()
@@ -709,7 +719,8 @@ class Campaign:
         path = self.state_dir / "ts" / "3.7" / f"{chip}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(rows))
-        return {"cycles": len(rows), "errors": errors, "resets": resets,
+        return {"cycles": sum(1 for r in rows if "recovered" not in r), "errors": errors,
+                "resets": resets, "wedged_at": wedges,
                 "heap_first": good[0]["heap"] if good else None,
                 "heap_last": good[-1]["heap"] if good else None,
                 "heap_low": min((r["heap_min"] for r in good if r.get("heap_min") is not None),
@@ -870,6 +881,8 @@ class Campaign:
             up = None
             for hz in clocks:
                 opts = {"target": SHORT[chip], key: int(hz)}
+                if self.cfg.get("link_slew") is not None:
+                    opts["slew"] = int(self.cfg["link_slew"])
                 port = int(self.cfg["recv_ports"][chip]) + (0 if not self.sim else 10000)
                 r = linktest.run(self.driver, chip, link, [int(T2 * 1e6)],
                                  hold_s=self._h(20), tune=b["rung"], link_opts=opts,

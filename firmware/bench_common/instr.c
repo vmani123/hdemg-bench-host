@@ -100,9 +100,10 @@ int instr_rssi(void)
     return ap.rssi;
 }
 
-/* The width this STATION is configured for. The "bw" field below is what the access
- * point advertises; the link runs at the narrower of the two, so a 40 MHz rung is only
- * in effect when both read 40. 0 = could not be read. */
+/* The width this STATION is configured for. The "bw" field below is the connection's
+ * width as the driver reports it (esp_wifi_sta_get_ap_info().second), NOT what the access
+ * point advertises: a 20 MHz station reads bw20 even on a 40 MHz access point (17 Oct).
+ * A 40 MHz rung is in effect when both read 40. 0 = could not be read. */
 static unsigned sta_bw_mhz(const wifi_ap_record_t *ap)
 {
     wifi_bandwidth_t bw = 0;
