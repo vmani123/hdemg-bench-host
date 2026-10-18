@@ -28,6 +28,10 @@ static int64_t           s_t0_us, s_t_end_us;
 static volatile bool     s_in_run;
 static bool              s_have_seq;
 static uint64_t          s_final_bps;
+/* The first 16 bytes of the first buffer of a run that failed the magic check: what a
+ * link that delivers the right length but the wrong bytes actually delivered. */
+static uint8_t           s_bad_head[16];
+static bool              s_have_bad;
 
 void ingress_set_init_err(int err) { s_st.init_err = err; }
 void ingress_set_counters(uint32_t loaded, uint32_t completed) { s_loaded = loaded; s_completed = completed; }
@@ -40,6 +44,7 @@ void ingress_run_begin(void)
     int32_t init_err = s_st.init_err;
     portENTER_CRITICAL(&s_mux);
     memset(&s_st, 0, sizeof(s_st));
+    s_have_bad = false;
     portEXIT_CRITICAL(&s_mux);
     s_st.init_err = init_err;
 
@@ -87,6 +92,7 @@ bool ingress_accept(const uint8_t *buf, size_t len)
         memcpy(&h, p, HDEMG_HDR_BYTES);
         if (h.magic != HDEMG_MAGIC) {
             s_st.magic_errors++;
+            if (!s_have_bad) { memcpy(s_bad_head, p, sizeof s_bad_head); s_have_bad = true; }
             ok = false;
             continue;                      /* without a header there is no seq to trust */
         }
@@ -146,6 +152,12 @@ static void stat_task(void *arg)
             portENTER_CRITICAL(&s_mux);
             c = s_st;
             portEXIT_CRITICAL(&s_mux);
+            char bad[2 * sizeof s_bad_head + 1] = "";
+            if (s_have_bad) {
+                for (size_t i = 0; i < sizeof s_bad_head; i++) {
+                    snprintf(bad + 2 * i, 3, "%02x", s_bad_head[i]);
+                }
+            }
             snprintf(tx, sizeof(tx),
                      "{\"ok\":true,\"link\":\"%s\",\"init_err\":%ld,\"in_run\":%s,"
                      "\"link_test\":%lu,\"seed\":%lu,"
@@ -154,7 +166,7 @@ static void stat_task(void *arg)
                      "\"seq_gap_events\":%lu,\"seq_backwards\":%lu,\"payload_errors\":%lu,"
                      "\"pool_starved\":%lu,\"stray_bufs\":%lu,"
                      "\"first_seq\":%lu,\"last_seq\":%lu,"
-                     "\"loaded\":%lu,\"completed\":%lu,\"achieved_bps\":%llu}",
+                     "\"loaded\":%lu,\"completed\":%lu,\"achieved_bps\":%llu,\"bad_head\":\"%s\"}",
                      s_link, (long)c.init_err, s_in_run ? "true" : "false",
                      (unsigned long)c.link_test, (unsigned long)c.seed,
                      (unsigned long long)c.bytes_in, (unsigned long)c.bufs_in,
@@ -165,7 +177,7 @@ static void stat_task(void *arg)
                      (unsigned long)c.pool_starved, (unsigned long)c.stray_bufs,
                      (unsigned long)c.first_seq, (unsigned long)c.last_seq,
                      (unsigned long)s_loaded, (unsigned long)s_completed,
-                     (unsigned long long)ingress_achieved_bps());
+                     (unsigned long long)ingress_achieved_bps(), bad);
         }
         sendto(s, tx, strlen(tx), 0, (struct sockaddr *)&peer, sizeof(peer));
     }

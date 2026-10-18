@@ -41,3 +41,4 @@ _agent/stage2.ready
 _verify/
 # backups of the per-board network settings (they hold passwords)
 firmware/*/sdkconfig.local.*
+host/results/stage2-debug/

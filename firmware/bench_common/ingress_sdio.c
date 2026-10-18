@@ -117,15 +117,18 @@ void ingress_sdio_start(void)
         .sending_mode = SDIO_SLAVE_SEND_PACKET,
         .send_queue_size = 4,
         .recv_buffer_size = HDEMG_SDIO_RECV_BUF_BYTES,
-        /* First knob to turn if CMD53 CRC-fails at 25 MHz but passes at 400 kHz (guide §6.4). */
-        .timing = SDIO_SLAVE_TIMING_PSEND_PSAMPLE,
+        /* The H7 host runs default speed and samples on the rising edge, so the slave must
+         * change its outputs on the falling edge (IDF: "default value for DS mode"). With
+         * PSEND_PSAMPLE the slave changed them on the very edge the host samples, and
+         * about every other CMD53 response failed its CRC (18 Oct, at 4 and 25 MHz alike). */
+        .timing = SDIO_SLAVE_TIMING_NSEND_PSAMPLE,
         /* No external resistors on the Stage 2 harness (docs/CAMPAIGN_PROTOCOL.md §2):
          * CMD and DAT0-3 are pulled up by these internal pull-ups and by the H7's own on
          * SDMMC1, about 20 kOhm combined. IDF's warning that internal pull-ups alone are
          * not enough is about fast edges; this link stays at <= 25 MHz and starts slow.
          * Every SDIO command and data block carries a CRC, so a marginal pull-up shows as
          * link errors (and fails the link test) rather than as silently wrong data. */
-        .flags = SDIO_SLAVE_FLAG_INTERNAL_PULLUP,
+        .flags = SDIO_SLAVE_FLAG_INTERNAL_PULLUP | SDIO_SLAVE_FLAG_DEFAULT_SPEED,
     };
     esp_err_t err = sdio_slave_initialize(&cfg);
     if (err == ESP_OK) err = sdio_slave_start();

@@ -27,6 +27,7 @@ void link_cfg_defaults(link_cfg_t *c)
     c->qspi_nocredit = 0U;
     c->sdio_hz = 25000000U;          /* default speed's ceiling (LINK_SDIO_HZ_MAX) */
     c->batch_max = HDEMG_LINK_MAX_FRAMES;
+    c->slew = 3U;                    /* GPIO_SPEED_FREQ_VERY_HIGH, as before the key existed */
 }
 
 const char *link_name(link_kind_t k)

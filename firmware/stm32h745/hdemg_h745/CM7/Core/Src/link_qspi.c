@@ -351,7 +351,7 @@ static void af_pin(const qpin_t *p, uint32_t pull)
     GPIO_InitTypeDef g = {0};
     g.Mode = GPIO_MODE_AF_PP;
     g.Pull = pull;
-    g.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    g.Speed = link_pin_speed(s_cfg.slew);
     g.Alternate = p->af;
     g.Pin = p->pin;
     HAL_GPIO_Init(p->port, &g);
@@ -370,7 +370,7 @@ static void pins_init(const qset_t *q)
         q->cs_port->BSRR = q->cs_pin;
         g.Mode = GPIO_MODE_OUTPUT_PP;
         g.Pull = GPIO_NOPULL;
-        g.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+        g.Speed = link_pin_speed(s_cfg.slew);
         g.Pin = q->cs_pin;
         HAL_GPIO_Init(q->cs_port, &g);
     }

@@ -29,7 +29,11 @@ typedef struct {
     uint32_t sdio_hz;
     /* both */
     uint32_t batch_max;        /* frames per transaction, 1..HDEMG_LINK_MAX_FRAMES */
+    uint32_t slew;             /* link pin edge speed, 0 low .. 3 very high (GPIO OSPEEDR) */
 } link_cfg_t;
+
+/* GPIO speed for the link pins: gentler edges ring less on unterminated jumper wires. */
+static inline uint32_t link_pin_speed(uint32_t slew) { return slew > 3U ? 3U : slew; }
 
 typedef struct {
     uint64_t bytes;            /* bytes the link accepted */
@@ -44,6 +48,7 @@ typedef struct {
     uint32_t last_completed;
     uint32_t sent;             /* buffers the master has ended */
     uint32_t actual_hz;        /* clock actually programmed */
+    uint32_t last_err;         /* SDMMC error bits of the last failed SDIO transfer */
 } link_stats_t;
 
 void        link_cfg_defaults(link_cfg_t *c);

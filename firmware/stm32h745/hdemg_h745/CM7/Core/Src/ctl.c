@@ -5,6 +5,7 @@
  *                                 target=s3|c5   (which ESP's QSPI pin set; sdio is always c5)
  *                                 qspi_hz= qspi_rd_hz= qspi_dummy= qspi_addr_lines=1|4
  *                                 qspi_sshift=0|1 qspi_even=0|1 qspi_nocredit=0|1 sdio_hz= batch=
+ *                                 slew=0..3  (link pin edge speed: low, medium, high, very high)
  *                                 clk_ppm=   (board clock error measured by the host; see gen.h)
  *   probe                         open the configured link, report whether a slave answers, close it
  *   start                         open the link (fails if no slave answers), start generating
@@ -126,6 +127,7 @@ static void j_cfg(void)
     j_u("qspi_even", s_link.qspi_even);
     j_u("qspi_nocredit", s_link.qspi_nocredit);
     j_u("sdio_hz", s_link.sdio_hz);
+    j_u("slew", s_link.slew);
 }
 
 static void j_run(void)
@@ -163,6 +165,7 @@ static void j_run(void)
     j_u("credit_waits", l.credit_waits);
     j_u("ready_timeouts", l.ready_timeouts);
     j_u("link_errors", l.errors);
+    j_u("link_last_err", l.last_err);
     j_u("torn_reads", l.torn_reads);
     j_u("credit_errors", l.credit_errors);
     j_u("ready_edges", l.ready_edges);
@@ -243,6 +246,7 @@ static const char *apply_kv(char *tok, link_cfg_t *lc)
     else if (!strcmp(k, "qspi_sshift"))     lc->qspi_sshift = n ? 1U : 0U;
     else if (!strcmp(k, "qspi_even"))       lc->qspi_even = n ? 1U : 0U;
     else if (!strcmp(k, "qspi_nocredit"))   lc->qspi_nocredit = n ? 1U : 0U;
+    else if (!strcmp(k, "slew"))            { if (n > 3U) return "slew must be 0..3"; lc->slew = (uint32_t)n; }
     else if (!strcmp(k, "sdio_hz")) {
         if (n < LINK_SDIO_HZ_MIN || n > LINK_SDIO_HZ_MAX) return "sdio_hz must be 100000..25000000 (default speed only)";
         lc->sdio_hz = (uint32_t)n;
@@ -299,6 +303,7 @@ static void cmd_start(void)
         j_u("code", (uint64_t)(uint32_t)(-rc));
         j_u("read_value", l.last_loaded);
         j_u("link_errors", l.errors);
+        j_u("link_last_err", l.last_err);
         j_end();
         return;
     }
@@ -350,6 +355,7 @@ static void cmd_probe(void)
     j_u("loaded", l.last_loaded);
     j_u("completed", l.last_completed);
     j_u("link_errors", l.errors);
+    j_u("link_last_err", l.last_err);
     j_u("torn_reads", l.torn_reads);
     j_end();
 }
@@ -437,6 +443,7 @@ static void cmd_q(const char *verb)
         j_u("value", v);
         j_u("torn_reads", l.torn_reads);
         j_u("link_errors", l.errors);
+        j_u("link_last_err", l.last_err);
         j_end();
     } else if (!strcmp(verb, "q_tx")) {
         uint32_t frames = (uint32_t)arg_u("frames", 1, toks, ntok);
