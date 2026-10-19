@@ -705,7 +705,9 @@ class Campaign:
             for label, dc in p["variants"].items():
                 cells.append({"chip": chip, "band": "2.4", "transport": [p["transport"]],
                               "tune": [self.design(chip)], "loads_mbps": [SAT20],
-                              "label": label, "device_cfg": dict(dc), "sample_s": 1.0})
+                              "label": label, "device_cfg": dict(dc), "sample_s": 1.0,
+                              **({"reset_after_stall": True} if
+                                 self.cfg.get("stall_is_result") and not self.sim else {})})
         recs = self._measure(t, cells, hold_s=20, repeats=3)
         out = {"scores": score_table(recs)}
         for label, (tid, other) in (p.get("reuse") or {}).items():
@@ -1044,7 +1046,8 @@ class Campaign:
         p = t.params
         cells = [{"chip": chip, "band": "2.4", "transport": ["tcp"],
                   "tune": [self.design(chip)], "loads_mbps": VZONE, "label": label,
-                  "device_cfg": dc, "sample_s": 1.0}
+                  "device_cfg": dc, "sample_s": 1.0,
+                  "reset_after_stall": bool(self.cfg.get("stall_is_result")) and not self.sim}
                  for chip in self.chips_up()
                  for label, dc in (("def", {}), (f"b{BATCH}", {"batch": BATCH}))]
         recs = self._measure(t, cells, hold_s=20, repeats=int(p["repeats"]),

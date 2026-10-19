@@ -29,8 +29,8 @@ class _Drv:
     def __init__(self):
         self.recovered = []
 
-    def recover(self, chip):
-        self.recovered.append(chip)
+    def recover(self, chip, force_reset=False):
+        self.recovered.append((chip, force_reset))
         return True
 
 
@@ -58,7 +58,7 @@ def test_dead_board_is_recovered_and_restarted():
     rx.silent_s = s.unanswered = 0          # it is back
     time.sleep(0.2)
     dog.stop()
-    assert d.recovered == ["esp32s3"]
+    assert d.recovered == [("esp32s3", True)]
     assert [k for k, _ in c.calls] == ["cfg", "start"]
     assert c.calls[0][1]["dur_s"] > 500
     assert \

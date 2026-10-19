@@ -295,7 +295,7 @@ class HardwareDriver:
         m = re.search(r'^CONFIG_EXAMPLE_WIFI_SSID="([^"]*)"', text, re.M)
         return m.group(1) if m else None
 
-    def recover(self, chip: str) -> bool:
+    def recover(self, chip: str, force_reset: bool = False) -> bool:
         """Get a board that stopped answering back on the control plane: a ladder of ever
         heavier steps, each tried only if the one before did not bring it back.
 
@@ -308,8 +308,13 @@ class HardwareDriver:
           5. rebuild and reflash the build it last ran, and wait for it to boot.
 
         Each step is written to `recovery_log`. False only if all of them fail: the
-        board is then unplugged, or something a person must see to is wrong."""
-        self._rlog(chip, "not answering: recovery ladder starts")
+        board is then unplugged, or something a person must see to is wrong.
+
+        force_reset skips step 2: a board that still answers `hello` but has neither
+        delivered nor answered `stat` for minutes is starved, not rejoining (19 Oct: the C5
+        at 4.32 Mbit/s over TCP), and only a reset brings its stream back."""
+        self._rlog(chip, "not answering: recovery ladder starts"
+                   + (" (straight to a reset)" if force_reset else ""))
         hub_port = self.hub_ports.get(chip)
         if hub_port:
             try:
@@ -318,7 +323,7 @@ class HardwareDriver:
                 self._flashed.pop(chip, None)
             except (TimeoutError, OSError, RuntimeError) as e:
                 self._rlog(chip, f"power cycle failed: {e}")
-        deadline = time.monotonic() + self.REJOIN_TIMEOUT_S
+        deadline = time.monotonic() + (0 if force_reset else self.REJOIN_TIMEOUT_S)
         while time.monotonic() < deadline:
             if chip in self.rediscover(chip):
                 self._rlog(chip, f"step 2: found again on the network at {self.ips[chip]}")

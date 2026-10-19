@@ -39,7 +39,7 @@ H7_TARGET = {"esp32s3": "s3", "esp32c5": "c5"}     # the H7's `cfg target=` per 
 
 # Cell keys that shape how a run is taken rather than what is measured (Run.opts).
 CELL_OPTS = ("hold_s", "discard_s", "device_cfg", "stress", "sample_s", "long_run",
-             "window_s", "reconnect", "tcp_rcvbuf", "watchdog_s")
+             "window_s", "reconnect", "tcp_rcvbuf", "watchdog_s", "reset_after_stall")
 
 DEFAULT_SWEEP = {"start_mbps": 1, "stop_mbps": 60, "steps": 8,
                  "hold_s": 60, "discard_s": 3}
@@ -646,7 +646,33 @@ class Orchestrator:
         self.on_event("run", run=r, valid=valid,
                       goodput_mbps=metrics_d.get("goodput_bps", 0) / 1e6,
                       loss=metrics_d.get("loss_pct"))
+        if opts.get("reset_after_stall") and pre.ok and \
+                metrics_d.get("goodput_bps", 0) < 0.5 * r.offered_bps:
+            self._reset_after_stall(r.chip, c)
         return rec
+
+    def _reset_after_stall(self, chip: str, c) -> None:
+        """A stalled TCP run can leave the board half alive (it answers hello while its
+        socket is stuck), and the next run would inherit that. Start the next run from a
+        fresh board: a board that no longer answers goes through the recovery ladder (a
+        lock-up), one that still answers is simply reset."""
+        try:
+            c.hello()
+        except Exception:                                    # noqa: BLE001
+            if hasattr(self.driver, "recover"):
+                self.driver.recover(chip)
+            return
+        boot = getattr(self.driver, "boot_check", None)
+        if boot is None:
+            return
+        log = getattr(self.driver, "_rlog", None)
+        if log:
+            log(chip, "answers, but its last run stalled: reset before the next run")
+        try:
+            boot(chip, secs=4)
+        except Exception as e:                               # noqa: BLE001
+            if log:
+                log(chip, f"reset after a stall failed: {e}")
 
 
 def _unused_marker():
@@ -698,7 +724,13 @@ class _Watchdog:
             self.on_event("recovering", chip=self.chip, error="watchdog: no data and no "
                           "answer for %.0f s mid-run" % self.after_s)
             try:
-                ok = bool(self.driver.recover(self.chip))
+                # Straight to a reset: 90 s with no data and no stat reply is a starved or
+                # hung board, which a rediscover would "find" (it may still answer hello)
+                # and leave stalled.
+                try:
+                    ok = bool(self.driver.recover(self.chip, force_reset=True))
+                except TypeError:                            # a driver without the option
+                    ok = bool(self.driver.recover(self.chip))
             except Exception as e:                           # noqa: BLE001
                 ok = False
                 self.rx.note_event("watchdog", action="recover_error", error=str(e))
