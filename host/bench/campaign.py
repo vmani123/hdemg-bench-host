@@ -181,6 +181,10 @@ def plan_verizon() -> list[Test]:
         T("V.7", "V", "TCP writes: 8,100 vs 2,700 vs 1,350 B at full load", "knobs", "2.4",
           10, {"transport": "tcp", "variants": {"wr-8100": {}, "wr-2700": {"wr_max": 2700},
                                                 "wr-1350": {"wr_max": 1350}}}),
+        # Extra (19 Oct), in the time the S3 left free by browning out: V.2's counterpart
+        # with batch on, at the load V.2 used — does batching hold for 15 min, not 20 s?
+        T("V.2b", "V", "Extra: 15 min TCP with batch=30 at V.2's load, C5", "vlong", "2.4",
+          17, {"batch": BATCH, "chips": ["esp32c5"]}),
     ]
 
 
@@ -1063,15 +1067,18 @@ class Campaign:
         return min(med, key=med.get), med
 
     def _t_vlong(self, t: Test) -> dict:
-        load, med = self.worst_zone_load()
+        b = int(t.params.get("batch") or 0)
+        prev = (self.result("V.2") or {}).get("load_mbps") if b else None
+        load, med = (float(prev), {}) if prev else self.worst_zone_load()
         self.log(f"  load {load} Mbit/s (C5 default share by load: "
                  f"{ {k: round(v, 3) for k, v in sorted(med.items())} })")
         recs = []
-        for chip in ("esp32c5", "esp32s3"):
+        for chip in t.params.get("chips") or ("esp32c5", "esp32s3"):
             if chip in self.down:
                 continue
-            recs += self._measure(t, [self._long_cell(chip, load, "l15m")], hold_s=900,
-                                  repeats=1)
+            recs += self._measure(t, [self._long_cell(chip, load, f"l15m-b{b}" if b else
+                                                      "l15m", {"batch": b} if b else None)],
+                                  hold_s=900, repeats=1)
         return {"load_mbps": load, "c5_share_by_load": med, "scores": score_table(recs),
                 "telemetry": telemetry_table(recs), "soak": soak_table(recs),
                 "skipped_chips": sorted(self.down)}
