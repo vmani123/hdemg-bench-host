@@ -1,0 +1,65 @@
+stage: 1
+repeats: 3
+sweep:
+  start_mbps: 1
+  stop_mbps: 1
+  steps: 1
+  hold_s: 20.0
+  discard_s: 3.0
+cells:
+- chip: esp32c5
+  band: '2.4'
+  transport:
+  - tcp
+  tune:
+  - c-c5-base
+  loads_mbps:
+  - 60.0
+  device_cfg:
+    nodelay: 1
+    wr_max: 0
+    dgram: 0
+    batch: 0
+  sample_s: 1.0
+  reset_after_stall: true
+  tag: tV.7-wr-8100
+  source: synth
+- chip: esp32c5
+  band: '2.4'
+  transport:
+  - tcp
+  tune:
+  - c-c5-base
+  loads_mbps:
+  - 60.0
+  device_cfg:
+    nodelay: 1
+    wr_max: 2700
+    dgram: 0
+    batch: 0
+  sample_s: 1.0
+  reset_after_stall: true
+  tag: tV.7-wr-2700
+  source: synth
+- chip: esp32c5
+  band: '2.4'
+  transport:
+  - tcp
+  tune:
+  - c-c5-base
+  loads_mbps:
+  - 60.0
+  device_cfg:
+    nodelay: 1
+    wr_max: 1350
+    dgram: 0
+    batch: 0
+  sample_s: 1.0
+  reset_after_stall: true
+  tag: tV.7-wr-1350
+  source: synth
+ap: verizon-router
+ssid: Verizon_SLD967
+host_ssid: Verizon_SLD967
+allow_shared_band: false
+link_opts: {}

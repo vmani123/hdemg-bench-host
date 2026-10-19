@@ -1,0 +1,1421 @@
+{
+ "campaign": "verizon-tcp-2026-10",
+ "derived": {
+  "down": [
+   "esp32s3"
+  ]
+ },
+ "started": "2026-10-19 06:22:24 EDT",
+ "tests": {
+  "V.0": {
+   "attempts": 2,
+   "finished": "2026-10-19 06:38:04 EDT",
+   "result": {
+    "boards": {
+     "esp32c5": {
+      "band": "2.4",
+      "batch_knob": true,
+      "fw_sha": "d34f59d-",
+      "heap": 130416,
+      "heap_min": 114816,
+      "idf": "v6.0-dev-2980-gab149384e1-dirty",
+      "ingress": "synth",
+      "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+      "rssi": -43,
+      "rung": "c-c5-base",
+      "uptime_s": 17
+     }
+    },
+    "flash": {
+     "esp32c5": {
+      "chip": "esp32c5",
+      "flashed": true,
+      "rung": "c-c5-base"
+     },
+     "esp32s3": {
+      "error": "esp32s3 did not answer within 90 s of flashing (esp32s3 not found on 192.168.1.160/24 \u2014 is it powered and joined to the access point?)"
+     }
+    },
+    "mac": {
+     "associated": true,
+     "band": "5",
+     "channel": 104,
+     "dev": "en0",
+     "ip": "192.168.1.160",
+     "phy": "802.11ax",
+     "signal_noise": "-61 dBm / -90 dBm",
+     "ssid": "Verizon_SLD967",
+     "tx_rate_mbps": 432,
+     "width_mhz": 80
+    },
+    "mac_shared_band": false,
+    "notes": [],
+    "why": null
+   },
+   "round": 1,
+   "started": "2026-10-19 06:28:52 EDT",
+   "status": "done"
+  },
+  "V.1a": {
+   "attempts": 2,
+   "finished": "2026-10-19 07:03:03 EDT",
+   "result": {
+    "mac_shared_band": false,
+    "scores": {
+     "esp32c5": {
+      "b30": {
+       "tcp": {
+        "10.0": {
+         "heap_min": 25088,
+         "idle_pct": [
+          82.5
+         ],
+         "invalid": 0,
+         "lat_p50_us": 1825.75,
+         "lat_p99_us": 28218.5,
+         "loss_pct": 0.0,
+         "mbps": 10.002,
+         "n": 2,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -42.0,
+         "spread": 0.0
+        },
+        "15.0": {
+         "heap_min": 6868,
+         "idle_pct": [
+          74.4
+         ],
+         "invalid": 0,
+         "lat_p50_us": 2470.0,
+         "lat_p99_us": 31955.550000000003,
+         "loss_pct": 0.0,
+         "mbps": 15.002,
+         "n": 2,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -41.5,
+         "spread": 0.001
+        },
+        "20.5": {
+         "heap_min": 22564,
+         "idle_pct": [
+          67.2
+         ],
+         "invalid": 0,
+         "lat_p50_us": 3032.3999999999996,
+         "lat_p99_us": 28432.800000000003,
+         "loss_pct": 0.0,
+         "mbps": 20.516,
+         "n": 2,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -42.0,
+         "spread": 0.016
+        },
+        "25.0": {
+         "heap_min": 6868,
+         "idle_pct": [
+          58.8
+         ],
+         "invalid": 0,
+         "lat_p50_us": 4434.45,
+         "lat_p99_us": 43345.85,
+         "loss_pct": 0.0,
+         "mbps": 24.993,
+         "n": 2,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -41.5,
+         "spread": 0.019
+        },
+        "30.0": {
+         "heap_min": 26572,
+         "idle_pct": [
+          47.8
+         ],
+         "invalid": 0,
+         "lat_p50_us": 7886.3,
+         "lat_p99_us": 64378.049999999996,
+         "loss_pct": 0.0,
+         "mbps": 27.714,
+         "n": 2,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -42.0,
+         "spread": 2.249
+        }
+       }
+      },
+      "def": {
+       "tcp": {
+        "10.0": {
+         "heap_min": 4780,
+         "idle_pct": [
+          67.2
+         ],
+         "invalid": 0,
+         "lat_p50_us": 2369.1000000000004,
+         "lat_p99_us": 40581.65,
+         "loss_pct": 0.0,
+         "mbps": 3.582,
+         "n": 2,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -42.5,
+         "spread": 0.863
+        },
+        "15.0": {
+         "heap_min": 4536,
+         "idle_pct": [
+          65.7
+         ],
+         "invalid": 0,
+         "lat_p50_us": 10185.25,
+         "lat_p99_us": 444151.45,
+         "loss_pct": 0.0,
+         "mbps": 0.0,
+         "n": 2,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -42.0,
+         "spread": 0.0
+        },
+        "20.5": {
+         "heap_min": 3656,
+         "idle_pct": [
+          0.0
+         ],
+         "invalid": 0,
+         "lat_p50_us": 9338.8,
+         "lat_p99_us": 116343.25,
+         "loss_pct": 0.0,
+         "mbps": 0.0,
+         "n": 2,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -42.0,
+         "spread": 0.0
+        },
+        "25.0": {
+         "heap_min": 3924,
+         "idle_pct": [
+          0.0
+         ],
+         "invalid": 0,
+         "lat_p50_us": 9695.599999999999,
+         "lat_p99_us": 81713.9,
+         "loss_pct": 0.0,
+         "mbps": 3.939,
+         "n": 2,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -41.0,
+         "spread": 3.939
+        },
+        "30.0": {
+         "heap_min": 4536,
+         "idle_pct": [
+          65.7
+         ],
+         "invalid": 0,
+         "lat_p50_us": 9788.05,
+         "lat_p99_us": 40175.5,
+         "loss_pct": 0.0,
+         "mbps": 29.252,
+         "n": 2,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -42.5,
+         "spread": 1.196
+        }
+       }
+      }
+     }
+    },
+    "skipped_chips": [
+     "esp32s3"
+    ],
+    "stalls": {
+     "esp32c5/b30": {
+      "10.0": [
+       0,
+       2
+      ],
+      "15.0": [
+       0,
+       2
+      ],
+      "20.5": [
+       0,
+       2
+      ],
+      "25.0": [
+       0,
+       2
+      ],
+      "30.0": [
+       0,
+       2
+      ]
+     },
+     "esp32c5/def": {
+      "10.0": [
+       2,
+       2
+      ],
+      "15.0": [
+       2,
+       2
+      ],
+      "20.5": [
+       2,
+       2
+      ],
+      "25.0": [
+       2,
+       2
+      ],
+      "30.0": [
+       0,
+       2
+      ]
+     }
+    },
+    "starved": [
+     "esp32c5 def tcp at 15.0 Mbit/s gave 0.00",
+     "esp32c5 def tcp at 20.5 Mbit/s gave 0.00"
+    ]
+   },
+   "round": 1,
+   "started": "2026-10-19 06:53:21 EDT",
+   "status": "done"
+  },
+  "V.1b": {
+   "attempts": 2,
+   "finished": "2026-10-19 07:58:18 EDT",
+   "result": {
+    "mac_shared_band": false,
+    "scores": {
+     "esp32c5": {
+      "b30": {
+       "tcp": {
+        "10.0": {
+         "heap_min": 31924,
+         "idle_pct": [
+          82.3
+         ],
+         "invalid": 0,
+         "lat_p50_us": 1930.0,
+         "lat_p99_us": 25226.0,
+         "loss_pct": 0.0,
+         "mbps": 10.006,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -41,
+         "spread": 0.0
+        },
+        "15.0": {
+         "heap_min": 28004,
+         "idle_pct": [
+          74.3
+         ],
+         "invalid": 0,
+         "lat_p50_us": 2425.9,
+         "lat_p99_us": 37410.1,
+         "loss_pct": 0.0,
+         "mbps": 15.008,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -43,
+         "spread": 0.0
+        },
+        "20.5": {
+         "heap_min": 28004,
+         "idle_pct": [
+          66.1
+         ],
+         "invalid": 0,
+         "lat_p50_us": 2926.3,
+         "lat_p99_us": 35212.4,
+         "loss_pct": 0.0,
+         "mbps": 20.5,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -44,
+         "spread": 0.0
+        },
+        "25.0": {
+         "heap_min": 28004,
+         "idle_pct": [
+          60.9
+         ],
+         "invalid": 0,
+         "lat_p50_us": 4798.8,
+         "lat_p99_us": 44101.6,
+         "loss_pct": 0.0,
+         "mbps": 25.001,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -43,
+         "spread": 0.0
+        },
+        "30.0": {
+         "heap_min": 23252,
+         "idle_pct": [
+          51.7
+         ],
+         "invalid": 0,
+         "lat_p50_us": 8888.0,
+         "lat_p99_us": 44611.8,
+         "loss_pct": 0.0,
+         "mbps": 30.781,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -43,
+         "spread": 0.0
+        }
+       }
+      },
+      "def": {
+       "tcp": {
+        "10.0": {
+         "heap_min": 123656,
+         "idle_pct": [
+          0.0
+         ],
+         "invalid": 0,
+         "lat_p50_us": 4037.3,
+         "lat_p99_us": 93202.6,
+         "loss_pct": 0.0,
+         "mbps": 0.0,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -42,
+         "spread": 0.0
+        },
+        "15.0": {
+         "heap_min": 2776,
+         "idle_pct": [
+          0.0
+         ],
+         "invalid": 0,
+         "lat_p50_us": 3997.8,
+         "lat_p99_us": 37559.5,
+         "loss_pct": 0.0,
+         "mbps": 2.387,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -42,
+         "spread": 0.0
+        },
+        "20.5": {
+         "heap_min": 23252,
+         "idle_pct": [
+          51.7
+         ],
+         "invalid": 0,
+         "lat_p50_us": 11870.8,
+         "lat_p99_us": 433582.2,
+         "loss_pct": 0.0,
+         "mbps": 0.0,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -43,
+         "spread": 0.0
+        },
+        "25.0": {
+         "heap_min": 4124,
+         "idle_pct": [
+          100.0
+         ],
+         "invalid": 0,
+         "lat_p50_us": 9508.9,
+         "lat_p99_us": 34977.7,
+         "loss_pct": 0.0,
+         "mbps": 10.874,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -42,
+         "spread": 0.0
+        },
+        "30.0": {
+         "heap_min": 28140,
+         "idle_pct": [
+          54.4
+         ],
+         "invalid": 0,
+         "lat_p50_us": 8329.3,
+         "lat_p99_us": 49532.4,
+         "loss_pct": 0.0,
+         "mbps": 29.864,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -44,
+         "spread": 0.0
+        }
+       }
+      }
+     }
+    },
+    "skipped_chips": [
+     "esp32s3"
+    ],
+    "stalls": {
+     "esp32c5/b30": {
+      "10.0": [
+       0,
+       1
+      ],
+      "15.0": [
+       0,
+       1
+      ],
+      "20.5": [
+       0,
+       1
+      ],
+      "25.0": [
+       0,
+       1
+      ],
+      "30.0": [
+       0,
+       1
+      ]
+     },
+     "esp32c5/def": {
+      "10.0": [
+       1,
+       1
+      ],
+      "15.0": [
+       1,
+       1
+      ],
+      "20.5": [
+       1,
+       1
+      ],
+      "25.0": [
+       1,
+       1
+      ],
+      "30.0": [
+       0,
+       1
+      ]
+     }
+    },
+    "starved": [
+     "esp32c5 def tcp at 10.0 Mbit/s gave 0.00",
+     "esp32c5 def tcp at 20.5 Mbit/s gave 0.00"
+    ]
+   },
+   "round": 1,
+   "started": "2026-10-19 07:49:57 EDT",
+   "status": "done"
+  },
+  "V.1c": {
+   "attempts": 1,
+   "finished": "2026-10-19 08:54:07 EDT",
+   "result": {
+    "mac_shared_band": false,
+    "scores": {
+     "esp32c5": {
+      "b30": {
+       "tcp": {
+        "10.0": {
+         "heap_min": 19412,
+         "idle_pct": [
+          82.5
+         ],
+         "invalid": 0,
+         "lat_p50_us": 2109.7,
+         "lat_p99_us": 30893.5,
+         "loss_pct": 0.0,
+         "mbps": 10.002,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -41,
+         "spread": 0.0
+        },
+        "15.0": {
+         "heap_min": 27860,
+         "idle_pct": [
+          74.5
+         ],
+         "invalid": 0,
+         "lat_p50_us": 2248.7,
+         "lat_p99_us": 40865.4,
+         "loss_pct": 0.0,
+         "mbps": 14.999,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -43,
+         "spread": 0.0
+        },
+        "20.5": {
+         "heap_min": 4584,
+         "idle_pct": [
+          66.2
+         ],
+         "invalid": 0,
+         "lat_p50_us": 3050.6,
+         "lat_p99_us": 24201.3,
+         "loss_pct": 0.0,
+         "mbps": 20.505,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -43,
+         "spread": 0.0
+        },
+        "25.0": {
+         "heap_min": 2648,
+         "idle_pct": [
+          59.6
+         ],
+         "invalid": 0,
+         "lat_p50_us": 5689.2,
+         "lat_p99_us": 36467.4,
+         "loss_pct": 0.0,
+         "mbps": 24.996,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -42,
+         "spread": 0.0
+        },
+        "30.0": {
+         "heap_min": 22576,
+         "idle_pct": [
+          61.7
+         ],
+         "invalid": 0,
+         "lat_p50_us": 9211.0,
+         "lat_p99_us": 36147.1,
+         "loss_pct": 0.0,
+         "mbps": 29.239,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -41,
+         "spread": 0.0
+        }
+       }
+      },
+      "def": {
+       "tcp": {
+        "10.0": {
+         "heap_min": 2648,
+         "idle_pct": [
+          82.5
+         ],
+         "invalid": 0,
+         "lat_p50_us": 3047.7,
+         "lat_p99_us": 29691.7,
+         "loss_pct": 0.0,
+         "mbps": 9.957,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -41,
+         "spread": 0.0
+        },
+        "15.0": {
+         "heap_min": 2648,
+         "idle_pct": [
+          61.1
+         ],
+         "invalid": 0,
+         "lat_p50_us": 7826.9,
+         "lat_p99_us": 303114.3,
+         "loss_pct": 0.0,
+         "mbps": 1.131,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -41,
+         "spread": 0.0
+        },
+        "20.5": {
+         "heap_min": 3416,
+         "idle_pct": [
+          66.2
+         ],
+         "invalid": 0,
+         "lat_p50_us": 9497.6,
+         "lat_p99_us": 54289.1,
+         "loss_pct": 0.0,
+         "mbps": 6.447,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -43,
+         "spread": 0.0
+        },
+        "25.0": {
+         "heap_min": 4584,
+         "idle_pct": [
+          51.7
+         ],
+         "invalid": 0,
+         "lat_p50_us": 10224.2,
+         "lat_p99_us": 62042.9,
+         "loss_pct": 0.0,
+         "mbps": 25.303,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -42,
+         "spread": 0.0
+        },
+        "30.0": {
+         "heap_min": 2648,
+         "idle_pct": [
+          61.1
+         ],
+         "invalid": 0,
+         "lat_p50_us": 9639.3,
+         "lat_p99_us": 54884.4,
+         "loss_pct": 0.0,
+         "mbps": 29.59,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -41,
+         "spread": 0.0
+        }
+       }
+      }
+     }
+    },
+    "skipped_chips": [
+     "esp32s3"
+    ],
+    "stalls": {
+     "esp32c5/b30": {
+      "10.0": [
+       0,
+       1
+      ],
+      "15.0": [
+       0,
+       1
+      ],
+      "20.5": [
+       0,
+       1
+      ],
+      "25.0": [
+       0,
+       1
+      ],
+      "30.0": [
+       0,
+       1
+      ]
+     },
+     "esp32c5/def": {
+      "10.0": [
+       0,
+       1
+      ],
+      "15.0": [
+       1,
+       1
+      ],
+      "20.5": [
+       1,
+       1
+      ],
+      "25.0": [
+       0,
+       1
+      ],
+      "30.0": [
+       0,
+       1
+      ]
+     }
+    }
+   },
+   "round": 1,
+   "started": "2026-10-19 08:48:49 EDT",
+   "status": "done"
+  },
+  "V.2": {
+   "attempts": 1,
+   "finished": "2026-10-19 07:19:06 EDT",
+   "result": {
+    "c5_share_by_load": {
+     "10.0": 0.35819999999999996,
+     "15.0": 0.0,
+     "20.5": 0.0,
+     "25.0": 0.15756,
+     "30.0": 0.9750666666666666
+    },
+    "load_mbps": 15.0,
+    "scores": {
+     "esp32c5": {
+      "l15m": {
+       "tcp": {
+        "15.0": {
+         "heap_min": 2280,
+         "idle_pct": [
+          100.0
+         ],
+         "invalid": 0,
+         "lat_p50_us": 6156361.0,
+         "lat_p99_us": 9847915.8,
+         "loss_pct": 0.0,
+         "mbps": 0.442,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -41,
+         "spread": 0.0
+        }
+       }
+      }
+     }
+    },
+    "skipped_chips": [
+     "esp32s3"
+    ],
+    "soak": {
+     "esp32c5/tcp/l15m": {
+      "clock_skew_ppm": 1000364.39,
+      "connections": 7,
+      "duration_s": 900.0,
+      "goodput_mbps": 0.442,
+      "lat_max_us": 10155305.7,
+      "lat_p50_us": 6156361.0,
+      "lat_p99_us": 9847915.8,
+      "longest_gap_s": 127.659,
+      "loss_pct": 0.0,
+      "lost_frames": 0,
+      "timeseries": "/Users/th3vik/Desktop/Research/HDEMG_PCB_WORK/ESP_COMPARISON_CODE/hdemg-bench/host/results/campaign/verizon/ts/V.2/s1-esp32c5-2.4-synth-tcp-c-c5-base-tV.2-l15m__15000k__r1__1792408740.json",
+      "valid": true
+     }
+    },
+    "telemetry": {
+     "esp32c5/tcp/l15m": {
+      "heap_free_min_B": 14352,
+      "heap_largest_min_B": 1408,
+      "heap_low_B": 2280,
+      "heap_slope_B_per_h": 73795.6,
+      "linkdrops_delta": 0,
+      "missed": 887,
+      "phy_rates": [
+       "HT ch6 bw20 sta20 ap:d9f3d9"
+      ],
+      "psram_low_B": null,
+      "reset_reasons": [
+       "POWERON",
+       "POWERON",
+       "POWERON",
+       "POWERON"
+      ],
+      "resets": 4,
+      "rssi_dbm": {
+       "max": -39,
+       "median": -43.5,
+       "min": -45
+      },
+      "samples": 913,
+      "send_errs_delta": 0,
+      "stack_min_B": {
+       "ctl": 1888,
+       "instr": 2864,
+       "sink": 3088,
+       "src": 3712,
+       "tiT": 2720,
+       "wifi": 4252
+      },
+      "tcp_open_fails_delta": 0,
+      "tcp_opens_delta": 4,
+      "udp_enomem_delta": 0,
+      "unreachable_s": 887.0,
+      "wifi_disc_delta": 0
+     }
+    }
+   },
+   "round": 1,
+   "started": "2026-10-19 07:03:03 EDT",
+   "status": "done"
+  },
+  "V.2b": {
+   "attempts": 1,
+   "finished": "2026-10-19 09:50:02 EDT",
+   "result": {
+    "c5_share_by_load": {},
+    "load_mbps": 15.0,
+    "scores": {
+     "esp32c5": {
+      "l15m-b30": {
+       "tcp": {
+        "15.0": {
+         "heap_min": 19392,
+         "idle_pct": [
+          100.0
+         ],
+         "invalid": 0,
+         "lat_p50_us": 3457.6,
+         "lat_p99_us": 50105.4,
+         "loss_pct": 0.0,
+         "mbps": 15.004,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -44,
+         "spread": 0.0
+        }
+       }
+      }
+     }
+    },
+    "skipped_chips": [
+     "esp32s3"
+    ],
+    "soak": {
+     "esp32c5/tcp/l15m-b30": {
+      "clock_skew_ppm": -2.5,
+      "connections": 1,
+      "duration_s": 900.0,
+      "goodput_mbps": 15.004,
+      "lat_max_us": 231096.8,
+      "lat_p50_us": 3457.6,
+      "lat_p99_us": 50105.4,
+      "longest_gap_s": 0.17,
+      "loss_pct": 0.0,
+      "lost_frames": 0,
+      "timeseries": "/Users/th3vik/Desktop/Research/HDEMG_PCB_WORK/ESP_COMPARISON_CODE/hdemg-bench/host/results/campaign/verizon/ts/V.2b/s1-esp32c5-2.4-synth-tcp-c-c5-base-tV.2b-l15m-b30__15000k__r1__1792417802.json",
+      "valid": true
+     }
+    },
+    "telemetry": {
+     "esp32c5/tcp/l15m-b30": {
+      "heap_free_min_B": 30136,
+      "heap_largest_min_B": 15360,
+      "heap_low_B": 19392,
+      "heap_slope_B_per_h": 56058.3,
+      "linkdrops_delta": 0,
+      "missed": 4,
+      "phy_rates": [
+       "HT ch6 bw20 sta20 ap:d9f3d9"
+      ],
+      "psram_low_B": null,
+      "resets": 0,
+      "rssi_dbm": {
+       "max": -36,
+       "median": -43,
+       "min": -48
+      },
+      "samples": 909,
+      "send_errs_delta": 1,
+      "stack_min_B": {
+       "ctl": 1892,
+       "instr": 2840,
+       "sink": 3068,
+       "src": 3716,
+       "tiT": 2720,
+       "wifi": 4204
+      },
+      "tcp_open_fails_delta": 29,
+      "tcp_opens_delta": 1,
+      "udp_enomem_delta": 0,
+      "unreachable_s": 4.0,
+      "wifi_disc_delta": 0
+     }
+    }
+   },
+   "round": 1,
+   "started": "2026-10-19 09:34:47 EDT",
+   "status": "done"
+  },
+  "V.3": {
+   "attempts": 1,
+   "finished": "2026-10-19 07:49:53 EDT",
+   "result": {
+    "batch": 0,
+    "scores": {
+     "esp32c5": {
+      "soak-b0": {
+       "tcp": {
+        "4.32": {
+         "heap_min": 5068,
+         "idle_pct": [
+          98.6
+         ],
+         "invalid": 0,
+         "lat_p50_us": 8899.8,
+         "lat_p99_us": 37130.6,
+         "loss_pct": 0.0013,
+         "mbps": 4.32,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -43,
+         "spread": 0.0
+        }
+       }
+      }
+     }
+    },
+    "skipped_chips": [
+     "esp32s3"
+    ],
+    "soak": {
+     "esp32c5/tcp/soak-b0": {
+      "clock_skew_ppm": -3.73,
+      "connections": 2,
+      "duration_s": 1800.0,
+      "goodput_mbps": 4.32,
+      "lat_max_us": 1150729313.8,
+      "lat_p50_us": 8899.8,
+      "lat_p99_us": 37130.6,
+      "longest_gap_s": 1150.709,
+      "loss_pct": 0.001277768549449365,
+      "lost_frames": 46,
+      "timeseries": "/Users/th3vik/Desktop/Research/HDEMG_PCB_WORK/ESP_COMPARISON_CODE/hdemg-bench/host/results/campaign/verizon/ts/V.3/s1-esp32c5-2.4-synth-tcp-c-c5-base-tV.3-soak-b0__4320k__r1__1792410593.json",
+      "valid": true
+     }
+    },
+    "telemetry": {
+     "esp32c5/tcp/soak-b0": {
+      "heap_free_min_B": 30112,
+      "heap_largest_min_B": 15360,
+      "heap_low_B": 5068,
+      "heap_slope_B_per_h": 880884.9,
+      "linkdrops_delta": 0,
+      "missed": 1166,
+      "phy_rates": [
+       "HT ch6 bw20 sta20 ap:d9f3d9"
+      ],
+      "psram_low_B": null,
+      "resets": 0,
+      "rssi_dbm": {
+       "max": -39,
+       "median": -44,
+       "min": -45
+      },
+      "samples": 1803,
+      "send_errs_delta": 2,
+      "stack_min_B": {
+       "ctl": 1892,
+       "instr": 2872,
+       "sink": 3060,
+       "src": 3724,
+       "tiT": 2640,
+       "wifi": 4252
+      },
+      "tcp_open_fails_delta": 10,
+      "tcp_opens_delta": 2,
+      "udp_enomem_delta": 0,
+      "unreachable_s": 1166.0,
+      "wifi_disc_delta": 0
+     }
+    }
+   },
+   "round": 1,
+   "started": "2026-10-19 07:19:06 EDT",
+   "status": "done"
+  },
+  "V.4": {
+   "attempts": 1,
+   "finished": "2026-10-19 08:28:30 EDT",
+   "result": {
+    "batch": 30,
+    "scores": {
+     "esp32c5": {
+      "soak-b30": {
+       "tcp": {
+        "4.32": {
+         "heap_min": 22984,
+         "idle_pct": [
+          98.2
+         ],
+         "invalid": 0,
+         "lat_p50_us": 2887.0,
+         "lat_p99_us": 183219.6,
+         "loss_pct": 0.0,
+         "mbps": 4.32,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -43,
+         "spread": 0.0
+        }
+       }
+      }
+     }
+    },
+    "skipped_chips": [
+     "esp32s3"
+    ],
+    "soak": {
+     "esp32c5/tcp/soak-b30": {
+      "clock_skew_ppm": -3.53,
+      "connections": 1,
+      "duration_s": 1800.0,
+      "goodput_mbps": 4.32,
+      "lat_max_us": 3295496.7,
+      "lat_p50_us": 2887.0,
+      "lat_p99_us": 183219.6,
+      "longest_gap_s": 2.296,
+      "loss_pct": 0.0,
+      "lost_frames": 0,
+      "timeseries": "/Users/th3vik/Desktop/Research/HDEMG_PCB_WORK/ESP_COMPARISON_CODE/hdemg-bench/host/results/campaign/verizon/ts/V.4/s1-esp32c5-2.4-synth-tcp-c-c5-base-tV.4-soak-b30__4320k__r1__1792412910.json",
+      "valid": true
+     }
+    },
+    "telemetry": {
+     "esp32c5/tcp/soak-b30": {
+      "heap_free_min_B": 31484,
+      "heap_largest_min_B": 14336,
+      "heap_low_B": 22984,
+      "heap_slope_B_per_h": -104166.9,
+      "linkdrops_delta": 0,
+      "missed": 14,
+      "phy_rates": [
+       "HT ch6 bw20 sta20 ap:d9f3d9"
+      ],
+      "psram_low_B": null,
+      "resets": 0,
+      "rssi_dbm": {
+       "max": -41,
+       "median": -44.0,
+       "min": -49
+      },
+      "samples": 1806,
+      "send_errs_delta": 1,
+      "stack_min_B": {
+       "ctl": 1900,
+       "instr": 2868,
+       "sink": 3068,
+       "src": 3716,
+       "tiT": 2720,
+       "wifi": 4124
+      },
+      "tcp_open_fails_delta": 24,
+      "tcp_opens_delta": 1,
+      "udp_enomem_delta": 0,
+      "unreachable_s": 14.0,
+      "wifi_disc_delta": 0
+     }
+    }
+   },
+   "round": 1,
+   "started": "2026-10-19 07:58:18 EDT",
+   "status": "done"
+  },
+  "V.5": {
+   "attempts": 1,
+   "finished": "2026-10-19 08:48:49 EDT",
+   "result": {
+    "scores": {
+     "esp32c5": {
+      "full20m": {
+       "tcp": {
+        "60.0": {
+         "heap_min": 19412,
+         "idle_pct": [
+          100.0
+         ],
+         "invalid": 0,
+         "lat_p50_us": null,
+         "lat_p99_us": null,
+         "loss_pct": 0.0,
+         "mbps": 31.183,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -41,
+         "spread": 0.0
+        }
+       }
+      }
+     }
+    },
+    "soak": {
+     "esp32c5/tcp/full20m": {
+      "clock_skew_ppm": null,
+      "connections": 1,
+      "duration_s": 1200.0,
+      "goodput_mbps": 31.183,
+      "lat_max_us": null,
+      "lat_p50_us": null,
+      "lat_p99_us": null,
+      "longest_gap_s": 1.214,
+      "loss_pct": 0.0,
+      "lost_frames": 0,
+      "timeseries": "/Users/th3vik/Desktop/Research/HDEMG_PCB_WORK/ESP_COMPARISON_CODE/hdemg-bench/host/results/campaign/verizon/ts/V.5/s1-esp32c5-2.4-synth-tcp-c-c5-base-tV.5-full20m__60000k__r1__1792414129.json",
+      "valid": true
+     }
+    },
+    "telemetry": {
+     "esp32c5/tcp/full20m": {
+      "heap_free_min_B": 30060,
+      "heap_largest_min_B": 15360,
+      "heap_low_B": 19412,
+      "heap_slope_B_per_h": 29217.9,
+      "linkdrops_delta": 0,
+      "missed": 41,
+      "phy_rates": [
+       "HT ch6 bw20 sta20 ap:d9f3d9"
+      ],
+      "psram_low_B": null,
+      "resets": 0,
+      "rssi_dbm": {
+       "max": -39,
+       "median": -42,
+       "min": -47
+      },
+      "samples": 1214,
+      "send_errs_delta": 1,
+      "stack_min_B": {
+       "ctl": 1900,
+       "instr": 2836,
+       "sink": 3068,
+       "src": 3716,
+       "tiT": 2720,
+       "wifi": 4124
+      },
+      "tcp_open_fails_delta": 28,
+      "tcp_opens_delta": 1,
+      "udp_enomem_delta": 0,
+      "unreachable_s": 41.0,
+      "wifi_disc_delta": 0
+     }
+    }
+   },
+   "round": 1,
+   "started": "2026-10-19 08:28:30 EDT",
+   "status": "done"
+  },
+  "V.6": {
+   "attempts": 1,
+   "finished": "2026-10-19 09:24:15 EDT",
+   "result": {
+    "designs": {
+     "esp32c5": "c-c5-base",
+     "esp32s3": "c-s3-base"
+    },
+    "events": {
+     "esp32c5": [
+      {
+       "at_s": 150.0,
+       "kind": "pause",
+       "outcome": "ok",
+       "secs": 1.0,
+       "t_s": 150.04
+      },
+      {
+       "at_s": 450.0,
+       "kind": "pause",
+       "outcome": "ok",
+       "secs": 5.0,
+       "t_s": 450.01
+      },
+      {
+       "at_s": 750.0,
+       "kind": "pause",
+       "outcome": "ok",
+       "secs": 30.0,
+       "t_s": 750.05
+      },
+      {
+       "at_s": 1050.0,
+       "kind": "pfblock",
+       "outcome": "skipped: pfctl needs passwordless sudo",
+       "secs": 10.0,
+       "t_s": 1050.01
+      },
+      {
+       "at_s": 1350.0,
+       "kind": "restart",
+       "outcome": "ok",
+       "secs": 0.0,
+       "t_s": 1350.04
+      },
+      {
+       "at_s": 1650.0,
+       "kind": "linkdrop",
+       "outcome": "ok",
+       "secs": 10.0,
+       "t_s": 1650.03
+      }
+     ]
+    },
+    "schedule": [
+     {
+      "at_s": 150.0,
+      "kind": "pause",
+      "secs": 1.0
+     },
+     {
+      "at_s": 450.0,
+      "kind": "pause",
+      "secs": 5.0
+     },
+     {
+      "at_s": 750.0,
+      "kind": "pause",
+      "secs": 30.0
+     },
+     {
+      "at_s": 1050.0,
+      "kind": "pfblock",
+      "secs": 10.0
+     },
+     {
+      "at_s": 1350.0,
+      "kind": "restart",
+      "secs": 0.0
+     },
+     {
+      "at_s": 1650.0,
+      "kind": "linkdrop",
+      "secs": 10.0
+     }
+    ],
+    "scores": {
+     "esp32c5": {
+      "stresstcp": {
+       "tcp": {
+        "4.32": {
+         "heap_min": 2892,
+         "idle_pct": [
+          98.7
+         ],
+         "invalid": 0,
+         "lat_p50_us": 118067081.4,
+         "lat_p99_us": 243071652.1,
+         "loss_pct": 0.0,
+         "mbps": 2.48,
+         "n": 1,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -40,
+         "spread": 0.0
+        }
+       }
+      }
+     }
+    },
+    "soak": {
+     "esp32c5/tcp/stresstcp": {
+      "clock_skew_ppm": 940711.12,
+      "connections": 9,
+      "duration_s": 1800.0,
+      "goodput_mbps": 2.48,
+      "lat_max_us": 252292007.0,
+      "lat_p50_us": 118067081.4,
+      "lat_p99_us": 243071652.1,
+      "longest_gap_s": 111.311,
+      "loss_pct": 0.0,
+      "lost_frames": 0,
+      "timeseries": "/Users/th3vik/Desktop/Research/HDEMG_PCB_WORK/ESP_COMPARISON_CODE/hdemg-bench/host/results/campaign/verizon/ts/V.6/s1-esp32c5-2.4-synth-tcp-c-c5-base-tV.6-stresstcp__4320k__r1__1792416255.json",
+      "valid": true
+     }
+    },
+    "telemetry": {
+     "esp32c5/tcp/stresstcp": {
+      "heap_free_min_B": 18776,
+      "heap_largest_min_B": 6144,
+      "heap_low_B": 2892,
+      "heap_slope_B_per_h": 4365.7,
+      "linkdrops_delta": 1,
+      "missed": 786,
+      "phy_rates": [
+       "HT ch6 bw20 sta20 ap:d9f3d9"
+      ],
+      "psram_low_B": null,
+      "reset_reasons": [
+       "POWERON",
+       "POWERON",
+       "POWERON",
+       "POWERON",
+       "POWERON",
+       "POWERON",
+       "POWERON"
+      ],
+      "resets": 7,
+      "rssi_dbm": {
+       "max": -37,
+       "median": -42,
+       "min": -46
+      },
+      "samples": 1803,
+      "send_errs_delta": 2,
+      "stack_min_B": {
+       "ctl": 1888,
+       "instr": 2868,
+       "sink": 3088,
+       "src": 3716,
+       "tiT": 2720,
+       "wifi": 4156
+      },
+      "tcp_open_fails_delta": 68,
+      "tcp_opens_delta": 8,
+      "udp_enomem_delta": 0,
+      "unreachable_s": 786.0,
+      "wifi_disc_delta": 1
+     }
+    }
+   },
+   "round": 1,
+   "started": "2026-10-19 08:54:07 EDT",
+   "status": "done"
+  },
+  "V.7": {
+   "attempts": 1,
+   "finished": "2026-10-19 09:34:47 EDT",
+   "result": {
+    "scores": {
+     "esp32c5": {
+      "wr-1350": {
+       "tcp": {
+        "60.0": {
+         "heap_min": 6216,
+         "idle_pct": [
+          42.4
+         ],
+         "invalid": 0,
+         "lat_p50_us": 7615.1,
+         "lat_p99_us": 46962.9,
+         "loss_pct": 0.0,
+         "mbps": 26.915,
+         "n": 3,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -42,
+         "spread": 0.106
+        }
+       }
+      },
+      "wr-2700": {
+       "tcp": {
+        "60.0": {
+         "heap_min": 19004,
+         "idle_pct": [
+          66.4
+         ],
+         "invalid": 0,
+         "lat_p50_us": 7896.7,
+         "lat_p99_us": 37587.2,
+         "loss_pct": 0.0,
+         "mbps": 28.807,
+         "n": 3,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -41,
+         "spread": 1.237
+        }
+       }
+      },
+      "wr-8100": {
+       "tcp": {
+        "60.0": {
+         "heap_min": 22628,
+         "idle_pct": [
+          64.1
+         ],
+         "invalid": 0,
+         "lat_p50_us": 7754.2,
+         "lat_p99_us": 39765.7,
+         "loss_pct": 0.0,
+         "mbps": 27.922,
+         "n": 3,
+         "phy_rate": "HT ch6 bw20 sta20 ap:d9f3d9",
+         "rssi_dbm": -40,
+         "spread": 2.53
+        }
+       }
+      }
+     }
+    }
+   },
+   "round": 1,
+   "started": "2026-10-19 09:24:15 EDT",
+   "status": "done"
+  }
+ },
+ "updated": "2026-10-19 09:50:02 EDT"
+}

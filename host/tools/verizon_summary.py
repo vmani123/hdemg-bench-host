@@ -135,7 +135,7 @@ def longruns(rows) -> list[str]:
            "| test | chip | setting | offered | min | Mbit/s | windows ≥ 90 % | first window "
            "< 50 % | longest gap s | connections | watchdog revivals | heap low B | Wi-Fi "
            "drops | resets |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
-    for r in sorted((r for r in rows if r["_test"] in ("V.2", "V.3", "V.4", "V.5", "V.6")),
+    for r in sorted((r for r in rows if r["_test"] in ("V.2", "V.2b", "V.3", "V.4", "V.5", "V.6")),
                     key=lambda r: (r["_test"], r["target"])):
         m, te = r["metrics"], r.get("telemetry") or {}
         w = _windows(r)

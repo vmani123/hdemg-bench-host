@@ -1,0 +1,54 @@
+stage: 1
+repeats: 1
+sweep:
+  start_mbps: 1
+  stop_mbps: 1
+  steps: 1
+  hold_s: 1800.0
+  discard_s: 3.0
+cells:
+- chip: esp32c5
+  band: '2.4'
+  transport:
+  - tcp
+  tune:
+  - c-c5-base
+  loads_mbps:
+  - 4.32
+  sample_s: 1.0
+  long_run: true
+  window_s: 10.0
+  stress:
+  - at_s: 150.0
+    kind: pause
+    secs: 1.0
+  - at_s: 450.0
+    kind: pause
+    secs: 5.0
+  - at_s: 750.0
+    kind: pause
+    secs: 30.0
+  - at_s: 1050.0
+    kind: pfblock
+    secs: 10.0
+  - at_s: 1350.0
+    kind: restart
+    secs: 0.0
+  - at_s: 1650.0
+    kind: linkdrop
+    secs: 10.0
+  reconnect: true
+  tcp_rcvbuf: 65536
+  watchdog_s: 90.0
+  tag: tV.6-stresstcp
+  source: synth
+  device_cfg:
+    nodelay: 1
+    wr_max: 0
+    dgram: 0
+    batch: 0
+ap: verizon-router
+ssid: Verizon_SLD967
+host_ssid: Verizon_SLD967
+allow_shared_band: false
+link_opts: {}

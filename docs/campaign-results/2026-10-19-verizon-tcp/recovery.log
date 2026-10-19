@@ -1,0 +1,907 @@
+2026-10-19 06:31:32 esp32s3: not answering: recovery ladder starts
+2026-10-19 06:32:24 esp32s3: step 3: resetting it through cu.usbmodem5B8F0676581
+2026-10-19 06:34:08 esp32s3: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+load:0x403cb700,len:0x2fa0
+entry 0x403c8908
+I (24) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (25) boot: compile time Oct 19 2026 06:29:31
+I (25) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.4
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 2MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (65) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (71) boot:  2 factory          factory app      00 00 00010000 00100000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00010020 vaddr=3c080020 size=12284h ( 74372) map
+I (102) esp_image: segment 1: paddr=000222ac vaddr=3fc9fa00 size=04644h ( 17988) load
+I (106) esp_image: segment 2: paddr=000268f8 vaddr=40374000 size=09720h ( 38688) load
+I (115) esp_image: segment 3: paddr=00030020 vaddr=42000020 size=7dec8h (515784) map
+I (208) esp_image: segment 4: paddr=000adef0 vaddr=4037d720 size=12248h ( 74312) load
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T10:32:36Z
+2026-10-19 06:34:08 esp32s3: step 5: rebuilding and reflashing c-s3-base (synth, 2.4 GHz)
+2026-10-19 06:36:38 esp32s3: step 5: reflash did not bring it back: esp32s3 did not answer within 90 s of flashing (esp32s3 not found on 192.168.1.160/24 — is it powered and joined to the access point?)
+2026-10-19 06:36:38 esp32s3: every step failed: needs a person (unplugged, or the network)
+2026-10-19 06:46:37 esp32c5: not answering: recovery ladder starts
+2026-10-19 06:47:29 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 06:47:47 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:44:54
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T10:47:42Z
+2026-10-19 06:47:47 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 06:48:50 esp32c5: not answering: recovery ladder starts
+2026-10-19 06:49:42 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 06:49:58 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:44:54
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T10:49:54Z
+2026-10-19 06:49:58 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 06:50:41 esp32c5: not answering: recovery ladder starts
+2026-10-19 06:51:33 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 06:51:50 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:44:54
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T10:51:46Z
+2026-10-19 06:51:50 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 06:52:29 esp32c5: not answering: recovery ladder starts
+2026-10-19 06:53:28 esp32c5: not answering: recovery ladder starts
+2026-10-19 06:53:41 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 06:54:01 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:44:54
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T10:53:54Z
+2026-10-19 06:54:01 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 06:57:19 esp32c5: not answering: recovery ladder starts
+2026-10-19 06:57:34 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 06:57:50 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:54:34
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T10:57:46Z
+2026-10-19 06:57:50 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 06:59:13 esp32c5: not answering: recovery ladder starts
+2026-10-19 06:59:28 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 06:59:44 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:54:34
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T10:59:40Z
+2026-10-19 06:59:44 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 07:01:49 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:02:04 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 07:02:21 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:54:34
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T11:02:16Z
+2026-10-19 07:02:21 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 07:03:16 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:03:31 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 07:03:47 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:54:34
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T11:03:42Z
+2026-10-19 07:03:47 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 07:05:27 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:05:42 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 07:05:59 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:54:34
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T11:05:54Z
+2026-10-19 07:05:59 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 07:07:34 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:07:49 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 07:08:07 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:54:34
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T11:08:02Z
+2026-10-19 07:08:07 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 07:09:42 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:09:57 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 07:10:15 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:54:34
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T11:10:10Z
+2026-10-19 07:10:15 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 07:12:00 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:12:15 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 07:12:31 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:54:34
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T11:12:27Z
+2026-10-19 07:12:31 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 07:14:11 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:14:26 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 07:14:43 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:54:34
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T11:14:39Z
+2026-10-19 07:14:43 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 07:16:18 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:16:33 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 07:16:50 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:54:34
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T11:16:45Z
+2026-10-19 07:16:50 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 07:19:18 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:19:33 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 07:19:50 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 06:54:34
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T11:19:46Z
+2026-10-19 07:19:50 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 07:25:01 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:25:01 esp32c5: step 2: found again on the network at 192.168.1.165
+2026-10-19 07:26:31 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:26:32 esp32c5: step 2: found again on the network at 192.168.1.165
+2026-10-19 07:28:02 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:28:03 esp32c5: step 2: found again on the network at 192.168.1.165
+2026-10-19 07:29:33 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:29:34 esp32c5: step 2: found again on the network at 192.168.1.165
+2026-10-19 07:31:04 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:31:04 esp32c5: step 2: found again on the network at 192.168.1.165
+2026-10-19 07:32:34 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:32:35 esp32c5: step 2: found again on the network at 192.168.1.165
+2026-10-19 07:34:05 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:34:06 esp32c5: step 2: found again on the network at 192.168.1.165
+2026-10-19 07:35:36 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:35:37 esp32c5: step 2: found again on the network at 192.168.1.165
+2026-10-19 07:37:07 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:37:07 esp32c5: step 2: found again on the network at 192.168.1.165
+2026-10-19 07:38:38 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:38:38 esp32c5: step 2: found again on the network at 192.168.1.165
+2026-10-19 07:40:08 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:40:09 esp32c5: step 2: found again on the network at 192.168.1.165
+2026-10-19 07:41:39 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:41:40 esp32c5: step 2: found again on the network at 192.168.1.165
+2026-10-19 07:53:25 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:53:40 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 07:53:58 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 07:50:37
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T11:53:53Z
+2026-10-19 07:53:58 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 07:54:37 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:54:52 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 07:55:09 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 07:50:37
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T11:55:04Z
+2026-10-19 07:55:09 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 07:55:52 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:56:07 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 07:56:23 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 07:50:37
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T11:56:18Z
+2026-10-19 07:56:23 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 07:57:02 esp32c5: not answering: recovery ladder starts
+2026-10-19 07:57:17 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 07:57:34 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 07:50:37
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T11:57:30Z
+2026-10-19 07:57:34 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 08:50:55 esp32c5: not answering: recovery ladder starts
+2026-10-19 08:51:10 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 08:51:27 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 07:50:37
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T12:51:22Z
+2026-10-19 08:51:27 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 08:53:12 esp32c5: not answering: recovery ladder starts
+2026-10-19 08:53:27 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 08:53:43 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 07:50:37
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T12:53:38Z
+2026-10-19 08:53:43 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 08:56:08 esp32c5: not answering: recovery ladder starts (straight to a reset)
+2026-10-19 08:56:08 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 08:56:25 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 07:50:37
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T12:56:21Z
+2026-10-19 08:56:25 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 09:00:26 esp32c5: not answering: recovery ladder starts (straight to a reset)
+2026-10-19 09:00:26 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 09:00:43 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 07:50:37
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T13:00:38Z
+2026-10-19 09:00:43 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 09:05:28 esp32c5: not answering: recovery ladder starts (straight to a reset)
+2026-10-19 09:05:28 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 09:05:45 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 07:50:37
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T13:05:41Z
+2026-10-19 09:05:45 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 09:10:46 esp32c5: not answering: recovery ladder starts (straight to a reset)
+2026-10-19 09:10:46 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 09:11:03 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 07:50:37
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T13:10:59Z
+2026-10-19 09:11:03 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 09:15:03 esp32c5: not answering: recovery ladder starts (straight to a reset)
+2026-10-19 09:15:03 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 09:15:20 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 07:50:37
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T13:15:16Z
+2026-10-19 09:15:20 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 09:17:00 esp32c5: not answering: recovery ladder starts (straight to a reset)
+2026-10-19 09:17:00 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 09:17:17 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 07:50:37
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T13:17:12Z
+2026-10-19 09:17:17 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 09:19:27 esp32c5: not answering: recovery ladder starts (straight to a reset)
+2026-10-19 09:19:27 esp32c5: step 3: resetting it through cu.usbserial-10
+2026-10-19 09:19:45 esp32c5: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+entry 0x4084bbaa
+I (23) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (24) boot: compile time Oct 19 2026 07:50:37
+I (25) boot: chip revision: v1.2
+I (26) boot: efuse block revision: v0.3
+I (29) boot.esp32c5: SPI Speed      : 80MHz
+I (33) boot.esp32c5: SPI Mode       : DIO
+I (37) boot.esp32c5: SPI Flash Size : 2MB
+I (41) boot: Enabling RNG early entropy source...
+I (45) boot: Partition Table:
+I (48) boot: ## Label            Usage          Type ST Offset   Length
+I (54) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (60) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (67) boot:  2 factory          factory app      00 00 00010000 00100000
+I (74) boot: End of partition table
+I (77) esp_image: segment 0: paddr=00010020 vaddr=420a0020 size=13314h ( 78612) map
+I (98) esp_image: segment 1: paddr=0002333c vaddr=40800000 size=0ccdch ( 52444) load
+I (109) esp_image: segment 2: paddr=00030020 vaddr=42000020 size=97920h (620832) map
+I (216) esp_image: segment 3: paddr=000c7948 vaddr=4080ccdc size=0f82ch ( 63532) load
+I (229) esp_image: segment 4: paddr=000d717c vaddr=4081c580 size=03bc8h ( 15304) load
+I (239) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T13:19:40Z
+2026-10-19 09:19:45 esp32c5: step 3: back after a reset, at 192.168.1.165
+2026-10-19 09:24:21 esp32s3: not answering: recovery ladder starts
+2026-10-19 09:24:34 esp32s3: step 3: resetting it through cu.usbmodem5B8F0676581
+2026-10-19 09:26:19 esp32s3: step 3: esptool=ok boot=SPI_FAST_FLASH_BOOT; console:
+load:0x403cb700,len:0x2fa0
+entry 0x403c8908
+I (29) boot: ESP-IDF v6.0-dev-2980-gab149384e1-dirty 2nd stage bootloader
+I (29) boot: compile time Oct 19 2026 06:34:38
+I (29) boot: Multicore bootloader
+I (32) boot: chip revision: v0.2
+I (34) boot: efuse block revision: v1.4
+I (38) boot.esp32s3: Boot SPI Speed : 80MHz
+I (42) boot.esp32s3: SPI Mode       : DIO
+I (45) boot.esp32s3: SPI Flash Size : 2MB
+I (49) boot: Enabling RNG early entropy source...
+I (54) boot: Partition Table:
+I (56) boot: ## Label            Usage          Type ST Offset   Length
+I (63) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (69) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (76) boot:  2 factory          factory app      00 00 00010000 00100000
+I (82) boot: End of partition table
+I (86) esp_image: segment 0: paddr=00010020 vaddr=3c080020 size=12284h ( 74372) map
+I (106) esp_image: segment 1: paddr=000222ac vaddr=3fc9fa00 size=04644h ( 17988) load
+I (110) esp_image: segment 2: paddr=000268f8 vaddr=40374000 size=09720h ( 38688) load
+I (119) esp_image: segment 3: paddr=00030020 vaddr=42000020 size=7dec8h (515784) map
+I (212) esp_image: segment 4: paddr=000adef0 vaddr=4037d720 size=12248h ( 74312) load
+=== boot: esptool=ok rom_line=yes mode=SPI_FAST_FLASH_BOOT
+=== ---
+=== exit 0  2026-10-19T13:24:47Z
+2026-10-19 09:26:19 esp32s3: step 5: rebuilding and reflashing c-s3-base (synth, 2.4 GHz)
+2026-10-19 09:28:50 esp32s3: step 5: reflash did not bring it back: esp32s3 did not answer within 90 s of flashing (esp32s3 not found on 192.168.1.160/24 — is it powered and joined to the access point?)
+2026-10-19 09:28:50 esp32s3: every step failed: needs a person (unplugged, or the network)
+2026-10-19 09:29:14 esp32c5: answers, but its last run stalled: reset before the next run
+2026-10-19 09:29:54 esp32c5: answers, but its last run stalled: reset before the next run
+2026-10-19 09:30:35 esp32c5: answers, but its last run stalled: reset before the next run
+2026-10-19 09:31:20 esp32c5: answers, but its last run stalled: reset before the next run
+2026-10-19 09:32:00 esp32c5: answers, but its last run stalled: reset before the next run
+2026-10-19 09:33:02 esp32c5: answers, but its last run stalled: reset before the next run
+2026-10-19 09:33:46 esp32c5: answers, but its last run stalled: reset before the next run
+2026-10-19 09:34:27 esp32c5: answers, but its last run stalled: reset before the next run

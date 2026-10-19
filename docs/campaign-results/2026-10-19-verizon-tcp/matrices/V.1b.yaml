@@ -1,0 +1,51 @@
+stage: 1
+repeats: 1
+sweep:
+  start_mbps: 1
+  stop_mbps: 1
+  steps: 1
+  hold_s: 20.0
+  discard_s: 3.0
+cells:
+- chip: esp32c5
+  band: '2.4'
+  transport:
+  - tcp
+  tune:
+  - c-c5-base
+  loads_mbps: &id001
+  - 10
+  - 15
+  - 20.5
+  - 25
+  - 30
+  device_cfg:
+    nodelay: 1
+    wr_max: 0
+    dgram: 0
+    batch: 0
+  sample_s: 1.0
+  reset_after_stall: true
+  tag: tV.1b-def
+  source: synth
+- chip: esp32c5
+  band: '2.4'
+  transport:
+  - tcp
+  tune:
+  - c-c5-base
+  loads_mbps: *id001
+  device_cfg:
+    nodelay: 1
+    wr_max: 0
+    dgram: 0
+    batch: 30
+  sample_s: 1.0
+  reset_after_stall: true
+  tag: tV.1b-b30
+  source: synth
+ap: verizon-router
+ssid: Verizon_SLD967
+host_ssid: Verizon_SLD967
+allow_shared_band: false
+link_opts: {}

@@ -25,6 +25,9 @@ Read in this order if you are trying to understand the project as a person.
   `linkdrop`, `pins`), the wire-once Stage 2 pin map, and the wiring hello world.
 - `REPORT_3_Followup_Campaign.md`: results of the 17–18 Oct campaign (the tests that worked,
   what failed and why, and what to do next).
+- `REPORT_4_Verizon_TCP.md`: the 19 Oct TCP-only run on the Verizon router (C5 only; the S3
+  browned out at boot). The C5's TCP stall zone at 10–25 Mbit/s, the `batch=30` setting that
+  removes it, long runs, stress and write sizes, and the recovery ladder.
 
 ## 4. The experimental data
 | Folder | What |
@@ -32,6 +35,7 @@ Read in this order if you are trying to understand the project as a person.
 | `results-2026-10-05-verizon/` | First real sweep: TCP only, 2.4 GHz, Verizon router. UDP voided. |
 | `tuning-results/2026-10-13-house-wifi/` | Tuning study on both chips (144 runs), Espressif `iperf` references, latency at the HD-EMG rate. Start with its `README.md` and `max-tput/summary.md`. |
 | `campaign-results/2026-10-17-followup/` | The follow-up campaign's ledger, test states, summary and test matrices (17–18 Oct). Read with Report 3. |
+| `campaign-results/2026-10-19-verizon-tcp/` | The Verizon TCP run (19 Oct): ledger, test states, summary, matrices, the recovery ladder's log, and the tables Report 4 is built from (`host/tools/verizon_summary.py`). Read with Report 4. |
 
 ## Where things stand (13 Oct)
 Both chips pass T2 (41.3 Mbit/s) over UDP at 2.4 GHz and 20 MHz in short tuning runs: S3
