@@ -118,7 +118,10 @@ def test_a_dead_board_records_an_invalid_run_and_the_sweep_continues(mx, tmp_pat
     finally:
         drv.shutdown()
     assert res["attempted"] > 0
-    assert res["invalid"] == res["attempted"], "every point should be recorded, not raised"
+    # The first point is recorded, not raised; the board's other points wait for the next
+    # pass instead of each paying for the recovery ladder again (19 Oct).
+    assert res["invalid"] >= 1 and res["valid"] == 0 and res["errors"] == 0
+    assert res["remaining"] > 0
     recs = led.read()
     assert recs and all(not r["valid"] for r in recs)
     assert any("did not answer" in f for r in recs for f in r["gate_failures"])

@@ -12,6 +12,8 @@ are not cosmetic:
 from __future__ import annotations
 import itertools
 import json
+import random
+import threading
 import statistics
 import time
 from collections import defaultdict
@@ -37,7 +39,7 @@ H7_TARGET = {"esp32s3": "s3", "esp32c5": "c5"}     # the H7's `cfg target=` per 
 
 # Cell keys that shape how a run is taken rather than what is measured (Run.opts).
 CELL_OPTS = ("hold_s", "discard_s", "device_cfg", "stress", "sample_s", "long_run",
-             "window_s", "reconnect", "tcp_rcvbuf")
+             "window_s", "reconnect", "tcp_rcvbuf", "watchdog_s")
 
 DEFAULT_SWEEP = {"start_mbps": 1, "stop_mbps": 60, "steps": 8,
                  "hold_s": 60, "discard_s": 3}
@@ -91,6 +93,11 @@ class Matrix:
     # Where each run's time series (receiver windows, device samples, stress log) is
     # written, one JSON file per run. None = not written.
     timeseries_dir: str | None = None
+    # Shuffle the order of runs within each (repeat, band, chip, build) block, with this
+    # seed: no reflash is added, and an effect of the PREVIOUS run (what it left in the
+    # board's memory or the access point's queues) can no longer pass for an effect of
+    # the load. None keeps the fixed order.
+    shuffle_seed: int | None = None
 
     @classmethod
     def load(cls, path: str | Path) -> "Matrix":
@@ -164,6 +171,14 @@ class Matrix:
             return i if r.repeat % 2 else -i
         runs.sort(key=lambda r: (r.repeat, str(r.band), r.chip, tune_rank(r),
                                  r.cell_id, r.offered_bps))
+        if self.shuffle_seed is not None:
+            out: list[Run] = []
+            for key, grp in itertools.groupby(
+                    runs, key=lambda r: (r.repeat, str(r.band), r.chip, r.tune)):
+                g = list(grp)
+                random.Random(int(self.shuffle_seed) * 1000 + key[0]).shuffle(g)
+                out += g
+            runs = out
         return runs
 
 
@@ -274,9 +289,12 @@ class Orchestrator:
         ok = invalid = errors = 0
         stopped_for_time = False
         broken: dict[str, str] = {}     # cell_id -> why it was abandoned this pass
+        # Boards that did not come back even through the recovery ladder: the rest of
+        # their runs wait for the next pass instead of each paying for the ladder again.
+        dead: set[str] = set()
         try:
             for r in todo:
-                if r.cell_id in broken:
+                if r.cell_id in broken or r.chip in dead:
                     continue
                 if str(r.band) != str(self._current_band):
                     self.driver.request_band(str(r.band))
@@ -302,6 +320,9 @@ class Orchestrator:
                     ok += 1
                 else:
                     invalid += 1
+                    if any(f.startswith("device did not answer the control plane")
+                           for f in rec.get("gate_failures") or []):
+                        dead.add(r.chip)
         finally:
             for ka in self._keepalives.values():
                 ka.stop()
@@ -473,6 +494,16 @@ class Orchestrator:
             c.start()
             stresser = StressRunner(schedule(opts.get("stress")), rx, c,
                                     device_ip=_addr_of(c), pf=self.stress_pf).start()
+            dog = None
+            if opts.get("watchdog_s") and sampler is not None and \
+                    hasattr(self.driver, "recover"):
+                restart = dict(rate_bps=r.offered_bps, transport=r.transport,
+                               dst=f"{self.driver.host_ip()}:{self.recv_port}",
+                               frame_bytes=self.m.frame_bytes, payload="rand",
+                               label=f"{r.cell_id}-r{r.repeat}",
+                               **(opts.get("device_cfg") or {}))
+                dog = _Watchdog(rx, sampler, self.driver, r.chip, c, restart, hold,
+                                float(opts["watchdog_s"]), self.on_event).start()
             if wired:
                 # ESP first, then the generator: the slave must be listening before the
                 # master offers load (guide §8). The commanded rate goes to the H7.
@@ -486,6 +517,8 @@ class Orchestrator:
                 except H7Error as e:
                     h7_error = str(e)
             metrics = rx.join()
+            if dog is not None:
+                dog.stop()
             stress_log = stresser.stop()
             if drops0 is not None:
                 drops1 = rfmeta.host_udp_drops()
@@ -618,6 +651,71 @@ class Orchestrator:
 
 def _unused_marker():
     pass
+
+
+class _Watchdog:
+    """Long runs: a board that has neither delivered data nor answered the control plane
+    for `after_s` is revived in the middle of the run instead of costing the rest of it.
+
+    It goes through the driver's recovery ladder (rediscover, serial reset, port
+    re-detection, reflash) and, once the board answers, starts the stream again for the
+    time left; the receiver (reconnect) carries on counting. A board that still answers
+    but sends nothing is left alone: that is a stalled stream, which is what the run is
+    measuring, not a dead board. Every action goes into the run's events."""
+
+    POLL_S = 5.0
+
+    def __init__(self, rx, sampler, driver, chip, client, restart_cfg, hold_s, after_s,
+                 on_event):
+        self.rx, self.sampler, self.driver, self.chip = rx, sampler, driver, chip
+        self.client, self.restart_cfg = client, restart_cfg
+        self.hold_s, self.after_s = float(hold_s), float(after_s)
+        self.on_event = on_event
+        self._stop = threading.Event()
+        self._t0 = time.perf_counter()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def start(self) -> "_Watchdog":
+        self._thread.start()
+        return self
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=2.0)
+
+    def _run(self) -> None:
+        quiet_until = 0.0              # after an attempt, give the board a period to show
+        while not self._stop.wait(self.POLL_S):
+            if time.perf_counter() < quiet_until or self.rx.silence_s() < self.after_s or \
+                    self.sampler.unanswered_s() < self.after_s:
+                continue
+            quiet_until = time.perf_counter() + self.after_s
+            left = self.hold_s - (time.perf_counter() - self._t0)
+            if left < 30:
+                return
+            self.rx.note_event("watchdog", action="recover",
+                               silent_s=round(self.rx.silence_s(), 1))
+            self.on_event("recovering", chip=self.chip, error="watchdog: no data and no "
+                          "answer for %.0f s mid-run" % self.after_s)
+            try:
+                ok = bool(self.driver.recover(self.chip))
+            except Exception as e:                           # noqa: BLE001
+                ok = False
+                self.rx.note_event("watchdog", action="recover_error", error=str(e))
+            if self._stop.is_set():
+                return
+            if not ok:
+                self.rx.note_event("watchdog", action="gave_up")
+                continue
+            left = self.hold_s - (time.perf_counter() - self._t0)
+            try:
+                self.sampler.client = _quick(self.client)   # the address may be new
+                self.client.cfg(dur_s=int(max(5, left)) + 5, **self.restart_cfg)
+                self.client.start()
+                self.rx.note_event("watchdog", action="restarted",
+                                   left_s=round(left, 1))
+            except Exception as e:                           # noqa: BLE001
+                self.rx.note_event("watchdog", action="restart_error", error=str(e))
 
 
 def knee(records: list[dict], threshold_pct: float = LOSS_THRESHOLD_PCT) -> dict:

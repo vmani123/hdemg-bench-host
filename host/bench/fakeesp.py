@@ -46,8 +46,8 @@ WIFI_REASON_ASSOC_LEAVE = 8      # what esp_wifi_stop() reports for the drop it 
 
 DEFAULT_CFG: dict = {"rate_bps": 0, "transport": "udp", "dst": "127.0.0.1:3333",
                      "payload": "rand", "dur_s": 10, "frame_bytes": 270,
-                     "label": "unset", "nodelay": 1, "wr_max": 0, "dgram": 0}
-_V2_INT_KEYS = ("nodelay", "wr_max", "dgram")
+                     "label": "unset", "nodelay": 1, "wr_max": 0, "dgram": 0, "batch": 0}
+_V2_INT_KEYS = ("nodelay", "wr_max", "dgram", "batch")
 
 
 def link_pins(chip: str) -> dict[int, list[str]]:
@@ -285,7 +285,7 @@ class FakeESP:
                 "stack_min": {"src": 2212, "sink": 1868, "ctl": 2604, "instr": 1540,
                               "tiT": 1764, "wifi": 3120},
                 "nodelay": self.cfg["nodelay"], "wr_max": self.cfg["wr_max"],
-                "dgram": self.cfg["dgram"]}
+                "dgram": self.cfg["dgram"], "batch": self.cfg["batch"]}
 
     def _achieved_bps(self) -> float:
         if not self._running:

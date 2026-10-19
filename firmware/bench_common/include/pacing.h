@@ -18,4 +18,5 @@ typedef struct {
 void     pacer_init(pacer_t *p, uint64_t rate_bps, uint32_t unit_bytes);
 bool     pacer_due(pacer_t *p);          /* true when the next unit may be emitted */
 void     pacer_note(pacer_t *p);
+uint64_t pacer_backlog(pacer_t *p);      /* units due now and not yet emitted */
 uint64_t pacer_achieved_bps(const pacer_t *p);

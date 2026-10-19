@@ -542,7 +542,7 @@ def cmd_campaign(a) -> int:
     cfg = yaml.safe_load(plan_path.read_text())
     only = _csv(a.only)
     if a.list:
-        for t in cp.plan():
+        for t in cp.plan_for(cfg):
             print(f"{t.id:>4}  [{t.kind:<9}] {t.band or '-':>4}  ~{t.est_min:>3g} min  {t.title}")
         return 0
     if a.sim:
@@ -560,7 +560,8 @@ def cmd_campaign(a) -> int:
         print(f"{tid} will be run again (round {c.st(tid)['round']})")
     if a.sim:
         try:
-            return c.run(only=only, start=a.start, stop=a.stop, max_tests=a.max_tests)
+            return c.run(only=only, start=a.start, stop=a.stop, max_tests=a.max_tests,
+                         until=_until(a.until))
         finally:
             drv.shutdown()
             print(f"summary: {c.state_dir / 'summary.md'}")
@@ -613,7 +614,12 @@ def cmd_campaign(a) -> int:
                     chip, port, owner=f"bench campaign {cfg.get('campaign')} ({REPO})",
                     expected_s=36 * 3600, root=a.lock_dir))
                 print(f"holding {d}")
-            return c.run(only=only, start=a.start, stop=a.stop, max_tests=a.max_tests)
+            until = _until(a.until)
+            if until:
+                print(f"no test starts that could not finish by "
+                      f"{time.strftime('%H:%M', time.localtime(until))}")
+            return c.run(only=only, start=a.start, stop=a.stop, max_tests=a.max_tests,
+                         until=until)
     except tune.TuneError as e:
         print(f"campaign not started: {e}", file=sys.stderr)
         return 2
@@ -624,6 +630,16 @@ def cmd_campaign(a) -> int:
         return 130
     finally:
         awake.terminate()
+
+
+def _until(hhmm: str | None) -> float | None:
+    """--until HH:MM as epoch seconds: the next time the clock reads HH:MM."""
+    if not hhmm:
+        return None
+    h, m = (int(x) for x in hhmm.split(":"))
+    now = time.localtime()
+    t = time.mktime((now.tm_year, now.tm_mon, now.tm_mday, h, m, 0, 0, 0, -1))
+    return t if t > time.time() else t + 86400
 
 
 def cmd_wiring(a) -> int:
@@ -834,6 +850,8 @@ def main(argv=None) -> int:
         cp_.add_argument("--redo", default=None,
                          help="run these done tests again (comma list; new repeats)")
         cp_.add_argument("--max-tests", type=int, default=None)
+        cp_.add_argument("--until", default=None,
+                         help="HH:MM: start no test that could not finish by then")
         cp_.add_argument("--s3-port", default=None, help="default: the cu.usbmodem* that "
                                                          "is not the H7")
         cp_.add_argument("--c5-port", default=None, help="default: first cu.usbserial-*")

@@ -1,0 +1,33 @@
+# The Verizon TCP plan (19 Oct 2026): bench/campaign.py plan_verizon, run guide in
+# docs/REPORT_4_Verizon_TCP.md. TCP only: Cisco Secure Client on the Mac drops inbound
+# UDP. Only the boards' USB is connected; nothing is wired to the STM32.
+campaign: verizon-tcp-2026-10
+plan: verizon-tcp
+state_dir: results/campaign/verizon                 # state.json, summary.md, ts/, matrices/
+ledger: results/campaign/verizon.jsonl
+
+ap: verizon-router
+ssid: Verizon_SLD967                # the boards' network: one name, both bands
+# The Mac stays where it is: on the router's 5 GHz radio (channel 104) while the boards
+# are measured on its 2.4 GHz radio (channel 6). One name, so macOS cannot be told which
+# band to use: if it wanders onto 2.4 GHz, mac_lenient retries for 10 min, then runs with
+# the shared-band warning rather than stopping.
+mac_networks:
+  "2.4": Verizon_SLD967
+  "5": Verizon_SLD967
+mac_lenient: true
+expected_idf: v6.0-dev-2980-gab149384e1-dirty
+frame_bytes: 270
+ceilings: {"2.4": 150, "5": 150}
+
+designs: {esp32s3: c-s3-base, esp32c5: c-c5-base}
+variants: {esp32s3: {}, esp32c5: {}}
+recv_ports: {esp32s3: 3333, esp32c5: 3343}
+
+# Board recovery (docs/REPORT_4 §2): every test starts with a health check that sends a
+# silent board through the recovery ladder; long runs revive a board that has neither
+# delivered nor answered for this many seconds.
+health_check: true
+watchdog_s: 90
+# This plan measures stalls: a point that delivered nothing is a finding, not a failure.
+stall_is_result: true

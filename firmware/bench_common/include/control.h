@@ -46,6 +46,9 @@ typedef struct {
     uint8_t  nodelay;      /* TCP_NODELAY on the next TCP connection (1 = on, as in v1) */
     uint32_t wr_max;       /* TCP: largest send(), whole frames; 0 = the whole pool buffer */
     uint32_t dgram;        /* UDP: largest datagram, whole frames; 0 = CONFIG_BENCH_UDP_DGRAM_MAX */
+    /* Not a protocol bump: an older board ignores the key, and 0 is the v2 behaviour. */
+    uint32_t batch;        /* synth source: frames held back until a batch is due; 0 = send
+                            * whatever is due each 1 ms tick (v2) */
 } run_cfg_t;
 
 /* The frame size the source actually uses: a value too small to hold a header is

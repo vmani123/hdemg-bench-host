@@ -21,11 +21,18 @@ Two modes share that counting point:
 A TCP receiver normally ends when its one connection closes. With `reconnect` it keeps
 accepting new connections until the deadline instead, which is what a stress run needs:
 the device's connection is reset on purpose (restart_connection) or breaks when its link
-is dropped, and the same run must keep counting through the reconnect. pause() stops
+is dropped, and the same run must keep counting through the reconnect.
+
+A new connection that arrives while the old one is still open REPLACES it at once, in
+every mode. The device only connects again when its own socket has failed, so the old
+connection is dead even if no reset ever reached this host (17 Oct: the C5 dropped off
+Wi-Fi, reconnected, and the receiver waited on the dead connection until the end of the
+run while the new ones filled the listen queue). pause() stops
 reading for a while, which for TCP closes the receive window: the sender's data piles up
 in its own memory, the stress the soak tests exist to apply.
 """
 from __future__ import annotations
+import select
 import socket
 import statistics
 import struct
@@ -107,8 +114,10 @@ class Receiver:
         self._pause_until = 0.0
         self._restart = False
         self._t0: float | None = None          # perf_counter() of the first frame
+        self._last_rx: float | None = None     # perf_counter() of the latest frame bytes
 
     def start(self) -> None:
+        self._last_rx = time.perf_counter()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
         self._ready.wait(timeout=5.0)
@@ -123,6 +132,15 @@ class Receiver:
     def elapsed_s(self) -> float | None:
         """Seconds since the first frame arrived, or None before it."""
         return None if self._t0 is None else time.perf_counter() - self._t0
+
+    def silence_s(self) -> float:
+        """Seconds since data last arrived (since start() if none has)."""
+        return time.perf_counter() - (self._last_rx or time.perf_counter())
+
+    def note_event(self, kind: str, **kw) -> None:
+        """Record something done to the run from outside (e.g. a mid-run board reset),
+        in the run's event list next to the receiver's own."""
+        self._event(kind, **kw)
 
     def pause(self, seconds: float) -> None:
         """Stop reading for `seconds`. TCP: the receive window closes and the sender's
@@ -186,6 +204,7 @@ class Receiver:
                     break
                 if not chunk:
                     break
+                self._last_rx = time.perf_counter()
                 col.feed(chunk)
         finally:
             s.close()
@@ -227,23 +246,43 @@ class Receiver:
                     time.sleep(0.02)
                     continue
                 try:
+                    ready, _, _ = select.select([conn, srv], [], [], 0.5)
+                except (OSError, ValueError):
+                    ready = [conn]
+                if srv in ready:
+                    try:
+                        new, _ = srv.accept()
+                    except (socket.timeout, OSError):
+                        new = None
+                    if new is not None:
+                        _close(conn)
+                        conn = new
+                        conn.settimeout(0.5)
+                        connections += 1
+                        col.new_stream()
+                        self._event("switched", n=connections)
+                        continue
+                if conn not in ready:
+                    continue
+                try:
                     chunk = conn.recv(1 << 16)
                 except socket.timeout:
                     continue
                 except OSError as e:
-                    if not self.reconnect:
+                    if not self.reconnect and not self.long_run:
                         break
                     self._event("conn_error", error=str(e))
                     _close(conn)
                     conn = None
                     continue
                 if not chunk:
-                    if not self.reconnect:
+                    if not self.reconnect and not self.long_run:
                         break
                     self._event("conn_closed")
                     _close(conn)
                     conn = None
                     continue
+                self._last_rx = time.perf_counter()
                 col.feed(chunk)
         finally:
             if conn is not None:
@@ -344,6 +383,11 @@ class _ShortCollector:
         m.lost_frames = max(0, m.expected_frames - len(set(self.seqs)))
         m.loss_pct = (100.0 * m.lost_frames / m.expected_frames) if m.expected_frames else 0.0
         m.reorder_count = self.reorder
+        # The longest silence inside the run, the tail included: a stream that stops for
+        # good never delivers the frame that would close its gap.
+        ts = sorted(set(self.arrival_rel))
+        gaps = [b - a for a, b in zip(ts, ts[1:])] + [max(0.0, elapsed - ts[-1])]
+        m.longest_gap_s = round(max(gaps), 3) if gaps else None
 
         # Headline goodput is computed from the total bytes that landed inside the
         # measured window, not from an average of whole-second buckets: bucket
@@ -483,6 +527,11 @@ class _LongCollector:
         m.lost_frames = max(0, m.expected_frames - self.uniques)
         m.loss_pct = 100.0 * m.lost_frames / m.expected_frames if m.expected_frames else 0.0
         m.reorder_count = self.reorder
+        # A silence that never ended has no closing frame to measure it in feed(): count
+        # it here, up to the end of the run (17 Oct: a 28-minute stall read as 0.09 s).
+        end = min(self.deadline or time.perf_counter(), time.perf_counter())
+        if self.last_arrival is not None:
+            self.longest_gap = max(self.longest_gap, end - self.last_arrival)
         m.longest_gap_s = round(self.longest_gap, 3)
 
         trel = np.frombuffer(self.trel, dtype=np.float32).astype(np.float64)

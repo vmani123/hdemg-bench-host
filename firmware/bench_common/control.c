@@ -20,6 +20,7 @@ static run_cfg_t   s_cfg = {
     .dur_s = 10, .frame_bytes = HDEMG_RAW16_128CH, .payload = "rand",
     .label = "unset",
     .nodelay = 1, .wr_max = 0, .dgram = 0,          /* v1 behaviour */
+    .batch = 0,
 };
 static volatile bool s_running;
 
@@ -56,6 +57,8 @@ static void handle_cfg(char *rest, char *out, size_t out_sz)
         else if (!strcmp(k, "nodelay"))     s_cfg.nodelay = atoi(v) ? 1 : 0;
         else if (!strcmp(k, "wr_max"))      s_cfg.wr_max = (uint32_t)strtoul(v, NULL, 10);
         else if (!strcmp(k, "dgram"))       s_cfg.dgram = (uint32_t)strtoul(v, NULL, 10);
+        /* Read by the source at the next run start; capped there at one pool buffer. */
+        else if (!strcmp(k, "batch"))       s_cfg.batch = (uint32_t)strtoul(v, NULL, 10);
         else if (!strcmp(k, "dst")) {
             const char *colon = strrchr(v, ':');
             if (colon) {
@@ -69,12 +72,13 @@ static void handle_cfg(char *rest, char *out, size_t out_sz)
     snprintf(out, out_sz,
              "{\"ok\":true,\"applied\":{\"rate_bps\":%llu,\"transport\":\"%s\","
              "\"dst\":\"%s:%u\",\"dur_s\":%lu,\"frame_bytes\":%lu,\"label\":\"%s\","
-             "\"nodelay\":%u,\"wr_max\":%lu,\"dgram\":%lu}}",
+             "\"nodelay\":%u,\"wr_max\":%lu,\"dgram\":%lu,\"batch\":%lu}}",
              (unsigned long long)s_cfg.rate_bps,
              s_cfg.transport == XPORT_TCP ? "tcp" : "udp",
              s_cfg.dst_ip, (unsigned)s_cfg.dst_port,
              (unsigned long)s_cfg.dur_s, (unsigned long)s_cfg.frame_bytes, s_cfg.label,
-             (unsigned)s_cfg.nodelay, (unsigned long)s_cfg.wr_max, (unsigned long)s_cfg.dgram);
+             (unsigned)s_cfg.nodelay, (unsigned long)s_cfg.wr_max, (unsigned long)s_cfg.dgram,
+             (unsigned long)s_cfg.batch);
 }
 
 static void control_task(void *arg)

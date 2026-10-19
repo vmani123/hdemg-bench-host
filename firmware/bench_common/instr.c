@@ -260,8 +260,9 @@ void instr_stat_json(char *out, size_t out_sz, const char *wrap_key)
              (unsigned)uxTaskGetStackHighWaterMark(h));
         first = false;
     }
-    jadd(&b, "},\"nodelay\":%u,\"wr_max\":%lu,\"dgram\":%lu",
-             (unsigned)cfg->nodelay, (unsigned long)cfg->wr_max, (unsigned long)cfg->dgram);
+    jadd(&b, "},\"nodelay\":%u,\"wr_max\":%lu,\"dgram\":%lu,\"batch\":%lu",
+             (unsigned)cfg->nodelay, (unsigned long)cfg->wr_max, (unsigned long)cfg->dgram,
+             (unsigned long)cfg->batch);
     jadd(&b, wrap_key ? "}}" : "}");
 }
 

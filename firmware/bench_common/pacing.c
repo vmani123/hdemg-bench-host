@@ -22,6 +22,15 @@ bool pacer_due(pacer_t *p)
 
 void pacer_note(pacer_t *p) { p->units_emitted++; }
 
+uint64_t pacer_backlog(pacer_t *p)
+{
+    if (p->rate_bps == 0) return 0;
+    int64_t elapsed_us = esp_timer_get_time() - p->t0_us;
+    uint64_t due = (uint64_t)((double)elapsed_us * (double)p->rate_bps
+                              / (8.0 * (double)p->unit_bytes * 1e6) ) + 1;
+    return due > p->units_emitted ? due - p->units_emitted : 0;
+}
+
 uint64_t pacer_achieved_bps(const pacer_t *p)
 {
     int64_t el = esp_timer_get_time() - p->t0_us;

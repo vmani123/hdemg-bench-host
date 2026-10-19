@@ -44,7 +44,7 @@ SWEEP = [10, 25.7, 41.4, 57.1, 72.9, 88.6, 104.3, 120]   # 8 loads, 10-120 Mbit/
 SHORT = {"esp32s3": "s3", "esp32c5": "c5"}
 # Protocol v2 runtime settings stay on a board until set again, so every campaign run
 # states all of them: a Nagle-on test must not leak into the soak that follows it.
-DEVICE_DEFAULTS = {"nodelay": 1, "wr_max": 0, "dgram": 0}
+DEVICE_DEFAULTS = {"nodelay": 1, "wr_max": 0, "dgram": 0, "batch": 0}
 CHIPS = ("esp32s3", "esp32c5")
 
 
@@ -148,6 +148,49 @@ def plan() -> list[Test]:
     ]
 
 
+# ---- the Verizon TCP plan (19 Oct; docs/REPORT_4_Verizon_TCP.md) -----------------------
+# The router changed and Cisco Secure Client drops inbound UDP, so this plan is TCP only,
+# at 2.4 GHz (the Mac holds the router's 5 GHz radio), and repeats nothing Report 3
+# already has a result for. Its rule, written before any result exists:
+#   * V.2's load: the stall-zone load at which the C5's default arm delivered the
+#     smallest median share of the offered rate in the V.1 rounds done so far; 20.5 if
+#     every load delivered at least 95 % of it.
+VZONE = [10, 15, 20.5, 25, 30]          # Mbit/s: the TCP stall zone (Report 3 §9 c)
+BATCH = 30                              # frames per send with batch on (one 8,100 B buffer)
+
+
+def plan_verizon() -> list[Test]:
+    T = Test
+    zone = "TCP at 10-30 Mbit/s, default vs batch=30, shuffled"
+    return [
+        T("V.0", "V", "Setup: both boards on the router, designs at 2.4 GHz; link check",
+          "vsetup", "2.4", 8),
+        T("V.1a", "V", f"{zone}, round 1 (2 repeats)", "vzone", "2.4", 24,
+          {"repeats": 2, "seed": 1}),
+        T("V.2", "V", "15 min TCP at the C5's worst stall-zone load: C5, then S3",
+          "vlong", "2.4", 33),
+        T("V.3", "V", "HD-EMG soak: TCP at 4.32 Mbit/s, 30 min, both boards at once",
+          "vsoak", "2.4", 32, {"batch": 0}),
+        T("V.1b", "V", f"{zone}, round 2", "vzone", "2.4", 12, {"repeats": 1, "seed": 2}),
+        T("V.4", "V", "HD-EMG soak with batch=30: TCP at 4.32, 30 min, both boards",
+          "vsoak", "2.4", 32, {"batch": BATCH}),
+        T("V.5", "V", "C5 TCP at full load (60 offered), 20 min", "vfull", "2.4", 22),
+        T("V.1c", "V", f"{zone}, round 3", "vzone", "2.4", 12, {"repeats": 1, "seed": 3}),
+        T("V.6", "V", "Stress: TCP at 4.32, 30 min, both boards — read pauses, receiver "
+          "resets, link drops", "stress", "2.4", 32, {"transport": "tcp"}),
+        T("V.7", "V", "TCP writes: 8,100 vs 2,700 vs 1,350 B at full load", "knobs", "2.4",
+          10, {"transport": "tcp", "variants": {"wr-8100": {}, "wr-2700": {"wr_max": 2700},
+                                                "wr-1350": {"wr_max": 1350}}}),
+    ]
+
+
+PLANS = {"followup": plan, "verizon-tcp": plan_verizon}
+
+
+def plan_for(cfg: dict) -> list[Test]:
+    return PLANS[cfg.get("plan", "followup")]()
+
+
 # ---- the Mac's network ---------------------------------------------------------------
 class RealMac:
     def __init__(self, networks: dict, password: str | None, log=print):
@@ -212,7 +255,14 @@ class Campaign:
         self.log = log
         self.agent_dir = Path(agent_dir) if agent_dir else None
         self.parity_ok = parity_ok
-        self.tests = plan()
+        self.tests = plan_for(self.cfg)
+        # Boards the recovery ladder could not bring back, with when it last tried: they
+        # sit out the tests that follow and get the ladder again after DOWN_RETRY_S.
+        self.down: dict[str, float] = {}
+        self.until: float | None = None          # wall clock after which nothing starts
+        self.shared_band = False                 # the Mac could not get off the band
+        if getattr(driver, "recovery_log", "absent") != "absent":
+            driver.recovery_log = str(self.state_dir / "recovery.log")
         self.by_id = {t.id: t for t in self.tests}
         self.state = self._load_state()
 
@@ -261,9 +311,12 @@ class Campaign:
         s.pop("error", None)
         self.save()
 
-    def run(self, only=None, start=None, stop=None, max_tests: int | None = None) -> int:
+    def run(self, only=None, start=None, stop=None, max_tests: int | None = None,
+            until: float | None = None) -> int:
         """Run every selected test that is not done. Returns 0 when all selected are
-        done, 1 if any failed or was skipped, 3 if stopped for the user."""
+        done, 1 if any failed or was skipped, 3 if stopped for the user. `until` (epoch
+        seconds): no test starts that could not finish by then."""
+        self.until = until
         self.state.setdefault("started", _now())
         todo = [t for t in self.selected(only, start, stop) if not self.done(t.id)]
         self.log(f"campaign {self.cfg.get('campaign')}: {len(todo)} test(s) to run, about "
@@ -273,6 +326,10 @@ class Campaign:
             if max_tests is not None and n >= max_tests:
                 break
             n += 1
+            if until is not None and time.time() + t.est_min * 60 > until:
+                self._finish(t, "skipped", error=f"out of time: ~{t.est_min:g} min would "
+                                                f"end after {time.strftime('%H:%M', time.localtime(until))}")
+                continue
             blocked = [d for d in t.needs if self.st(d).get("status") in ("failed", "skipped")]
             if blocked:
                 self._finish(t, "skipped", error=f"needs {', '.join(blocked)}, which did not "
@@ -307,6 +364,12 @@ class Campaign:
                 res = getattr(self, f"_t_{t.kind}")(t)
                 ok = res.pop("_ok", True) if isinstance(res, dict) else True
                 starved = _starved(res.get("scores")) if ok and isinstance(res, dict) else []
+                if starved and self.cfg.get("stall_is_result"):
+                    # A plan that measures stalls (Verizon TCP): a point that delivered
+                    # nothing is the finding, and a dead board has had the recovery
+                    # ladder already. Noted, not failed and re-run.
+                    res["starved"] = starved
+                    starved = []
                 if starved:
                     ok = False
                     res["why"] = "delivered almost nothing: " + "; ".join(starved)
@@ -351,8 +414,68 @@ class Campaign:
                                    f"stopped, or waiting at its flash-approval prompt")
         band = self._band_for(t)
         if band:
-            self.mac_state = self.mac.ensure(band, shared=(t.kind == "shared5"))
+            self.mac_state = self._ensure_mac(band, shared=(t.kind == "shared5"))
             self.driver.request_band(band)
+        if self.cfg.get("health_check") and not self.sim:
+            self._health()
+
+    MAC_PATIENCE_S = 600
+    DOWN_RETRY_S = 1800
+
+    def _ensure_mac(self, band: str, shared: bool) -> dict:
+        """The Mac onto the band not measured. With `mac_lenient` (a one-name router,
+        where the Mac cannot be told which band to use), a failure is retried for ten
+        minutes and then accepted: the test runs with the shared band allowed, and says
+        so in its result, instead of the night ending here."""
+        self.shared_band = False
+        if not self.cfg.get("mac_lenient"):
+            return self.mac.ensure(band, shared=shared)
+        t_end = time.monotonic() + self.MAC_PATIENCE_S
+        while True:
+            try:
+                return self.mac.ensure(band, shared=shared)
+            except CampaignStop as e:
+                if time.monotonic() >= t_end:
+                    self.log(f"  !! {e}; carrying on with the Mac on the measured band "
+                             f"(runs carry the shared-band warning)")
+                    self.shared_band = True
+                    return self.mac.current()
+                self.log(f"  !! {e}; trying again in 60 s")
+                time.sleep(60)
+
+    def _health(self) -> None:
+        """Before each test: every board answers, or goes through the recovery ladder.
+        A board the ladder cannot bring back sits this test out (the other carries on)
+        and is tried again once DOWN_RETRY_S has passed."""
+        for chip in CHIPS:
+            last = self.down.get(chip)
+            if last is not None and time.monotonic() - last < self.DOWN_RETRY_S:
+                continue
+            try:
+                self.driver.control(chip).hello()
+                if chip in self.down:
+                    self.log(f"  {chip} answers again")
+                self.down.pop(chip, None)
+                continue
+            except Exception:                                 # noqa: BLE001
+                pass
+            self.log(f"  !! {chip} is not answering before the test: recovery ladder")
+            ok = False
+            try:
+                ok = bool(self.driver.recover(chip))
+            except Exception as e:                            # noqa: BLE001
+                self.log(f"  !! recovery of {chip} raised {type(e).__name__}: {e}")
+            if ok:
+                self.down.pop(chip, None)
+            else:
+                self.down[chip] = time.monotonic()
+                self.log(f"  !! {chip} IS DOWN: it sits out the tests until it can be "
+                         f"brought back (next try in {self.DOWN_RETRY_S // 60} min)")
+        self.state["derived"]["down"] = sorted(self.down)
+        self.save()
+
+    def chips_up(self) -> list[str]:
+        return [c for c in CHIPS if c not in self.down]
 
     def _recover(self) -> None:
         for chip in CHIPS:
@@ -398,7 +521,10 @@ class Campaign:
     # -- measuring ---------------------------------------------------------------------
     def _measure(self, t: Test, cells: list[dict], *, hold_s: float, repeats: int,
                  parallel: bool = False, allow_shared_band: bool = False,
-                 link_opts: dict | None = None, stage: int = 1, passes: int = 2) -> list[dict]:
+                 link_opts: dict | None = None, stage: int = 1, passes: int = 2,
+                 shuffle_seed: int | None = None) -> list[dict]:
+        allow_shared_band = allow_shared_band or self.shared_band
+        cells = [c for c in cells if c["chip"] not in self.down]
         rnd = int(self.st(t.id).get("round", 1))
         tag0 = f"t{t.id}" + (f"r{rnd}" if rnd > 1 else "")
         cells = [dict(c) for c in cells]
@@ -414,7 +540,8 @@ class Campaign:
                    expected_idf=None if self.sim else self.cfg["expected_idf"],
                    ssid=None if self.sim else self.cfg["ssid"], host_ssid=host_ssid,
                    allow_shared_band=allow_shared_band,
-                   timeseries_dir=str(self.state_dir / "ts" / t.id))
+                   timeseries_dir=str(self.state_dir / "ts" / t.id),
+                   shuffle_seed=shuffle_seed)
         mdir = self.state_dir / "matrices"
         mdir.mkdir(parents=True, exist_ok=True)
         (mdir / f"{t.id}.yaml").write_text(yaml.safe_dump(
@@ -459,7 +586,9 @@ class Campaign:
                            parity_ok=self.parity_ok, recv_port=port,
                            keepalive=not self.sim, recover=True, on_event=self._event,
                            allow_shared_band=allow_shared_band, rssi_drift_warn_only=True,
-                           link_opts=link_opts)
+                           link_opts=link_opts,
+                           deadline=None if self.until is None else
+                           time.monotonic() + (self.until - time.time()))
         for p in range(max(1, passes)):
             res = orc.run_all()
             if res["remaining"] == 0 or (res["valid"] == 0 and p > 0):
@@ -503,7 +632,7 @@ class Campaign:
         redisc = getattr(self.driver, "rediscover", None)
         if redisc:
             redisc()
-        for chip in CHIPS:
+        for chip in self.chips_up():
             c = self.driver.control(chip)
             h, s = c.hello(), c.stat()
             out["boards"][chip] = {k: h.get(k) for k in ("rung", "ingress", "band", "idf",
@@ -550,7 +679,7 @@ class Campaign:
     def _t_knobs(self, t: Test) -> dict:
         p = t.params
         cells = []
-        for chip in CHIPS:
+        for chip in self.chips_up():
             for label, dc in p["variants"].items():
                 cells.append({"chip": chip, "band": "2.4", "transport": [p["transport"]],
                               "tune": [self.design(chip)], "loads_mbps": [SAT20],
@@ -650,7 +779,8 @@ class Campaign:
                   "tune": [self.soak_design(chip)], "loads_mbps": [HD_EMG],
                   "label": f"stress{tr}", "sample_s": 1.0, "long_run": True,
                   "window_s": 10.0, "stress": sched, "reconnect": tr == "tcp",
-                  "tcp_rcvbuf": 65536 if tr == "tcp" else None} for chip in CHIPS]
+                  "tcp_rcvbuf": 65536 if tr == "tcp" else None,
+                  **self._dog()} for chip in self.chips_up()]
         for c in cells:
             if c["tcp_rcvbuf"] is None:
                 c.pop("tcp_rcvbuf")
@@ -845,6 +975,92 @@ class Campaign:
                                              for c in cs)}
         self.state["derived"]["best"] = best
 
+    # -- the Verizon TCP plan ------------------------------------------------------------
+    def _dog(self) -> dict:
+        """Long-run cells get the mid-run watchdog when the rig config asks for it."""
+        w = self.cfg.get("watchdog_s")
+        return {"watchdog_s": float(w)} if w and not self.sim else {}
+
+    def _long_cell(self, chip: str, mbps: float, label: str, dc: dict | None = None) -> dict:
+        return {"chip": chip, "band": "2.4", "transport": ["tcp"],
+                "tune": [self.design(chip)], "loads_mbps": [mbps], "label": label,
+                "device_cfg": dict(dc or {}), "sample_s": 1.0, "long_run": True,
+                "window_s": 10.0, "reconnect": True, **self._dog()}
+
+    def _t_vsetup(self, t: Test) -> dict:
+        out: dict = {"flash": {}}
+        for chip in self.chips_up():
+            self.driver.request_band("2.4")
+            out["flash"][chip] = self.driver.ensure_flashed(chip, "synth", self.design(chip))
+        out.update(self._t_rig(t))
+        out["mac_shared_band"] = self.shared_band
+        missing = []
+        for chip in self.chips_up():
+            st = self.driver.control(chip).stat()
+            out["boards"].setdefault(chip, {})["batch_knob"] = "batch" in st
+            if "batch" not in st:
+                missing.append(chip)
+        ok = not missing and bool(self.chips_up())
+        return {**out, "_ok": ok,
+                "why": None if ok else f"no batch setting on {missing or 'any board'} "
+                                       f"(old firmware?)"}
+
+    def _t_vzone(self, t: Test) -> dict:
+        p = t.params
+        cells = [{"chip": chip, "band": "2.4", "transport": ["tcp"],
+                  "tune": [self.design(chip)], "loads_mbps": VZONE, "label": label,
+                  "device_cfg": dc, "sample_s": 1.0}
+                 for chip in self.chips_up()
+                 for label, dc in (("def", {}), (f"b{BATCH}", {"batch": BATCH}))]
+        recs = self._measure(t, cells, hold_s=20, repeats=int(p["repeats"]),
+                             shuffle_seed=int(p["seed"]))
+        return {"scores": score_table(recs), "stalls": stall_table(recs),
+                "skipped_chips": sorted(self.down), "mac_shared_band": self.shared_band}
+
+    def worst_zone_load(self) -> tuple[float, dict]:
+        """V.2's load (rule at the top of the Verizon plan)."""
+        share: dict = {}
+        for tid in ("V.1a", "V.1b", "V.1c"):
+            sc = ((self.result(tid).get("scores") or {}).get("esp32c5") or {}).get("def") \
+                or {}
+            for off, s in (sc.get("tcp") or {}).items():
+                if s.get("n"):
+                    share.setdefault(float(off), []).append(s["mbps"] / float(off))
+        med = {off: statistics.median(v) for off, v in share.items()}
+        if not med or min(med.values()) >= 0.95:
+            return T1, med
+        return min(med, key=med.get), med
+
+    def _t_vlong(self, t: Test) -> dict:
+        load, med = self.worst_zone_load()
+        self.log(f"  load {load} Mbit/s (C5 default share by load: "
+                 f"{ {k: round(v, 3) for k, v in sorted(med.items())} })")
+        recs = []
+        for chip in ("esp32c5", "esp32s3"):
+            if chip in self.down:
+                continue
+            recs += self._measure(t, [self._long_cell(chip, load, "l15m")], hold_s=900,
+                                  repeats=1)
+        return {"load_mbps": load, "c5_share_by_load": med, "scores": score_table(recs),
+                "telemetry": telemetry_table(recs), "soak": soak_table(recs),
+                "skipped_chips": sorted(self.down)}
+
+    def _t_vsoak(self, t: Test) -> dict:
+        b = int(t.params.get("batch") or 0)
+        dc = {"batch": b} if b else {}
+        cells = [self._long_cell(chip, HD_EMG, f"soak-b{b}", dc) for chip in self.chips_up()]
+        recs = self._measure(t, cells, hold_s=1800, repeats=1, parallel=True)
+        return {"batch": b, "scores": score_table(recs), "telemetry": telemetry_table(recs),
+                "soak": soak_table(recs), "skipped_chips": sorted(self.down)}
+
+    def _t_vfull(self, t: Test) -> dict:
+        if "esp32c5" in self.down:
+            return {"_ok": False, "why": "the C5 is down"}
+        recs = self._measure(t, [self._long_cell("esp32c5", SAT20, "full20m")], hold_s=1200,
+                             repeats=1)
+        return {"scores": score_table(recs), "telemetry": telemetry_table(recs),
+                "soak": soak_table(recs)}
+
     # -- Stage 2 -----------------------------------------------------------------------
     def _t_h7(self, t: Test) -> dict:
         info = self.driver.ensure_h7()
@@ -1018,7 +1234,7 @@ def _slope(pts) -> float | None:
     return sum((p[0] - mx) * (p[1] - my) for p in pts) / var if var else None
 
 
-_TAG = re.compile(r"-t\d+\.\d+(?:r\d+)?-(.+)$")
+_TAG = re.compile(r"-t(?:\d+\.\d+|[A-Z]\.\d+[a-z]?)(?:r\d+)?-(.+)$")
 
 
 def _label(rec: dict) -> str:
@@ -1045,6 +1261,22 @@ def score_table(recs: list[dict]) -> dict:
             sc["why_invalid"] = sorted({f for r in rs if not gates.counts_as_valid(r)
                                         for f in r.get("gate_failures", [])})[:4]
         out.setdefault(chip, {}).setdefault(label, {}).setdefault(tr, {})[str(off)] = sc
+    return out
+
+
+def stall_table(recs: list[dict]) -> dict:
+    """{chip/label: {offered: [runs that delivered < 50 % of the offered rate, runs]}}:
+    how often each point stalled, which a median alone hides."""
+    out: dict = {}
+    for r in recs:
+        if not gates.counts_as_valid(r):
+            continue
+        off = round(r["offered_bps"] / 1e6, 2)
+        k = f"{r['target']}/{_label(r)}"
+        row = out.setdefault(k, {}).setdefault(str(off), [0, 0])
+        row[1] += 1
+        if r["metrics"].get("goodput_bps", 0.0) < 0.5 * r["offered_bps"]:
+            row[0] += 1
     return out
 
 
@@ -1181,7 +1413,8 @@ def render_summary(c: Campaign) -> str:
             for chip, sc in r["sweeps"].items():
                 lines += [f"*{chip}*", ""] + (_render_scores(sc) if isinstance(sc, dict)
                                               else [str(sc)])
-        for key in ("soak", "telemetry", "ingress_cost", "pacing", "arms", "kept"):
+        for key in ("stalls", "c5_share_by_load", "soak", "telemetry", "ingress_cost",
+                    "pacing", "arms", "kept"):
             if r.get(key):
                 lines += ["", f"<details><summary>{key}</summary>", "", "```json",
                           json.dumps(r[key], indent=1, default=str)[:6000], "```",

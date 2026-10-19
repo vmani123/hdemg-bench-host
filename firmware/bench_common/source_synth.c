@@ -45,6 +45,12 @@ static void source_task(void *arg)
         if (frame_bytes < HDEMG_HDR_BYTES + 2) frame_bytes = HDEMG_RAW16_128CH;
         uint32_t payload_bytes = frame_bytes - HDEMG_HDR_BYTES;
         fill_payload(scratch, payload_bytes > 2048 ? 2048 : payload_bytes);
+        /* batch > 0: hold frames back until that many are due, so each buffer handed to
+         * the sink carries at least a batch (capped at one pool buffer). The pacer still
+         * schedules against the run start, so the average rate is unchanged; what changes
+         * is the size of each send() — the question batch exists to ask. */
+        uint32_t per_buf = (uint32_t)(pipe_capacity() / frame_bytes);
+        uint32_t batch = cfg->batch < per_buf ? cfg->batch : per_buf;
         pacer_init(&s_pacer, cfg->rate_bps, frame_bytes);
         int64_t end_us = esp_timer_get_time() + (int64_t)cfg->dur_s * 1000000;
 
@@ -56,6 +62,7 @@ static void source_task(void *arg)
              * meaningless. One tick (1 ms) of frames then go out as one batch; the
              * pacer schedules against the run start, so the average rate is unchanged. */
             if (!pacer_due(&s_pacer)) { vTaskDelay(1); continue; }
+            if (batch > 1 && pacer_backlog(&s_pacer) < batch) { vTaskDelay(1); continue; }
 
             uint8_t *buf = pipe_acquire();
             if (!buf) { pipe_note_drop(); vTaskDelay(1); continue; }
