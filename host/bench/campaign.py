@@ -263,8 +263,16 @@ class Campaign:
         self.shared_band = False                 # the Mac could not get off the band
         if getattr(driver, "recovery_log", "absent") != "absent":
             driver.recovery_log = str(self.state_dir / "recovery.log")
+        if isinstance(getattr(driver, "fallback_builds", None), dict):
+            # What the ladder reflashes when this process has not flashed a board yet.
+            driver.fallback_builds.update({chip: ("synth", self.design(chip), "2.4")
+                                           for chip in CHIPS})
         self.by_id = {t.id: t for t in self.tests}
         self.state = self._load_state()
+        # A board found down by an earlier invocation stays down (cheap checks only)
+        # until it comes back or the next full ladder is due.
+        self.down.update({c: time.monotonic()
+                          for c in self.state["derived"].get("down") or [] if c in CHIPS})
 
     # -- state ---------------------------------------------------------------------------
     def _load_state(self) -> dict:
@@ -416,11 +424,12 @@ class Campaign:
         if band:
             self.mac_state = self._ensure_mac(band, shared=(t.kind == "shared5"))
             self.driver.request_band(band)
-        if self.cfg.get("health_check") and not self.sim:
+        # Not before the setup test: it is what puts the boards on this network.
+        if self.cfg.get("health_check") and not self.sim and t.kind != "vsetup":
             self._health()
 
     MAC_PATIENCE_S = 600
-    DOWN_RETRY_S = 1800
+    DOWN_RETRY_S = 5400          # a full ladder at most every 90 min
 
     def _ensure_mac(self, band: str, shared: bool) -> dict:
         """The Mac onto the band not measured. With `mac_lenient` (a one-name router,
@@ -450,6 +459,15 @@ class Campaign:
         for chip in CHIPS:
             last = self.down.get(chip)
             if last is not None and time.monotonic() - last < self.DOWN_RETRY_S:
+                # Between full ladders, only the cheap check: has it come back on its own
+                # (someone replugged it)? The ladder already said why it is down.
+                try:
+                    if chip in (self.driver.rediscover(chip) or {}):
+                        self.driver.control(chip).hello()
+                        self.log(f"  {chip} is back on the network")
+                        self.down.pop(chip, None)
+                except Exception:                             # noqa: BLE001
+                    pass
                 continue
             try:
                 self.driver.control(chip).hello()
@@ -989,9 +1007,22 @@ class Campaign:
 
     def _t_vsetup(self, t: Test) -> dict:
         out: dict = {"flash": {}}
-        for chip in self.chips_up():
+        for chip in CHIPS:
             self.driver.request_band("2.4")
-            out["flash"][chip] = self.driver.ensure_flashed(chip, "synth", self.design(chip))
+            try:
+                out["flash"][chip] = self.driver.ensure_flashed(chip, "synth",
+                                                                self.design(chip))
+                self.down.pop(chip, None)
+            except Exception as e:                            # noqa: BLE001
+                self.log(f"  !! {chip} could not be flashed: {e}; recovery ladder")
+                if self.driver.recover(chip) if hasattr(self.driver, "recover") else False:
+                    out["flash"][chip] = self.driver.ensure_flashed(chip, "synth",
+                                                                    self.design(chip))
+                    self.down.pop(chip, None)
+                else:
+                    self.down[chip] = time.monotonic()
+                    out["flash"][chip] = {"error": str(e)}
+        self.state["derived"]["down"] = sorted(self.down)
         out.update(self._t_rig(t))
         out["mac_shared_band"] = self.shared_band
         missing = []
