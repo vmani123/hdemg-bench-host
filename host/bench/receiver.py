@@ -124,8 +124,11 @@ class Receiver:
 
     def join(self, timeout: float | None = None) -> RunMetrics:
         if self._thread:
+            # A long run's finish() (windows, drift fit) takes seconds after the deadline;
+            # returning before it ends hands back metrics without them (19 Oct, V.5).
+            extra = 120.0 if self.long_run else 10.0
             self._thread.join(timeout if timeout is not None
-                              else self.duration_s + self.discard_s + 10.0)
+                              else self.duration_s + self.discard_s + extra)
         return self.metrics
 
     # -- stress hooks (called from another thread) -----------------------------------
@@ -590,12 +593,13 @@ def _detrend(t, delay):
         return delay - delay.min(), None
     nb = int(min(600, max(20, span)))
     edges = np.linspace(t.min(), t.max() + 1e-9, nb + 1)
-    b = np.digitize(t, edges) - 1
+    # Arrival times only grow, so each bin is one contiguous slice: one pass over the
+    # run, not one per bin (that took longer than the run's join allowed at 17 M frames).
+    cuts = np.searchsorted(t, edges)
     xs, ys = [], []
-    for i in range(nb):
-        sel = b == i
-        if np.any(sel):
-            j = np.argmin(np.where(sel, delay, np.inf))
+    for a, z in zip(cuts[:-1], cuts[1:]):
+        if z > a:
+            j = a + int(np.argmin(delay[a:z]))
             xs.append(t[j])
             ys.append(delay[j])
     xs, ys = np.asarray(xs), np.asarray(ys)

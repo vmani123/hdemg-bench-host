@@ -114,13 +114,20 @@ def zone(rows) -> list[str]:
 
 
 def _windows(r) -> list[dict]:
+    """The run's 10 s receiver windows; rebuilt from its 1 s series when the receiver
+    returned before computing them (V.5, 19 Oct: the drift fit outran the join)."""
     p = r.get("timeseries")
-    if not p or not Path(p).exists():
-        return []
-    try:
-        return json.loads(Path(p).read_text()).get("windows") or []
-    except (OSError, ValueError):
-        return []
+    w = []
+    if p and Path(p).exists():
+        try:
+            w = json.loads(Path(p).read_text()).get("windows") or []
+        except (OSError, ValueError):
+            w = []
+    if w:
+        return w
+    ps = r["metrics"].get("per_second") or []
+    return [{"t_s": 10.0 * i, "goodput_bps": sum(ps[10 * i:10 * i + 10]) / 10.0}
+            for i in range(len(ps) // 10)]
 
 
 def longruns(rows) -> list[str]:
