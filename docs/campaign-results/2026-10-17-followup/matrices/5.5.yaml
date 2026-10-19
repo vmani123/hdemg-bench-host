@@ -1,0 +1,35 @@
+stage: 1
+repeats: 2
+sweep:
+  start_mbps: 1
+  stop_mbps: 1
+  steps: 1
+  hold_s: 30.0
+  discard_s: 3.0
+cells:
+- chip: esp32c5
+  band: '5'
+  transport:
+  - udp
+  tune:
+  - c-c5-mcs9
+  loads_mbps:
+  - 10
+  - 25.7
+  - 41.4
+  - 57.1
+  - 72.9
+  - 88.6
+  - 104.3
+  - 120
+  tag: t5.5-sweep
+  source: synth
+  device_cfg:
+    nodelay: 1
+    wr_max: 0
+    dgram: 0
+ap: house-wifi
+ssid: House WiFi
+host_ssid: House wifi 2g
+allow_shared_band: false
+link_opts: {}

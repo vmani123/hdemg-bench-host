@@ -23,12 +23,15 @@ Read in this order if you are trying to understand the project as a person.
   run and supervise the campaign, and the rules that pick each chip's settings for later tests.
 - `CAMPAIGN_PROTOCOL.md`: the firmware ↔ host contract (control protocol v2, new stat fields,
   `linkdrop`, `pins`), the wire-once Stage 2 pin map, and the wiring hello world.
+- `REPORT_3_Followup_Campaign.md`: results of the 17–18 Oct campaign (the tests that worked,
+  what failed and why, and what to do next).
 
 ## 4. The experimental data
 | Folder | What |
 |---|---|
 | `results-2026-10-05-verizon/` | First real sweep: TCP only, 2.4 GHz, Verizon router. UDP voided. |
 | `tuning-results/2026-10-13-house-wifi/` | Tuning study on both chips (144 runs), Espressif `iperf` references, latency at the HD-EMG rate. Start with its `README.md` and `max-tput/summary.md`. |
+| `campaign-results/2026-10-17-followup/` | The follow-up campaign's ledger, test states, summary and test matrices (17–18 Oct). Read with Report 3. |
 
 ## Where things stand (13 Oct)
 Both chips pass T2 (41.3 Mbit/s) over UDP at 2.4 GHz and 20 MHz in short tuning runs: S3
