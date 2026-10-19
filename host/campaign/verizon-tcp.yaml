@@ -29,5 +29,8 @@ recv_ports: {esp32s3: 3333, esp32c5: 3343}
 # delivered nor answered for this many seconds.
 health_check: true
 watchdog_s: 90
+# The C5 locks up after a stalled TCP run and never rejoins on its own: reset it after
+# 12 s of looking instead of 45.
+rejoin_timeout_s: 12
 # This plan measures stalls: a point that delivered nothing is a finding, not a failure.
 stall_is_result: true

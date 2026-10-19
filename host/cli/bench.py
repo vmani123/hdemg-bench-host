@@ -589,6 +589,10 @@ def cmd_campaign(a) -> int:
                          host_ip="auto", interactive_band=False, h7_port=a.h7_port,
                          ap=cfg["ap"], ssid=cfg["ssid"])
     drv.trust_running_build = True
+    if cfg.get("rejoin_timeout_s"):
+        # How long the ladder waits for a silent board to rejoin on its own before it
+        # resets it. A board that locks up never does (19 Oct: the C5 after a TCP stall).
+        drv.REJOIN_TIMEOUT_S = float(cfg["rejoin_timeout_s"])
     wrong = {chip: drv.board_ssid(chip) for chip in ports
              if drv.board_ssid(chip) != cfg["ssid"]}
     if wrong:
